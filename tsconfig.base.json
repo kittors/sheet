@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@sheet/core": ["packages/core/src"],
+      "@sheet/renderer": ["packages/renderer/src"],
+      "@sheet/ui": ["packages/ui/src"],
+      "@sheet/shared-utils": ["packages/shared-utils/src"]
+    },
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ES2022", "DOM"],
+    "skipLibCheck": true
+  }
+}

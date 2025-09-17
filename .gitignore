@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+
+# Turbo
+.turbo
+
+# Build outputs
+dist
+coverage
+
+# Editor
+.vscode
+.idea
+
+# Logs
+*.log
+pnpm-debug.log*

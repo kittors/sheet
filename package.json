@@ -1,0 +1,27 @@
+{
+  "name": "sheet-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.16.1",
+  "scripts": {
+    "dev": "turbo run dev --parallel --no-daemon",
+    "dev:web": "pnpm --filter @sheet/web dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "clean": "turbo run clean && rimraf node_modules .turbo"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.6",
+    "typescript": "^5.6.2",
+    "prettier": "^3.3.3",
+    "eslint": "^9.12.0",
+    "eslint-config-prettier": "^9.1.0",
+    "@types/node": "^20.16.12",
+    "rimraf": "^6.0.1"
+  },
+  "pnpm": {
+    "package-import-method": "auto"
+  }
+}
