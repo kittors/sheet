@@ -12,6 +12,9 @@ export class SelectionLayer implements Layer {
     const c0 = Math.max(0, Math.min(selection.c0, selection.c1))
     const c1 = Math.min(sheet.cols - 1, Math.max(selection.c0, selection.c1))
 
+    // If selection is completely outside current visible area, skip drawing
+    if (r1 < visible.rowStart || r0 > visible.rowEnd || c1 < visible.colStart || c0 > visible.colEnd) return
+
     // Compute rectangle in pixels relative to canvas
     // Find top-left position
     let x = originX - visible.offsetX
@@ -32,6 +35,8 @@ export class SelectionLayer implements Layer {
     for (let r = r0; r <= Math.min(r1, visible.rowEnd); r++) {
       h += sheet.rowHeights.get(r) ?? defaultRowHeight
     }
+
+    if (w <= 0 || h <= 0) return
 
     ctx.save()
     // Fill with a subtle translucent overlay

@@ -25,8 +25,8 @@ export class HeadersLayer implements Layer {
     ctx.fillRect(originX, 0, colHeaderW, originY)
     const rowHeaderH = Math.max(0, viewport.height - originY - hGap)
     ctx.fillRect(0, originY, originX, rowHeaderH)
-    // Corner
-    ctx.fillStyle = '#eef2ff'
+    // Corner keep blank (white)
+    ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, originX, originY)
 
     ctx.fillStyle = '#374151'

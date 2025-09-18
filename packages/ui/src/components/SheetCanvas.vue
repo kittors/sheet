@@ -73,27 +73,41 @@ function posToCell(clientX: number, clientY: number): { r: number; c: number } |
     const inH = sb.hTrack && x >= sb.hTrack.x && x <= sb.hTrack.x + sb.hTrack.w && y >= sb.hTrack.y && y <= sb.hTrack.y + sb.hTrack.h
     if (inV || inH) return null
   }
-  const cx = x - originX + scroll.x
-  const cy = y - originY + scroll.y
+  // Clamp scroll-equivalent positions within content bounds to avoid indexing drift near edges
+  // Reuse same formulas as normalizeScroll but without mutating state
+  const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
+  const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
+  const viewportContentWidth = Math.max(0, canvas.clientWidth - HEADER_COL_W)
+  const viewportContentHeight = Math.max(0, canvas.clientHeight - HEADER_ROW_H)
+  const maxX = Math.max(0, contentWidth - viewportContentWidth)
+  const maxY = Math.max(0, contentHeight - viewportContentHeight)
+  const sX = Math.max(0, Math.min(scroll.x, maxX))
+  const sY = Math.max(0, Math.min(scroll.y, maxY))
+
+  const cx = x - originX + sX
+  const cy = y - originY + sY
   // Binary-search using cumulative sizes to avoid O(n) scan at large rows/cols
   const cumWidth = (i: number): number => {
     let base = i * DEFAULT_COL_W
-    if (sheet.colWidths.size) for (const [c, w] of sheet.colWidths) if (c < i) base += (w - DEFAULT_COL_W)
+    if (sheet.colWidths.size) for (const [c, w] of sheet.colWidths) { if (c < i) base += (w - DEFAULT_COL_W) }
     return base
   }
   const cumHeight = (i: number): number => {
     let base = i * DEFAULT_ROW_H
-    if (sheet.rowHeights.size) for (const [r, h] of sheet.rowHeights) if (r < i) base += (h - DEFAULT_ROW_H)
+    if (sheet.rowHeights.size) for (const [r, h] of sheet.rowHeights) { if (r < i) base += (h - DEFAULT_ROW_H) }
     return base
   }
   const findIndexByPos = (pos: number, count: number, cumFn: (i: number) => number): number => {
+    // clamp pos within content
+    const total = cumFn(count)
+    const p = Math.max(0, Math.min(total - 1, pos))
     let lo = 0, hi = count
     while (lo < hi) {
       const mid = (lo + hi) >>> 1
       const start = cumFn(mid)
       const end = cumFn(mid + 1)
-      if (pos < start) hi = mid
-      else if (pos >= end) lo = mid + 1
+      if (p < start) hi = mid
+      else if (p >= end) lo = mid + 1
       else return mid
     }
     return Math.min(count - 1, lo)

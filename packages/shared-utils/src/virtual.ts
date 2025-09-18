@@ -42,7 +42,7 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
   let offsetX = 0
   for (let c = 0; c < p.colCount; c++) {
     const w = p.colWidths?.get(c) ?? p.defaultColWidth
-    if (x + w >= sX) {
+    if (sX < x + w) {
       colStart = c
       offsetX = sX - x
       break
@@ -64,7 +64,7 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
   let offsetY = 0
   for (let r = 0; r < p.rowCount; r++) {
     const h = p.rowHeights?.get(r) ?? p.defaultRowHeight
-    if (y + h >= sY) {
+    if (sY < y + h) {
       rowStart = r
       offsetY = sY - y
       break
@@ -80,9 +80,21 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
     rowEnd = r
   }
 
-  // Apply overscan
+  // Apply overscan and adjust offsets to remain relative to the NEW starts
+  const prevColStart = colStart
+  const prevRowStart = rowStart
   colStart = Math.max(0, colStart - overscan)
   rowStart = Math.max(0, rowStart - overscan)
+  if (prevColStart > colStart) {
+    for (let c = colStart; c < prevColStart; c++) {
+      offsetX += p.colWidths?.get(c) ?? p.defaultColWidth
+    }
+  }
+  if (prevRowStart > rowStart) {
+    for (let r = rowStart; r < prevRowStart; r++) {
+      offsetY += p.rowHeights?.get(r) ?? p.defaultRowHeight
+    }
+  }
   colEnd = Math.min(p.colCount - 1, colEnd + overscan)
   rowEnd = Math.min(p.rowCount - 1, rowEnd + overscan)
 

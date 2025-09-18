@@ -36,7 +36,8 @@ export class CanvasRenderer {
     this.canvas = canvas
     this.dpr = getDPR()
     this.ctx = resizeCanvasForDPR(canvas, canvas.clientWidth, canvas.clientHeight, this.dpr)
-    this.layers = [new BackgroundLayer(), new HeadersLayer(), new GridLayer(), new ContentLayer(), new SelectionLayer(), new ScrollbarLayer()]
+    // Draw headers above content to avoid any overlap artifacts in top/right areas
+    this.layers = [new BackgroundLayer(), new GridLayer(), new ContentLayer(), new SelectionLayer(), new HeadersLayer(), new ScrollbarLayer()]
     this.opts = {
       defaultRowHeight: opts.defaultRowHeight ?? 24,
       defaultColWidth: opts.defaultColWidth ?? 100,
