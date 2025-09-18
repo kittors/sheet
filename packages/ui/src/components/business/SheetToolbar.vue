@@ -19,10 +19,10 @@ import FontControls from "./FontControls.vue";
 
     <!-- 右侧：复制/粘贴 竖直排列，无底部文字 -->
     <ToolGroup direction="vertical" :gap="2">
-      <ToolItem labelPosition="none" aria-label="剪切"
+      <ToolItem label-position="none" aria-label="剪切"
         ><ClipboardPaste :size="18"
       /></ToolItem>
-      <ToolItem labelPosition="none" aria-label="复制"
+      <ToolItem label-position="none" aria-label="复制"
         ><Copy :size="18"
       /></ToolItem>
     </ToolGroup>

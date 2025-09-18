@@ -14,8 +14,12 @@ const props = withDefaults(defineProps<{
   autoIcon?: boolean // when true and menuItems present, use selected item's icon as main icon
   alignMenu?: 'left' | 'right'
 }>(), {
+  label: '',
+  ariaLabel: '',
   labelPosition: 'bottom',
   disabled: false,
+  menuItems: () => [],
+  modelValue: '',
   autoIcon: true,
   alignMenu: 'left',
 })
@@ -79,7 +83,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
       @click="onButtonClick"
     >
       <span class="icon">
-        <component v-if="activeIcon" :is="activeIcon" :size="18" />
+        <component :is="activeIcon" v-if="activeIcon" :size="18" />
         <slot v-else />
       </span>
       <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>

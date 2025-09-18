@@ -46,6 +46,11 @@ export interface RenderContext {
     vActive: boolean
     hActive: boolean
   }
+  // optional resize/guide lines to render (canvas coordinates)
+  guides?: {
+    v?: number // x of vertical guide line
+    h?: number // y of horizontal guide line
+  }
 }
 
 export interface Layer {

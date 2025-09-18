@@ -8,7 +8,15 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const rendererRef = ref<CanvasRenderer | null>(null)
 
 // Props: external sheet provided by app/API (UI remains presentational)
-const props = defineProps<{ sheet: Sheet }>()
+const props = defineProps<{
+  sheet: Sheet
+  defaultColWidth?: number
+  defaultRowHeight?: number
+  headerColWidth?: number
+  headerRowHeight?: number
+  overscan?: number
+  scrollbarThickness?: number
+}>()
 
 // Use external sheet directly
 const sheet = props.sheet
@@ -37,11 +45,12 @@ onMounted(() => {
   if (!canvasRef.value) return
   // Keep defaults consistent with renderer's default appearance
   rendererRef.value = new CanvasRenderer(canvasRef.value, {
-    defaultColWidth: 100,
-    defaultRowHeight: 24,
-    overscan: 2,
-    headerColWidth: 48,
-    headerRowHeight: 28,
+    defaultColWidth: props.defaultColWidth ?? 100,
+    defaultRowHeight: props.defaultRowHeight ?? 24,
+    overscan: props.overscan ?? 2,
+    headerColWidth: props.headerColWidth ?? 48,
+    headerRowHeight: props.headerRowHeight ?? 28,
+    scrollbarThickness: props.scrollbarThickness ?? 12,
   })
   // Do one passive paint; 交互包挂载后会接管渲染循环
   requestAnimationFrame(renderOnce)
@@ -62,4 +71,3 @@ defineExpose({ canvasRef, rendererRef, sheet })
 <style scoped>
 .sheet-canvas { background: #fff; touch-action: none; user-select: none; }
 </style>
-

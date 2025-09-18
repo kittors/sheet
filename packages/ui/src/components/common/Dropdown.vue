@@ -10,7 +10,9 @@ const props = withDefaults(defineProps<{
   width?: number
   join?: 'left' | 'right' | 'none'
 }>(), {
+  modelValue: '',
   placeholder: '',
+  width: 0,
   join: 'none',
 })
 const emit = defineEmits<{ (e: 'update:modelValue', v: string | number): void; (e: 'select', opt: Option): void }>()
@@ -75,4 +77,3 @@ function displayLabel() {
 .join-left .dd-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .join-right .dd-btn { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-color: #e5e7eb; margin-left: -1px; }
 </style>
-

@@ -6,6 +6,7 @@ import { ContentLayer } from './layers/content'
 import { HeadersLayer } from './layers/headers'
 import { SelectionLayer } from './layers/selection'
 import { ScrollbarLayer } from './layers/scrollbar'
+import { GuidesLayer } from './layers/guides'
 import type { Layer, RenderContext } from './types/context'
 
 export interface RendererOptions {
@@ -25,6 +26,7 @@ export class CanvasRenderer {
   layers: Layer[]
   opts: Required<RendererOptions>
   selection?: { r0: number; c0: number; r1: number; c1: number }
+  guides?: { v?: number; h?: number }
   lastScrollbars: {
     vTrack: { x: number; y: number; w: number; h: number } | null
     vThumb: { x: number; y: number; w: number; h: number } | null
@@ -38,7 +40,15 @@ export class CanvasRenderer {
     this.dpr = getDPR()
     this.ctx = resizeCanvasForDPR(canvas, canvas.clientWidth, canvas.clientHeight, this.dpr)
     // Draw headers above content to avoid any overlap artifacts in top/right areas
-    this.layers = [new BackgroundLayer(), new GridLayer(), new ContentLayer(), new SelectionLayer(), new HeadersLayer(), new ScrollbarLayer()]
+    this.layers = [
+      new BackgroundLayer(),
+      new GridLayer(),
+      new ContentLayer(),
+      new SelectionLayer(),
+      new HeadersLayer(),
+      new GuidesLayer(),
+      new ScrollbarLayer(),
+    ]
     this.opts = {
       defaultRowHeight: opts.defaultRowHeight ?? 24,
       defaultColWidth: opts.defaultColWidth ?? 100,
@@ -166,6 +176,7 @@ export class CanvasRenderer {
         hThumb,
       },
       scrollbarState: this.scrollbarState,
+      guides: this.guides,
     }
 
     // Render layers in order
@@ -174,6 +185,10 @@ export class CanvasRenderer {
 
   setSelection(sel?: { r0: number; c0: number; r1: number; c1: number }) {
     this.selection = sel
+  }
+
+  setGuides(g?: { v?: number; h?: number }) {
+    this.guides = g
   }
 
   getScrollbars() {

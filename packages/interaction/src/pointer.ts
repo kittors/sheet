@@ -4,6 +4,61 @@ import { applyHThumb, applyVThumb } from './scrollbar'
 import { computeAvailViewport } from './viewport'
 
 export function createPointerHandlers(ctx: Context, state: State, deps: { schedule: () => void }) {
+  const MARGIN = 4 // px hit area near header edges for resize
+  const MIN_COL = 30
+  const MIN_ROW = 16
+
+  function getScrollClamped() {
+    const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
+    const maxX = Math.max(0, contentWidth - widthAvail)
+    const maxY = Math.max(0, contentHeight - heightAvail)
+    return { sX: Math.max(0, Math.min(state.scroll.x, maxX)), sY: Math.max(0, Math.min(state.scroll.y, maxY)) }
+  }
+
+  function colLeft(index: number): number {
+    let base = index * ctx.metrics.defaultColWidth
+    if (ctx.sheet.colWidths.size) for (const [c, w] of ctx.sheet.colWidths) { if (c < index) base += (w - ctx.metrics.defaultColWidth) }
+    return base
+  }
+  function rowTop(index: number): number {
+    let base = index * ctx.metrics.defaultRowHeight
+    if (ctx.sheet.rowHeights.size) for (const [r, h] of ctx.sheet.rowHeights) { if (r < index) base += (h - ctx.metrics.defaultRowHeight) }
+    return base
+  }
+
+  function hitColResize(xCanvas: number, yCanvas: number): number | null {
+    if (yCanvas < 0 || yCanvas > ctx.metrics.headerRowHeight) return null
+    const sb = ctx.renderer.getScrollbars?.()
+    const rightBound = sb?.vTrack ? sb.vTrack.x : ctx.canvas.clientWidth
+    if (xCanvas < ctx.metrics.headerColWidth || xCanvas > rightBound) return null
+    const { sX } = getScrollClamped()
+    const col = colAtX(ctx, state, xCanvas)
+    const left = colLeft(col)
+    const w = ctx.sheet.colWidths.get(col) ?? ctx.metrics.defaultColWidth
+    const right = left + w
+    const xRightCanvas = ctx.metrics.headerColWidth + right - sX
+    if (Math.abs(xCanvas - xRightCanvas) <= MARGIN) return col
+    const xLeftCanvas = ctx.metrics.headerColWidth + left - sX
+    if (col > 0 && Math.abs(xCanvas - xLeftCanvas) <= MARGIN) return col - 1
+    return null
+  }
+
+  function hitRowResize(xCanvas: number, yCanvas: number): number | null {
+    if (xCanvas < 0 || xCanvas > ctx.metrics.headerColWidth) return null
+    const sb = ctx.renderer.getScrollbars?.()
+    const bottomBound = sb?.hTrack ? sb.hTrack.y : ctx.canvas.clientHeight
+    if (yCanvas < ctx.metrics.headerRowHeight || yCanvas > bottomBound) return null
+    const { sY } = getScrollClamped()
+    const row = rowAtY(ctx, state, yCanvas)
+    const top = rowTop(row)
+    const h = ctx.sheet.rowHeights.get(row) ?? ctx.metrics.defaultRowHeight
+    const bottom = top + h
+    const yBottomCanvas = ctx.metrics.headerRowHeight + bottom - sY
+    if (Math.abs(yCanvas - yBottomCanvas) <= MARGIN) return row
+    const yTopCanvas = ctx.metrics.headerRowHeight + top - sY
+    if (row > 0 && Math.abs(yCanvas - yTopCanvas) <= MARGIN) return row - 1
+    return null
+  }
   function stopAutoScroll() {
     if (state.autoRaf) { cancelAnimationFrame(state.autoRaf); state.autoRaf = 0 }
     state.autoVX = 0
@@ -141,6 +196,34 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       deps.schedule()
       return
     }
+    // Resize handles take priority over selection
+    const colResizeIdx = hitColResize(x, y)
+    if (colResizeIdx != null) {
+      const w = ctx.sheet.colWidths.get(colResizeIdx) ?? ctx.metrics.defaultColWidth
+      state.resize = { kind: 'col', index: colResizeIdx, startClient: e.clientX, startSize: w }
+      state.dragMode = 'colresize'
+      const { sX } = getScrollClamped()
+      const left = colLeft(colResizeIdx)
+      const right = left + w
+      const xCanvas = ctx.metrics.headerColWidth + right - sX
+      ctx.renderer.setGuides?.({ v: xCanvas })
+      deps.schedule()
+      return
+    }
+    const rowResizeIdx = hitRowResize(x, y)
+    if (rowResizeIdx != null) {
+      const h = ctx.sheet.rowHeights.get(rowResizeIdx) ?? ctx.metrics.defaultRowHeight
+      state.resize = { kind: 'row', index: rowResizeIdx, startClient: e.clientY, startSize: h }
+      state.dragMode = 'rowresize'
+      const { sY } = getScrollClamped()
+      const top = rowTop(rowResizeIdx)
+      const bottom = top + h
+      const yCanvas = ctx.metrics.headerRowHeight + bottom - sY
+      ctx.renderer.setGuides?.({ h: yCanvas })
+      deps.schedule()
+      return
+    }
+
     // Corner select-all
     if (x >= 0 && x < ctx.metrics.headerColWidth && y >= 0 && y < ctx.metrics.headerRowHeight) {
       state.selection = { r0: 0, c0: 0, r1: ctx.sheet.rows - 1, c1: ctx.sheet.cols - 1 }
@@ -191,6 +274,12 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       deps.schedule()
       if (inV || inH) cursor = 'pointer'
     }
+    if (state.dragMode === 'none') {
+      const cIdx = hitColResize(x, y)
+      const rIdx = hitRowResize(x, y)
+      if (cIdx != null) cursor = 'col-resize'
+      else if (rIdx != null) cursor = 'row-resize'
+    }
     ;(ctx.canvas.parentElement as HTMLElement).style.cursor = cursor
     if (state.dragMode === 'vscroll') {
       const sb = ctx.renderer.getScrollbars?.()
@@ -209,6 +298,32 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const trackSpan = sb.hTrack.w
       const newLeft = Math.max(0, Math.min(trackSpan - sb.hThumb.w, x - sb.hTrack.x - state.dragGrabOffset))
       applyHThumb(ctx, state, newLeft)
+      deps.schedule()
+      return
+    }
+    if (state.dragMode === 'colresize' && state.resize) {
+      const dx = e.clientX - state.resize.startClient
+      const base = state.resize.startSize
+      const next = Math.max(MIN_COL, Math.floor(base + dx))
+      ctx.sheet.setColWidth(state.resize.index, next)
+      const { sX } = getScrollClamped()
+      const left = colLeft(state.resize.index)
+      const right = left + next
+      const xCanvas = ctx.metrics.headerColWidth + right - sX
+      ctx.renderer.setGuides?.({ v: xCanvas })
+      deps.schedule()
+      return
+    }
+    if (state.dragMode === 'rowresize' && state.resize) {
+      const dy = e.clientY - state.resize.startClient
+      const base = state.resize.startSize
+      const next = Math.max(MIN_ROW, Math.floor(base + dy))
+      ctx.sheet.setRowHeight(state.resize.index, next)
+      const { sY } = getScrollClamped()
+      const top = rowTop(state.resize.index)
+      const bottom = top + next
+      const yCanvas = ctx.metrics.headerRowHeight + bottom - sY
+      ctx.renderer.setGuides?.({ h: yCanvas })
       deps.schedule()
       return
     }
@@ -249,6 +364,8 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
   function onPointerUp(e?: PointerEvent) {
     if (e) { try { ctx.canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ } }
     state.dragMode = 'none'
+    state.resize = undefined
+    ctx.renderer.setGuides?.(undefined)
     ctx.renderer.setScrollbarState?.({ vActive: false, hActive: false })
     deps.schedule()
     stopAutoScroll()
@@ -257,6 +374,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
   function onPointerLeave() {
     ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'default'
     ctx.renderer.setScrollbarState?.({ vHover: false, hHover: false, vActive: false, hActive: false })
+    ctx.renderer.setGuides?.(undefined)
     deps.schedule()
     stopAutoScroll()
   }

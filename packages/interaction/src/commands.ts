@@ -30,6 +30,24 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
     deps.schedule()
   }
 
+  function setColumnWidth(px: number) {
+    const sel = state.selection
+    if (!sel) return
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    for (let c = c0; c <= c1; c++) ctx.sheet.setColWidth(c, Math.max(16, Math.floor(px)))
+    deps.schedule()
+  }
+
+  function setRowHeight(px: number) {
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    for (let r = r0; r <= r1; r++) ctx.sheet.setRowHeight(r, Math.max(12, Math.floor(px)))
+    deps.schedule()
+  }
+
   function getFirstSelectedCell(): { r: number; c: number } | null {
     const sel = state.selection
     if (!sel) return null
@@ -43,6 +61,5 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
     return v == null ? '' : String(v)
   }
 
-  return { applyTextColor, applyFillColor, setValueInSelection, getFirstSelectedCell, getValueAt }
+  return { applyTextColor, applyFillColor, setValueInSelection, setColumnWidth, setRowHeight, getFirstSelectedCell, getValueAt }
 }
-

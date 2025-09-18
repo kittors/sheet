@@ -83,34 +83,34 @@ const borderMenu = [
         />
       </ToolGroup>
       <ToolGroup :gap="6">
-        <ToolItem labelPosition="none" aria-label="字号加"
+        <ToolItem label-position="none" aria-label="字号加"
           ><AArrowUp :size="18"
         /></ToolItem>
-        <ToolItem labelPosition="none" aria-label="字号减"
+        <ToolItem label-position="none" aria-label="字号减"
           ><AArrowDown :size="18"
         /></ToolItem>
       </ToolGroup>
     </ToolGroup>
     <ToolGroup :gap="6">
-      <ToolItem labelPosition="none" aria-label="加粗"
+      <ToolItem label-position="none" aria-label="加粗"
         ><Bold :size="18"
       /></ToolItem>
-      <ToolItem labelPosition="none" aria-label="斜体"
+      <ToolItem label-position="none" aria-label="斜体"
         ><Italic :size="18"
       /></ToolItem>
-      <ToolItem labelPosition="none" aria-label="下划线"
+      <ToolItem label-position="none" aria-label="下划线"
         ><Underline :size="18"
       /></ToolItem>
-      <ToolItem labelPosition="none" aria-label="删除线"
+      <ToolItem label-position="none" aria-label="删除线"
         ><Strikethrough :size="18"
       /></ToolItem>
       <ToolItem
         v-model="borderStyle"
         :menu-items="borderMenu"
-        labelPosition="none"
+        label-position="none"
         aria-label="单元格边框"
       />
-      <ToolItem labelPosition="none" aria-label="填充单元格颜色" :auto-icon="false">
+      <ToolItem label-position="none" aria-label="填充单元格颜色" :auto-icon="false">
         <PaintBucket :size="18" :color="fillColor" />
         <template #menu="{ close }">
           <div class="color-grid">
@@ -129,10 +129,10 @@ const borderMenu = [
           <input ref="fillPicker" type="color" class="color-input-hidden" @input="onFillPicked" />
         </template>
       </ToolItem>
-      <ToolItem labelPosition="none" aria-label="填充字体颜色"
+      <ToolItem label-position="none" aria-label="填充字体颜色"
         ><Type :size="18"
       /></ToolItem>
-       <ToolItem labelPosition="none" aria-label="清除"
+       <ToolItem label-position="none" aria-label="清除"
         ><Eraser :size="18"
       /></ToolItem>
     </ToolGroup>
