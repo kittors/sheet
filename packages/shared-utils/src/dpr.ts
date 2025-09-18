@@ -1,7 +1,7 @@
 // Returns the device pixel ratio, overridable for tests
 export function getDPR(): number {
-  if (typeof window !== 'undefined' && (window as any).devicePixelRatio) {
-    return Math.max(1, Math.min(4, (window as any).devicePixelRatio))
+  if (typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number') {
+    return Math.max(1, Math.min(4, window.devicePixelRatio))
   }
   return 1
 }

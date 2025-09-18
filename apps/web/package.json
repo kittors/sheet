@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "echo no unit tests in app",
+    "lint": "eslint . --ext .ts,.js,.vue",
     "e2e": "playwright test"
   },
   "dependencies": {

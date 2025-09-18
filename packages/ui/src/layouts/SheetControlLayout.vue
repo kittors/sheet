@@ -9,7 +9,7 @@ import { FunctionSquare } from 'lucide-vue-next'
 // Emits:
 // - update:modelValue on input typing
 // - submit when user presses Enter in the input
-const props = defineProps<{ modelValue: string; disabled?: boolean; placeholder?: string; selectionText?: string }>()
+defineProps<{ modelValue: string; disabled?: boolean; placeholder?: string; selectionText?: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void; (e: 'submit'): void }>()
 
 function onInput(e: Event) {

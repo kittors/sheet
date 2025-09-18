@@ -23,7 +23,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   }
 
   const state = createState()
-  const { render, schedule } = createRender(ctx, state)
+  const { schedule } = createRender(ctx, state)
 
   function normalizeScroll() {
     const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
@@ -39,7 +39,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   // prevent browser defaults that interfere with pointer interactions
   ctx.canvas.style.touchAction = 'none'
   ctx.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-  ;(ctx.canvas as any).onwheel = onWheel as any // fallback
+  // wheel handler attached via addEventListener below (no onwheel fallback needed)
   schedule()
   window.addEventListener('resize', schedule)
   ctx.canvas.addEventListener('pointerdown', onPointerDown)

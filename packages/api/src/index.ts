@@ -35,8 +35,10 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
   let lastScr: { x: number; y: number } | null = interaction?.getScroll?.() ?? null
   let raf = 0
   const hasSubs = () => selListeners.length > 0 || scrListeners.length > 0
-  const eqSel = (a: any, b: any) => !!a === !!b && (!a || (a.r0 === b.r0 && a.c0 === b.c0 && a.r1 === b.r1 && a.c1 === b.c1))
-  const eqScr = (a: any, b: any) => !!a === !!b && (!a || (a.x === b.x && a.y === b.y))
+  type Sel = { r0: number; c0: number; r1: number; c1: number } | null
+  type Scr = { x: number; y: number } | null
+  const eqSel = (a: Sel, b: Sel) => !!a === !!b && (!a || (a.r0 === b.r0 && a.c0 === b.c0 && a.r1 === b.r1 && a.c1 === b.c1))
+  const eqScr = (a: Scr, b: Scr) => !!a === !!b && (!a || (a.x === b.x && a.y === b.y))
   const pump = () => {
     if (!hasSubs()) return
     const curSel = interaction?.getSelection?.() ?? null

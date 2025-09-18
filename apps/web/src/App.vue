@@ -3,8 +3,9 @@ import { onBeforeUnmount, ref } from 'vue'
 import { SheetCanvas, SheetControlLayout } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
 import { createWorkbookWithSheet, applyCells, createSheetApi } from '@sheet/api'
+import type { CanvasRenderer } from '@sheet/renderer'
+import type { Sheet } from '@sheet/core'
 
-const sheetRef = ref<any>(null)
 const handle = ref<InteractionHandle | null>(null)
 let api: ReturnType<typeof createSheetApi> | null = null
 let offSel: (() => void) | null = null
@@ -25,7 +26,7 @@ const cells = ref([
 const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, cols: cols.value })
 applyCells(sheet, cells.value)
 
-function onReady(payload: { canvas: HTMLCanvasElement; renderer: any; sheet: any }) {
+function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
   // attach interactions as soon as child reports ready
   handle.value = attachSheetInteractions(payload)
   // build API and subscribe formula to selection changes
@@ -46,8 +47,6 @@ onBeforeUnmount(() => {
   if (offSel) offSel()
 })
 
-const onRedText = () => api?.applyTextColor('#ef4444')
-const onYellowFill = () => api?.applyFillColor('#fde68a')
 const applyFormula = () => api?.setValueInSelection(formula.value)
 
 function colName(n: number) {
@@ -56,7 +55,7 @@ function colName(n: number) {
   while (n > 0) { const rem = (n - 1) % 26; s = String.fromCharCode(65 + rem) + s; n = Math.floor((n - 1) / 26) }
   return s
 }
-function formatSelection(sel: any) {
+function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number } | null) {
   if (!sel) return ''
   const r0 = Math.min(sel.r0, sel.r1), r1 = Math.max(sel.r0, sel.r1)
   const c0 = Math.min(sel.c0, sel.c1), c1 = Math.max(sel.c0, sel.c1)
@@ -68,9 +67,9 @@ function formatSelection(sel: any) {
 
 <template>
   <div style="display:flex; flex-direction:column; height: 100vh;">
-    <SheetControlLayout v-model="formula" :selectionText="selectionLabel" :disabled="!hasSelection" @submit="applyFormula" />
+    <SheetControlLayout v-model="formula" :selection-text="selectionLabel" :disabled="!hasSelection" @submit="applyFormula" />
     <div style="flex:1; min-height:0;">
-      <SheetCanvas ref="sheetRef" :sheet="sheet" @ready="onReady" />
+      <SheetCanvas :sheet="sheet" @ready="onReady" />
     </div>
   </div>
 </template>

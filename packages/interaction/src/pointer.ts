@@ -103,7 +103,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
   }
 
   function onPointerDown(e: PointerEvent) {
-    try { ctx.canvas.setPointerCapture(e.pointerId) } catch {}
+    try { ctx.canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
     const rect = ctx.canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
@@ -247,7 +247,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
   }
 
   function onPointerUp(e?: PointerEvent) {
-    if (e) { try { ctx.canvas.releasePointerCapture(e.pointerId) } catch {} }
+    if (e) { try { ctx.canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ } }
     state.dragMode = 'none'
     ctx.renderer.setScrollbarState?.({ vActive: false, hActive: false })
     deps.schedule()

@@ -10,19 +10,32 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "prettier --write .",
-    "clean": "turbo run clean && rimraf node_modules .turbo"
+    "clean": "turbo run clean && rimraf node_modules .turbo",
+    "lint:fix": "turbo run lint -- --fix",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "turbo": "^2.0.6",
-    "typescript": "^5.6.2",
-    "prettier": "^3.3.3",
+    "@eslint/js": "^9.35.0",
+    "@types/node": "^20.16.12",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.12.0",
     "eslint-config-prettier": "^9.1.0",
-    "@types/node": "^20.16.12",
+    "eslint-plugin-vitest": "^0.5.4",
+    "eslint-plugin-vue": "^10.4.0",
+    "globals": "^16.4.0",
+    "lucide-vue-next": "^0.474.0",
+    "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
-    "lucide-vue-next": "^0.474.0"
+    "turbo": "^2.0.6",
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.44.0",
+    "vue-eslint-parser": "^10.2.0",
+    "vitest": "^2.1.9"
   },
   "pnpm": {
     "package-import-method": "auto"
+  },
+  "engines": {
+    "node": ">=22.17.0 <23"
   }
 }

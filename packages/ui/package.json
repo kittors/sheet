@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "echo \"ui package (SFC source) is consumed via Vite aliases\"",
     "test": "echo no tests yet",
+    "lint": "eslint . --ext .ts,.vue",
     "clean": "rimraf dist"
   }
 }

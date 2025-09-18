@@ -6,8 +6,12 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     coverage: {
+      enabled: true,
       provider: 'v8',
       reporter: ['text', 'html'],
+      all: true,
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['**/__tests__/**', '**/*.d.ts']
     },
   },
   resolve: {

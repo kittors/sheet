@@ -6,7 +6,7 @@ import { ContentLayer } from './layers/content'
 import { HeadersLayer } from './layers/headers'
 import { SelectionLayer } from './layers/selection'
 import { ScrollbarLayer } from './layers/scrollbar'
-import type { Layer } from './types/context'
+import type { Layer, RenderContext } from './types/context'
 
 export interface RendererOptions {
   defaultRowHeight?: number
@@ -62,8 +62,8 @@ export class CanvasRenderer {
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
     // Compute content size
-    const contentWidth = sheet.cols * this.opts.defaultColWidth + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - this.opts.defaultColWidth), 0)
-    const contentHeight = sheet.rows * this.opts.defaultRowHeight + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - this.opts.defaultRowHeight), 0)
+    const contentWidth = sheet.cols * this.opts.defaultColWidth + Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - this.opts.defaultColWidth), 0)
+    const contentHeight = sheet.rows * this.opts.defaultRowHeight + Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - this.opts.defaultRowHeight), 0)
 
     // Decide whether scrollbars are needed and compute available content viewport (iterate to resolve interdependency)
     const thickness = this.opts.scrollbarThickness
@@ -140,7 +140,7 @@ export class CanvasRenderer {
 
     this.lastScrollbars = { vTrack, vThumb, hTrack, hThumb }
 
-    const rc = {
+    const rc: RenderContext = {
       canvas: this.canvas,
       ctx: this.ctx,
       dpr: this.dpr,
@@ -169,7 +169,7 @@ export class CanvasRenderer {
     }
 
     // Render layers in order
-    for (const l of this.layers) l.render(rc as any)
+    for (const l of this.layers) l.render(rc)
   }
 
   setSelection(sel?: { r0: number; c0: number; r1: number; c1: number }) {

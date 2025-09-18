@@ -3,7 +3,7 @@ import type { Layer, RenderContext } from '../types/context'
 export class ScrollbarLayer implements Layer {
   name = 'scrollbar'
   render(rc: RenderContext) {
-    const { ctx, viewport, scrollbar, scrollbarState } = rc
+    const { ctx, scrollbar, scrollbarState } = rc
     const { vTrack, vThumb, hTrack, hThumb, thickness } = scrollbar
     if (!vTrack && !hTrack) return
 

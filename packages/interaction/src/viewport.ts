@@ -6,8 +6,8 @@ export function computeAvailViewport(ctx: Context) {
   const viewH = canvas.clientHeight
   const baseW = Math.max(0, viewW - metrics.headerColWidth)
   const baseH = Math.max(0, viewH - metrics.headerRowHeight)
-  const contentWidth = sheet.cols * metrics.defaultColWidth + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - metrics.defaultColWidth), 0)
-  const contentHeight = sheet.rows * metrics.defaultRowHeight + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - metrics.defaultRowHeight), 0)
+  const contentWidth = sheet.cols * metrics.defaultColWidth + Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - metrics.defaultColWidth), 0)
+  const contentHeight = sheet.rows * metrics.defaultRowHeight + Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - metrics.defaultRowHeight), 0)
   let widthAvail = baseW
   let heightAvail = baseH
   let vScrollable = contentHeight > heightAvail
@@ -25,4 +25,3 @@ export function computeAvailViewport(ctx: Context) {
   }
   return { widthAvail, heightAvail, contentWidth, contentHeight }
 }
-
