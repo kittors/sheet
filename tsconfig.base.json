@@ -9,6 +9,7 @@
     "paths": {
       "@sheet/core": ["packages/core/src"],
       "@sheet/renderer": ["packages/renderer/src"],
+      "@sheet/interaction": ["packages/interaction/src"],
       "@sheet/ui": ["packages/ui/src"],
       "@sheet/shared-utils": ["packages/shared-utils/src"]
     },

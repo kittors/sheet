@@ -1,32 +1,38 @@
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { SheetCanvas } from '@sheet/ui'
+import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
 
 const sheetRef = ref<any>(null)
+const handle = ref<InteractionHandle | null>(null)
 const formula = ref('')
 
 // Configure grid size and initial cell contents here (app layer)
-const rows = ref(1000) // default if not provided in component is 100
-const cols = ref(100) // default if not provided in component is 100
+const rows = ref(1000)
+const cols = ref(100)
 const cells = ref([
   { r: 0, c: 0, value: 'A1' },
   { r: 1, c: 1, value: 'B2' },
   { r: 2, c: 2, value: 'C3' },
 ])
 
-function syncFormula() {
-  const cell = sheetRef.value?.getFirstSelectedCell?.()
-  if (cell) formula.value = sheetRef.value?.getValueAt?.(cell.r, cell.c) || ''
+function onReady(payload: { canvas: HTMLCanvasElement; renderer: any; sheet: any }) {
+  // attach interactions as soon as child reports ready
+  handle.value = attachSheetInteractions({ ...payload, debug: true })
 }
 
-const onRedText = () => sheetRef.value?.applyTextColor?.('#ef4444')
-const onYellowFill = () => sheetRef.value?.applyFillColor?.('#fde68a')
-const applyFormula = () => sheetRef.value?.setValueInSelection?.(formula.value)
-
-watchEffect(() => {
-  // attempt to sync on each tick; a more robust way is to emit from SheetCanvas
-  syncFormula()
+onBeforeUnmount(() => {
+  handle.value?.destroy()
 })
+
+function syncFormula() {
+  const cell = handle.value?.getFirstSelectedCell()
+  if (cell) formula.value = handle.value?.getValueAt(cell.r, cell.c) || ''
+}
+
+const onRedText = () => handle.value?.applyTextColor('#ef4444')
+const onYellowFill = () => handle.value?.applyFillColor('#fde68a')
+const applyFormula = () => handle.value?.setValueInSelection(formula.value)
 </script>
 
 <template>
@@ -42,7 +48,7 @@ watchEffect(() => {
       <input v-model="formula" @keydown.enter="applyFormula" placeholder="Formula Bar" style="flex:1; height:26px; padding:4px 8px;"/>
     </div>
     <div style="flex:1; min-height:0;">
-      <SheetCanvas ref="sheetRef" :rows="rows" :cols="cols" :cells="cells" />
+      <SheetCanvas ref="sheetRef" :rows="rows" :cols="cols" :cells="cells" @ready="onReady" />
     </div>
   </div>
 </template>
