@@ -7,6 +7,10 @@ export function createState(): State {
     dragMode: 'none',
     dragGrabOffset: 0,
     raf: 0,
+    autoRaf: 0,
+    autoVX: 0,
+    autoVY: 0,
+    lastClientX: 0,
+    lastClientY: 0,
   }
 }
-

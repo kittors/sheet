@@ -30,6 +30,13 @@ export interface State {
   dragMode: DragMode
   dragGrabOffset: number
   raf: number
+  // auto-scroll while dragging selection near edges
+  autoRaf: number
+  autoVX: number
+  autoVY: number
+  // last pointer position (client coords)
+  lastClientX: number
+  lastClientY: number
 }
 
 export interface InteractionHandle {
