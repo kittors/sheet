@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { CanvasRenderer } from '@sheet/renderer'
 import { Workbook } from '@sheet/core'
 
@@ -11,14 +11,27 @@ const HEADER_ROW_H = 28
 const DEFAULT_COL_W = 100
 const DEFAULT_ROW_H = 24
 
-// Demo workbook with some data
+// Props to drive grid size and initial cell values from app layer
+interface InitCell { r: number; c: number; value: string | number | boolean | null }
+const props = defineProps<{ rows?: number; cols?: number; cells?: InitCell[] }>()
 const wb = new Workbook()
-const sheet = wb.addSheet('Sheet1', 100000, 100)
-for (let r = 0; r < 100; r++) {
-  for (let c = 0; c < 10; c++) {
-    if ((r + c) % 7 === 0) sheet.setValue(r, c, `R${r + 1}C${c + 1}`)
+let sheet = wb.addSheet('Sheet1', props.rows ?? 100, props.cols ?? 100)
+// Apply initial cell values
+if (props.cells?.length) {
+  for (const it of props.cells) {
+    if (it.r >= 0 && it.r < sheet.rows && it.c >= 0 && it.c < sheet.cols) {
+      sheet.setValue(it.r, it.c, it.value)
+    }
   }
 }
+// If app changes cells prop, reflect new values
+watch(() => props.cells, (arr) => {
+  if (!arr) return
+  for (const it of arr) {
+    if (it.r >= 0 && it.r < sheet.rows && it.c >= 0 && it.c < sheet.cols) sheet.setValue(it.r, it.c, it.value)
+  }
+  schedule()
+}, { deep: true })
 
 const scroll = { x: 0, y: 0 }
 const selection = ref<{ r0: number; c0: number; r1: number; c1: number } | undefined>()

@@ -5,6 +5,15 @@ import { SheetCanvas } from '@sheet/ui'
 const sheetRef = ref<any>(null)
 const formula = ref('')
 
+// Configure grid size and initial cell contents here (app layer)
+const rows = ref(1000) // default if not provided in component is 100
+const cols = ref(100) // default if not provided in component is 100
+const cells = ref([
+  { r: 0, c: 0, value: 'A1' },
+  { r: 1, c: 1, value: 'B2' },
+  { r: 2, c: 2, value: 'C3' },
+])
+
 function syncFormula() {
   const cell = sheetRef.value?.getFirstSelectedCell?.()
   if (cell) formula.value = sheetRef.value?.getValueAt?.(cell.r, cell.c) || ''
@@ -33,7 +42,7 @@ watchEffect(() => {
       <input v-model="formula" @keydown.enter="applyFormula" placeholder="Formula Bar" style="flex:1; height:26px; padding:4px 8px;"/>
     </div>
     <div style="flex:1; min-height:0;">
-      <SheetCanvas ref="sheetRef" />
+      <SheetCanvas ref="sheetRef" :rows="rows" :cols="cols" :cells="cells" />
     </div>
   </div>
 </template>
