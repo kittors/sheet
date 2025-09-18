@@ -29,6 +29,42 @@ export class HeadersLayer implements Layer {
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, originX, originY)
 
+    // Highlight selected columns/rows in header bands
+    if (rc.selection) {
+      const sel = rc.selection
+      // Column header highlights
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
+      ctx.clip()
+      let hx = originX - visible.offsetX
+      for (let c = visible.colStart; c <= visible.colEnd; c++) {
+        const w = sheet.colWidths.get(c) ?? defaultColWidth
+        if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
+          ctx.fillStyle = '#e5e7eb' // darker than base header bg
+          ctx.fillRect(hx, 0, w, originY)
+        }
+        hx += w
+      }
+      ctx.restore()
+
+      // Row header highlights
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
+      ctx.clip()
+      let hy = originY - visible.offsetY
+      for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+        const h = sheet.rowHeights.get(r) ?? defaultRowHeight
+        if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
+          ctx.fillStyle = '#e5e7eb'
+          ctx.fillRect(0, hy, originX, h)
+        }
+        hy += h
+      }
+      ctx.restore()
+    }
+
     ctx.fillStyle = '#374151'
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
