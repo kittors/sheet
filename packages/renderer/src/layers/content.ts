@@ -25,6 +25,7 @@ export class ContentLayer implements Layer {
         const txt = cell?.value != null ? String(cell.value) : ''
         if (txt) {
           const style = sheet.getStyle(cell?.styleId)
+          // font
           if (style?.font) {
             const size = style.font.size ?? 14
             const family = style.font.family ?? 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
@@ -33,7 +34,23 @@ export class ContentLayer implements Layer {
             ctx.font = `${italic}${weight} ${size}px ${family}`
           }
           ctx.fillStyle = style?.font?.color ?? '#111827'
-          ctx.fillText(txt, x + 4, y + h / 2)
+          // alignment
+          const halign = style?.alignment?.horizontal ?? 'left'
+          const valign = style?.alignment?.vertical ?? 'middle'
+          // horizontal
+          let tx = x + 4
+          if (halign === 'center') tx = x + w / 2
+          else if (halign === 'right') tx = x + w - 4
+          // vertical
+          let ty = y + h / 2
+          if (valign === 'top') { ctx.textBaseline = 'top'; ty = y + 3 }
+          else if (valign === 'bottom') { ctx.textBaseline = 'bottom'; ty = y + h - 3 }
+          else { ctx.textBaseline = 'middle'; ty = y + h / 2 }
+          // text align maps
+          if (halign === 'left') ctx.textAlign = 'left'
+          else if (halign === 'right') ctx.textAlign = 'right'
+          else ctx.textAlign = 'center'
+          ctx.fillText(txt, tx, ty)
         }
         x += w
       }

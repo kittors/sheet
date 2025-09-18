@@ -17,6 +17,10 @@ export interface SheetApi {
   applyTextColor(color: string): void
   applyFillColor(backgroundColor: string): void
   setValueInSelection(text: string): void
+  applyFontSize(size: number): void
+  applyFontFamily(family: string): void
+  applyHorizontalAlign(al: 'left' | 'center' | 'right'): void
+  applyVerticalAlign(al: 'top' | 'middle' | 'bottom'): void
   // Events (rAF-polled subscriptions)
   onSelectionChange(cb: (sel: { r0: number; c0: number; r1: number; c1: number } | null) => void): () => void
   onScrollChange(cb: (scroll: { x: number; y: number }) => void): () => void
@@ -64,6 +68,46 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     applyTextColor(color) { interaction?.applyTextColor(color) },
     applyFillColor(backgroundColor) { interaction?.applyFillColor(backgroundColor) },
     setValueInSelection(text) { interaction?.setValueInSelection(text) },
+    applyFontSize(size) {
+      const styleId = sheet.defineStyle({ font: { size } })
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+    },
+    applyFontFamily(family) {
+      const styleId = sheet.defineStyle({ font: { family } })
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+    },
+    applyHorizontalAlign(al) {
+      const styleId = sheet.defineStyle({ alignment: { horizontal: al } })
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+    },
+    applyVerticalAlign(al) {
+      const styleId = sheet.defineStyle({ alignment: { vertical: al } })
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+    },
     // Events
     onSelectionChange(cb) {
       selListeners.push(cb)
