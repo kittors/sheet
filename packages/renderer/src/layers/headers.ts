@@ -41,7 +41,8 @@ export class HeadersLayer implements Layer {
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
         const w = sheet.colWidths.get(c) ?? defaultColWidth
         if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
-          ctx.fillStyle = '#e5e7eb' // darker than base header bg
+          // Use a distinct active color (light blue) different from header border/grid
+          ctx.fillStyle = '#dbeafe'
           ctx.fillRect(hx, 0, w, originY)
         }
         hx += w
@@ -57,7 +58,7 @@ export class HeadersLayer implements Layer {
       for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
         const h = sheet.rowHeights.get(r) ?? defaultRowHeight
         if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
-          ctx.fillStyle = '#e5e7eb'
+          ctx.fillStyle = '#dbeafe'
           ctx.fillRect(0, hy, originX, h)
         }
         hy += h
