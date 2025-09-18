@@ -13,7 +13,6 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     canvas: args.canvas,
     renderer: args.renderer,
     sheet: args.sheet,
-    debug: !!args.debug,
     metrics: {
       defaultColWidth: args.renderer.opts.defaultColWidth,
       defaultRowHeight: args.renderer.opts.defaultRowHeight,
@@ -60,5 +59,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       cancelAnimationFrame(state.raf)
     },
     ...cmds,
+    getSelection() { return state.selection },
+    getScroll() { return { ...state.scroll } },
   }
 }

@@ -9,7 +9,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     const sb = ctx.renderer.getScrollbars?.()
-    if (ctx.debug) console.log('[sheet] down', { x: Math.floor(x), y: Math.floor(y), sb })
+    
     // Vertical scrollbar
     if (sb?.vTrack && x >= sb.vTrack.x && x <= sb.vTrack.x + sb.vTrack.w && y >= sb.vTrack.y && y <= sb.vTrack.y + sb.vTrack.h) {
       state.dragMode = 'vscroll'
@@ -23,7 +23,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
         applyVThumb(ctx, state, newTop)
       }
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] hit v scrollbar -> drag')
+      
       return
     }
     // Horizontal scrollbar
@@ -39,7 +39,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
         applyHThumb(ctx, state, newLeft)
       }
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] hit h scrollbar -> drag')
+      
       return
     }
     // Corner select-all
@@ -47,7 +47,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       state.selection = { r0: 0, c0: 0, r1: ctx.sheet.rows - 1, c1: ctx.sheet.cols - 1 }
       state.dragMode = 'none'
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] hit corner -> select all')
+      
       return
     }
     // Column header band
@@ -57,7 +57,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       state.selection = { r0: 0, r1: ctx.sheet.rows - 1, c0: col, c1: col }
       state.dragMode = 'colheader'
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] hit col header -> start drag select col', { col })
+      
       return
     }
     // Row header band
@@ -67,7 +67,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       state.selection = { r0: row, r1: row, c0: 0, c1: ctx.sheet.cols - 1 }
       state.dragMode = 'rowheader'
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] hit row header -> start drag select row', { row })
+      
       return
     }
     // Default cell selection
@@ -76,7 +76,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     state.selection = { r0: cell.r, c0: cell.c, r1: cell.r, c1: cell.c }
     state.dragMode = 'select'
     deps.schedule()
-    if (ctx.debug) console.log('[sheet] hit cell -> start select', cell)
+    
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -101,7 +101,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const newTop = Math.max(0, Math.min(trackSpan - sb.vThumb.h, y - sb.vTrack.y - state.dragGrabOffset))
       applyVThumb(ctx, state, newTop)
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] drag vscroll', { newTop })
+      
       return
     }
     if (state.dragMode === 'hscroll') {
@@ -112,7 +112,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const newLeft = Math.max(0, Math.min(trackSpan - sb.hThumb.w, x - sb.hTrack.x - state.dragGrabOffset))
       applyHThumb(ctx, state, newLeft)
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] drag hscroll', { newLeft })
+      
       return
     }
     if (state.dragMode === 'colheader') {
@@ -123,7 +123,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const endCol = colAtX(ctx, state, clampedX)
       state.selection = { r0: 0, r1: ctx.sheet.rows - 1, c0: startCol, c1: endCol }
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] drag col header', { startCol, endCol })
+      
       return
     }
     if (state.dragMode === 'rowheader') {
@@ -134,7 +134,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const endRow = rowAtY(ctx, state, clampedY)
       state.selection = { r0: startRow, r1: endRow, c0: 0, c1: ctx.sheet.cols - 1 }
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] drag row header', { startRow, endRow })
+      
       return
     }
     if (state.dragMode === 'select') {
@@ -143,7 +143,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       if (!cell) return
       state.selection = { ...state.selection, r1: cell.r, c1: cell.c }
       deps.schedule()
-      if (ctx.debug) console.log('[sheet] drag select to', cell)
+      
     }
   }
 
@@ -152,16 +152,15 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     state.dragMode = 'none'
     ctx.renderer.setScrollbarState?.({ vActive: false, hActive: false })
     deps.schedule()
-    if (ctx.debug) console.log('[sheet] up')
+    
   }
 
   function onPointerLeave() {
     ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'default'
     ctx.renderer.setScrollbarState?.({ vHover: false, hHover: false, vActive: false, hActive: false })
     deps.schedule()
-    if (ctx.debug) console.log('[sheet] leave')
+    
   }
 
   return { onPointerDown, onPointerMove, onPointerUp, onPointerLeave }
 }
-

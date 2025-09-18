@@ -9,14 +9,12 @@ export interface AttachArgs {
   canvas: HTMLCanvasElement
   renderer: CanvasRenderer
   sheet: Sheet
-  debug?: boolean
 }
 
 export interface Context {
   canvas: HTMLCanvasElement
   renderer: CanvasRenderer
   sheet: Sheet
-  debug: boolean
   metrics: {
     defaultColWidth: number
     defaultRowHeight: number
@@ -42,5 +40,7 @@ export interface InteractionHandle {
   setValueInSelection(text: string): void
   getFirstSelectedCell(): { r: number; c: number } | null
   getValueAt(r: number, c: number): string
+  // queries
+  getSelection(): Selection | undefined
+  getScroll(): { x: number; y: number }
 }
-

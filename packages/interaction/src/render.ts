@@ -12,11 +12,6 @@ export function createRender(ctx: Context, state: State) {
     }
     ctx.renderer.setSelection(state.selection)
     ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y)
-    if (ctx.debug) {
-      const sb = ctx.renderer.getScrollbars?.()
-      // eslint-disable-next-line no-console
-      console.log('[sheet] render', { size: { w, h }, scroll: { ...state.scroll }, sb })
-    }
   }
 
   function schedule() {
@@ -26,4 +21,3 @@ export function createRender(ctx: Context, state: State) {
 
   return { render, schedule }
 }
-

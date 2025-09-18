@@ -18,7 +18,7 @@ const cells = ref([
 
 function onReady(payload: { canvas: HTMLCanvasElement; renderer: any; sheet: any }) {
   // attach interactions as soon as child reports ready
-  handle.value = attachSheetInteractions({ ...payload, debug: true })
+  handle.value = attachSheetInteractions(payload)
 }
 
 onBeforeUnmount(() => {

@@ -7,11 +7,6 @@ export function createWheelHandler(ctx: Context, state: State, deps: { schedule:
     state.scroll.y = Math.max(0, state.scroll.y + e.deltaY)
     deps.normalizeScroll()
     deps.schedule()
-    if (ctx.debug) {
-      // eslint-disable-next-line no-console
-      console.log('[sheet] wheel', { dx: e.deltaX, dy: e.deltaY, scroll: { ...state.scroll } })
-    }
   }
   return { onWheel }
 }
-

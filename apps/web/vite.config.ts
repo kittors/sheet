@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
         '@sheet/core': path.resolve(__dirname, '../../packages/core/src'),
         '@sheet/renderer': path.resolve(__dirname, '../../packages/renderer/src'),
         '@sheet/interaction': path.resolve(__dirname, '../../packages/interaction/src'),
+        '@sheet/api': path.resolve(__dirname, '../../packages/api/src'),
         '@sheet/ui': path.resolve(__dirname, '../../packages/ui/src'),
         '@sheet/shared-utils': path.resolve(__dirname, '../../packages/shared-utils/src'),
       },
