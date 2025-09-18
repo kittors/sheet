@@ -29,7 +29,7 @@ function onEnter() { emit('submit') }
       </div>
       <div class="formula-card">
         <div class="formula-left" aria-label="formula">
-          <FunctionSquare size="16" />
+          <FunctionSquare :size="16" />
         </div>
         <div class="vsep" aria-hidden="true"></div>
         <input
@@ -47,7 +47,7 @@ function onEnter() { emit('submit') }
 </template>
 
 <style scoped>
-.control-container { padding: 10px; background: #fff; }
+.control-container { padding: 10px; background: #f9fafb; }
 .toolbar-wrap { margin-bottom: 8px; }
 .controls-row { display: flex; align-items: center; gap: 10px; }
 .range-card {
@@ -73,7 +73,7 @@ function onEnter() { emit('submit') }
   border-radius: 8px;
   background: #fff;
 }
-.formula-left { width: 36px; display: inline-flex; align-items: center; justify-content: center; color: #6b7280; }
+.formula-left { width: 36px; display: inline-flex; align-items: center; justify-content: center; color: #4b5563; }
 .vsep { width: 1px; height: 18px; background: #e5e7eb; }
 .formula-input { flex: 1; height: 26px; padding: 4px 8px; border: 0; background: transparent; outline: none; color: #111827; }
 .formula-card:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(147,197,253,0.25); }
