@@ -10,6 +10,9 @@ export function createState(): State {
     autoRaf: 0,
     autoVX: 0,
     autoVY: 0,
+    autoTargetVX: 0,
+    autoTargetVY: 0,
+    autoTs: 0,
     lastClientX: 0,
     lastClientY: 0,
   }

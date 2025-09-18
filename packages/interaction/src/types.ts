@@ -34,6 +34,9 @@ export interface State {
   autoRaf: number
   autoVX: number
   autoVY: number
+  autoTargetVX: number
+  autoTargetVY: number
+  autoTs: number
   // last pointer position (client coords)
   lastClientX: number
   lastClientY: number

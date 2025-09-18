@@ -8,6 +8,9 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     if (state.autoRaf) { cancelAnimationFrame(state.autoRaf); state.autoRaf = 0 }
     state.autoVX = 0
     state.autoVY = 0
+    state.autoTargetVX = 0
+    state.autoTargetVY = 0
+    state.autoTs = 0
   }
 
   function startAutoScroll() {
@@ -15,13 +18,21 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     const step = () => {
       state.autoRaf = 0
       if (state.dragMode === 'none') { stopAutoScroll(); return }
+      // ease velocities toward targets (smooth start/stop)
+      state.autoVX += (state.autoTargetVX - state.autoVX) * 0.2
+      state.autoVY += (state.autoTargetVY - state.autoVY) * 0.2
+      if (Math.abs(state.autoVX) < 0.1) state.autoVX = 0
+      if (Math.abs(state.autoVY) < 0.1) state.autoVY = 0
       if (state.autoVX === 0 && state.autoVY === 0) { stopAutoScroll(); return }
 
       const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
       const maxX = Math.max(0, contentWidth - widthAvail)
       const maxY = Math.max(0, contentHeight - heightAvail)
-      state.scroll.x = Math.max(0, Math.min(maxX, state.scroll.x + state.autoVX))
-      state.scroll.y = Math.max(0, Math.min(maxY, state.scroll.y + state.autoVY))
+      const now = performance.now()
+      const dt = state.autoTs ? Math.max(0.5, Math.min(2, (now - state.autoTs) / 16.67)) : 1
+      state.autoTs = now
+      state.scroll.x = Math.max(0, Math.min(maxX, state.scroll.x + state.autoVX * dt))
+      state.scroll.y = Math.max(0, Math.min(maxY, state.scroll.y + state.autoVY * dt))
 
       const rect = ctx.canvas.getBoundingClientRect()
       const sb = ctx.renderer.getScrollbars?.()
@@ -59,20 +70,36 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     const bottomBound = sb?.hTrack ? sb.hTrack.y : ctx.canvas.clientHeight
     const leftBound = ctx.metrics.headerColWidth
     const topBound = ctx.metrics.headerRowHeight
-    const speed = (d: number) => Math.min(40, 4 + d * 0.25)
-    let vx = 0, vy = 0
+    const margin = 48 // px soft zone near edges
+    const curve = (r: number) => r * r // ease-in
+    const maxV = 24 // px per frame at 60fps
+    let targetVX = 0, targetVY = 0
     if (state.dragMode === 'select' || state.dragMode === 'colheader') {
-      if (x > rightBound) vx = speed(x - rightBound)
-      else if (x < leftBound) vx = -speed(leftBound - x)
+      if (x > rightBound - 1) {
+        const r = Math.min(1, (x - (rightBound - margin)) / margin)
+        targetVX = maxV * curve(Math.max(0, r))
+      } else if (x < leftBound + 1) {
+        const r = Math.min(1, ((leftBound + margin) - x) / margin)
+        targetVX = -maxV * curve(Math.max(0, r))
+      }
     }
     if (state.dragMode === 'select' || state.dragMode === 'rowheader') {
-      if (y > bottomBound) vy = speed(y - bottomBound)
-      else if (y < topBound) vy = -speed(topBound - y)
+      if (y > bottomBound - 1) {
+        const r = Math.min(1, (y - (bottomBound - margin)) / margin)
+        targetVY = maxV * curve(Math.max(0, r))
+      } else if (y < topBound + 1) {
+        const r = Math.min(1, ((topBound + margin) - y) / margin)
+        targetVY = -maxV * curve(Math.max(0, r))
+      }
     }
-    state.autoVX = Math.trunc(vx)
-    state.autoVY = Math.trunc(vy)
-    if (state.autoVX !== 0 || state.autoVY !== 0) startAutoScroll()
-    else stopAutoScroll()
+    state.autoTargetVX = targetVX
+    state.autoTargetVY = targetVY
+    if (!state.autoRaf && (targetVX !== 0 || targetVY !== 0)) {
+      state.autoTs = performance.now()
+      startAutoScroll()
+    } else if (targetVX === 0 && targetVY === 0) {
+      // allow easing to bring velocity to zero, then stop in step
+    }
   }
 
   function onPointerDown(e: PointerEvent) {
@@ -145,6 +172,8 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     state.selection = { r0: cell.r, c0: cell.c, r1: cell.r, c1: cell.c }
     state.dragMode = 'select'
     deps.schedule()
+    // initialize potential autoscroll based on current pointer position
+    updateAutoScrollVelocity(x, y)
   }
 
   function onPointerMove(e: PointerEvent) {
