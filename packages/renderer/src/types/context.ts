@@ -39,6 +39,13 @@ export interface RenderContext {
     hTrack: { x: number; y: number; w: number; h: number } | null
     hThumb: { x: number; y: number; w: number; h: number } | null
   }
+  // scrollbar interaction state (for hover/active styling)
+  scrollbarState: {
+    vHover: boolean
+    hHover: boolean
+    vActive: boolean
+    hActive: boolean
+  }
 }
 
 export interface Layer {

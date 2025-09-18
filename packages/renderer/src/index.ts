@@ -31,6 +31,7 @@ export class CanvasRenderer {
     hTrack: { x: number; y: number; w: number; h: number } | null
     hThumb: { x: number; y: number; w: number; h: number } | null
   } = { vTrack: null, vThumb: null, hTrack: null, hThumb: null }
+  scrollbarState = { vHover: false, hHover: false, vActive: false, hActive: false }
 
   constructor(canvas: HTMLCanvasElement, opts: RendererOptions = {}) {
     this.canvas = canvas
@@ -164,6 +165,7 @@ export class CanvasRenderer {
         hTrack,
         hThumb,
       },
+      scrollbarState: this.scrollbarState,
     }
 
     // Render layers in order
@@ -176,5 +178,9 @@ export class CanvasRenderer {
 
   getScrollbars() {
     return this.lastScrollbars
+  }
+
+  setScrollbarState(state: Partial<{ vHover: boolean; hHover: boolean; vActive: boolean; hActive: boolean }>) {
+    this.scrollbarState = { ...this.scrollbarState, ...state }
   }
 }

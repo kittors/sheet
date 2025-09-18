@@ -3,7 +3,7 @@ import type { Layer, RenderContext } from '../types/context'
 export class ScrollbarLayer implements Layer {
   name = 'scrollbar'
   render(rc: RenderContext) {
-    const { ctx, viewport, scrollbar } = rc
+    const { ctx, viewport, scrollbar, scrollbarState } = rc
     const { vTrack, vThumb, hTrack, hThumb, thickness } = scrollbar
     if (!vTrack && !hTrack) return
 
@@ -12,13 +12,13 @@ export class ScrollbarLayer implements Layer {
 
     // Draw vertical track and thumb
     if (vTrack) {
-      ctx.fillStyle = '#f3f4f6' // track
+      ctx.fillStyle = scrollbarState.vHover || scrollbarState.vActive ? '#e5e7eb' : '#f3f4f6' // track hover/active darker
       ctx.fillRect(vTrack.x, vTrack.y, vTrack.w, vTrack.h)
       // border inner edge against content
       ctx.fillStyle = '#e5e7eb'
       ctx.fillRect(vTrack.x, vTrack.y, 1, vTrack.h)
       if (vThumb) {
-        ctx.fillStyle = '#9ca3af' // thumb
+        ctx.fillStyle = scrollbarState.vActive ? '#4b5563' : (scrollbarState.vHover ? '#6b7280' : '#9ca3af') // active darker
         const r = Math.floor(thickness / 2)
         this.roundRect(ctx, vThumb.x, vThumb.y, vThumb.w, vThumb.h, r)
         ctx.fill()
@@ -27,12 +27,12 @@ export class ScrollbarLayer implements Layer {
 
     // Draw horizontal track and thumb
     if (hTrack) {
-      ctx.fillStyle = '#f3f4f6'
+      ctx.fillStyle = scrollbarState.hHover || scrollbarState.hActive ? '#e5e7eb' : '#f3f4f6'
       ctx.fillRect(hTrack.x, hTrack.y, hTrack.w, hTrack.h)
       ctx.fillStyle = '#e5e7eb'
       ctx.fillRect(hTrack.x, hTrack.y, hTrack.w, 1)
       if (hThumb) {
-        ctx.fillStyle = '#9ca3af'
+        ctx.fillStyle = scrollbarState.hActive ? '#4b5563' : (scrollbarState.hHover ? '#6b7280' : '#9ca3af')
         const r = Math.floor(thickness / 2)
         this.roundRect(ctx, hThumb.x, hThumb.y, hThumb.w, hThumb.h, r)
         ctx.fill()
@@ -59,4 +59,3 @@ export class ScrollbarLayer implements Layer {
     ctx.closePath()
   }
 }
-

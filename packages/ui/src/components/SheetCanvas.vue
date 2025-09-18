@@ -153,6 +153,7 @@ function onPointerDown(e: PointerEvent) {
   // Prioritize scrollbar hit-testing
   if (sb?.vTrack && x >= sb.vTrack.x && x <= sb.vTrack.x + sb.vTrack.w && y >= sb.vTrack.y && y <= sb.vTrack.y + sb.vTrack.h) {
     dragMode.value = 'vscroll'
+    rendererRef.value?.setScrollbarState?.({ vActive: true })
     if (sb.vThumb && y >= sb.vThumb.y && y <= sb.vThumb.y + sb.vThumb.h) {
       dragGrabOffset = y - sb.vThumb.y
     } else {
@@ -167,6 +168,7 @@ function onPointerDown(e: PointerEvent) {
   }
   if (sb?.hTrack && x >= sb.hTrack.x && x <= sb.hTrack.x + sb.hTrack.w && y >= sb.hTrack.y && y <= sb.hTrack.y + sb.hTrack.h) {
     dragMode.value = 'hscroll'
+    rendererRef.value?.setScrollbarState?.({ hActive: true })
     if (sb.hThumb && x >= sb.hThumb.x && x <= sb.hThumb.x + sb.hThumb.w) {
       dragGrabOffset = x - sb.hThumb.x
     } else {
@@ -187,11 +189,24 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
+  // Update hover state & cursor when not dragging
+  const canvas = canvasRef.value!
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const sb0 = rendererRef.value?.getScrollbars?.()
+  let cursor = 'default'
+  if (dragMode.value === 'none' && sb0) {
+    const inV = !!(sb0.vTrack && x >= sb0.vTrack.x && x <= sb0.vTrack.x + sb0.vTrack.w && y >= sb0.vTrack.y && y <= sb0.vTrack.y + sb0.vTrack.h)
+    const inH = !!(sb0.hTrack && x >= sb0.hTrack.x && x <= sb0.hTrack.x + sb0.hTrack.w && y >= sb0.hTrack.y && y <= sb0.hTrack.y + sb0.hTrack.h)
+    rendererRef.value?.setScrollbarState?.({ vHover: inV, hHover: inH })
+    schedule()
+    if (inV || inH) cursor = 'pointer'
+  }
+  ;(canvas.parentElement as HTMLElement).style.cursor = cursor
   if (dragMode.value === 'vscroll') {
     const sb = rendererRef.value?.getScrollbars?.()
     if (!sb?.vTrack || !sb?.vThumb) return
-    const canvas = canvasRef.value!
-    const rect = canvas.getBoundingClientRect()
     const y = e.clientY - rect.top
     const trackSpan = sb.vTrack.h
     const newTop = Math.max(0, Math.min(trackSpan - sb.vThumb.h, y - sb.vTrack.y - dragGrabOffset))
@@ -202,8 +217,6 @@ function onPointerMove(e: PointerEvent) {
   if (dragMode.value === 'hscroll') {
     const sb = rendererRef.value?.getScrollbars?.()
     if (!sb?.hTrack || !sb?.hThumb) return
-    const canvas = canvasRef.value!
-    const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const trackSpan = sb.hTrack.w
     const newLeft = Math.max(0, Math.min(trackSpan - sb.hThumb.w, x - sb.hTrack.x - dragGrabOffset))
@@ -222,6 +235,15 @@ function onPointerMove(e: PointerEvent) {
 
 function onPointerUp() {
   dragMode.value = 'none'
+  rendererRef.value?.setScrollbarState?.({ vActive: false, hActive: false })
+  schedule()
+}
+
+function onPointerLeave() {
+  const canvas = canvasRef.value!
+  ;(canvas.parentElement as HTMLElement).style.cursor = 'default'
+  rendererRef.value?.setScrollbarState?.({ vHover: false, hHover: false, vActive: false, hActive: false })
+  schedule()
 }
 
 onMounted(() => {
@@ -232,6 +254,7 @@ onMounted(() => {
   canvasRef.value.addEventListener('pointerdown', onPointerDown)
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
+  canvasRef.value.addEventListener('pointerleave', onPointerLeave)
   canvasRef.value.addEventListener('wheel', onWheel, { passive: false })
 })
 
@@ -239,6 +262,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', schedule)
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
+  canvasRef.value?.removeEventListener('pointerleave', onPointerLeave)
   canvasRef.value?.removeEventListener('wheel', onWheel)
   cancelAnimationFrame(raf)
 })
@@ -332,7 +356,7 @@ function applyHThumb(newLeft: number) {
 </script>
 
 <template>
-  <div class="sheet-canvas" style="position: relative; width: 100%; height: 100%; overflow: hidden; cursor: crosshair;">
+  <div class="sheet-canvas" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
     <canvas ref="canvasRef" style="display:block; width:100%; height:100%;"></canvas>
   </div>
 </template>
