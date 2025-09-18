@@ -62,3 +62,4 @@ defineExpose({ canvasRef, rendererRef, sheet })
 <style scoped>
 .sheet-canvas { background: #fff; touch-action: none; user-select: none; }
 </style>
+

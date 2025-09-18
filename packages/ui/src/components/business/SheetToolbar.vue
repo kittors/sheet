@@ -1,27 +1,37 @@
 <script setup lang="ts">
-import { Paintbrush, ClipboardPaste, Copy } from 'lucide-vue-next'
-import ToolItem from './ToolItem.vue'
-import ToolGroup from './ToolGroup.vue'
+import { Paintbrush, ClipboardPaste, Copy } from "lucide-vue-next";
+import ToolItem from "../common/ToolItem.vue";
+import ToolGroup from "../common/ToolGroup.vue";
+import FontControls from "./FontControls.vue";
 </script>
 
 <template>
   <div class="toolbar-card" aria-label="toolbar-card">
     <!-- 左侧：格式刷 与 粘贴（大图标 + 底部文字） -->
-    <ToolItem label="格式刷">
-      <Paintbrush size="22" />
-    </ToolItem>
-    <ToolItem label="粘贴">
-      <ClipboardPaste size="22" />
-    </ToolItem>
+    <ToolGroup direction="horizontal" :gap="2">
+      <ToolItem label="格式刷">
+        <Paintbrush :size="22" />
+      </ToolItem>
+      <ToolItem label="粘贴">
+        <ClipboardPaste :size="22" />
+      </ToolItem>
+    </ToolGroup>
 
     <!-- 右侧：复制/粘贴 竖直排列，无底部文字 -->
-    <ToolGroup direction="vertical" :gap="4">
-      <ToolItem labelPosition="none" aria-label="复制"><Copy size="18" /></ToolItem>
-      <ToolItem labelPosition="none" aria-label="粘贴"><ClipboardPaste size="18" /></ToolItem>
+    <ToolGroup direction="vertical" :gap="2">
+      <ToolItem labelPosition="none" aria-label="剪切"
+        ><ClipboardPaste :size="18"
+      /></ToolItem>
+      <ToolItem labelPosition="none" aria-label="复制"
+        ><Copy :size="18"
+      /></ToolItem>
     </ToolGroup>
 
     <!-- 竖向分割线 -->
     <div class="vsep"></div>
+
+    <!-- 字体控制块：上下 group（上：两个下拉紧贴；下：四个样式icon） -->
+    <FontControls />
   </div>
 </template>
 
@@ -34,7 +44,8 @@ import ToolGroup from './ToolGroup.vue'
     0 8px 24px rgba(0, 0, 0, 0.06),
     0 1px 2px rgba(0, 0, 0, 0.04),
     inset 0 0 0 1px #e6eaf2;
-  overflow: hidden;
+  /* Allow dropdown menus to overflow outside */
+  overflow: visible;
   display: flex;
   align-items: center;
   padding: 6px 10px;
@@ -75,7 +86,7 @@ import ToolGroup from './ToolGroup.vue'
   width: 1px;
   height: 32px;
   background: #e5e7eb;
-  margin-left: 6px;
+  margin: 0 6px;
 }
 .btn {
   appearance: none;
