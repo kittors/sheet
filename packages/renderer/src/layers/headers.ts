@@ -33,7 +33,11 @@ export class HeadersLayer implements Layer {
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
-    // Column headers (scroll with X)
+    // Column headers (scroll with X) - clip to header band to avoid corner overlap
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
+    ctx.clip()
     let x = originX - visible.offsetX
     for (let c = visible.colStart; c <= visible.colEnd; c++) {
       const w = sheet.colWidths.get(c) ?? defaultColWidth
@@ -41,9 +45,14 @@ export class HeadersLayer implements Layer {
       ctx.fillText(label, x + w / 2, originY / 2)
       x += w
     }
+    ctx.restore()
 
-    // Row headers (scroll with Y)
+    // Row headers (scroll with Y) - clip to header band to avoid corner overlap
     ctx.textAlign = 'right'
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
+    ctx.clip()
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const h = sheet.rowHeights.get(r) ?? defaultRowHeight
@@ -51,11 +60,16 @@ export class HeadersLayer implements Layer {
       ctx.fillText(label, originX - 6, y + h / 2)
       y += h
     }
+    ctx.restore()
 
     // Header grid lines
     ctx.strokeStyle = '#e5e7eb'
     ctx.lineWidth = 1
-    // Column header vertical lines
+    // Column header vertical lines (clip to header band)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
+    ctx.clip()
     x = originX - visible.offsetX
     for (let c = visible.colStart; c <= visible.colEnd + 1; c++) {
       const w = sheet.colWidths.get(c) ?? defaultColWidth
@@ -65,7 +79,12 @@ export class HeadersLayer implements Layer {
       ctx.stroke()
       x += w
     }
-    // Row header horizontal lines
+    ctx.restore()
+    // Row header horizontal lines (clip to header band)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
+    ctx.clip()
     y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd + 1; r++) {
       const h = sheet.rowHeights.get(r) ?? defaultRowHeight
@@ -75,11 +94,12 @@ export class HeadersLayer implements Layer {
       ctx.stroke()
       y += h
     }
+    ctx.restore()
 
     // Outline border between headers and content
     ctx.beginPath()
     ctx.moveTo(originX + 0.5, 0)
-    ctx.lineTo(originX + 0.5, viewport.height)
+    ctx.lineTo(originX + 0.5, viewport.height - hGap)
     ctx.stroke()
     ctx.beginPath()
     ctx.moveTo(0, originY + 0.5)
