@@ -15,12 +15,13 @@ function colToName(n: number): string {
 export class HeadersLayer implements Layer {
   name = 'headers'
   render(rc: RenderContext) {
-    const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } =
+      rc
     ctx.save()
     // Column/Row header backgrounds (avoid overlapping scrollbar tracks)
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
-    ctx.fillStyle = '#f9fafb'
+    ctx.fillStyle = rc.headerStyle.background
     const colHeaderW = Math.max(0, viewport.width - originX - vGap)
     ctx.fillRect(originX, 0, colHeaderW, originY)
     const rowHeaderH = Math.max(0, viewport.height - originY - hGap)
@@ -41,8 +42,8 @@ export class HeadersLayer implements Layer {
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
         const w = sheet.colWidths.get(c) ?? defaultColWidth
         if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
-          // Use a distinct active color (light blue) different from header border/grid
-          ctx.fillStyle = '#dbeafe'
+          // Selected header cell background (deeper gray for clarity)
+          ctx.fillStyle = rc.headerStyle.selectedBackground
           ctx.fillRect(hx, 0, w, originY)
         }
         hx += w
@@ -58,7 +59,7 @@ export class HeadersLayer implements Layer {
       for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
         const h = sheet.rowHeights.get(r) ?? defaultRowHeight
         if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
-          ctx.fillStyle = '#dbeafe'
+          ctx.fillStyle = rc.headerStyle.selectedBackground
           ctx.fillRect(0, hy, originX, h)
         }
         hy += h
@@ -66,7 +67,7 @@ export class HeadersLayer implements Layer {
       ctx.restore()
     }
 
-    ctx.fillStyle = '#374151'
+    ctx.fillStyle = rc.headerStyle.textColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
@@ -78,7 +79,7 @@ export class HeadersLayer implements Layer {
     let x = originX - visible.offsetX
     for (let c = visible.colStart; c <= visible.colEnd; c++) {
       const w = sheet.colWidths.get(c) ?? defaultColWidth
-      const label = colToName(c)
+      const label = rc.headerLabels?.col ? rc.headerLabels.col(c) : colToName(c)
       ctx.fillText(label, x + w / 2, originY / 2)
       x += w
     }
@@ -93,14 +94,14 @@ export class HeadersLayer implements Layer {
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const h = sheet.rowHeights.get(r) ?? defaultRowHeight
-      const label = String(r + 1)
+      const label = rc.headerLabels?.row ? rc.headerLabels.row(r) : String(r + 1)
       ctx.fillText(label, originX - 6, y + h / 2)
       y += h
     }
     ctx.restore()
 
     // Header grid lines
-    ctx.strokeStyle = '#e5e7eb'
+    ctx.strokeStyle = rc.headerStyle.gridColor
     ctx.lineWidth = 1
     // Column header vertical lines (clip to header band)
     ctx.save()
@@ -132,6 +133,58 @@ export class HeadersLayer implements Layer {
       y += h
     }
     ctx.restore()
+
+    // Optional: redraw internal separators in selected header region with a distinct color
+    if (rc.selection && rc.headerStyle.selectedGridColor) {
+      const sel = rc.selection
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+
+      const cumWidth = (i: number): number => {
+        let base = i * defaultColWidth
+        if (sheet.colWidths.size)
+          for (const [c, w] of sheet.colWidths) {
+            if (c < i) base += w - defaultColWidth
+          }
+        return base
+      }
+      const cumHeight = (i: number): number => {
+        let base = i * defaultRowHeight
+        if (sheet.rowHeights.size)
+          for (const [r, h] of sheet.rowHeights) {
+            if (r < i) base += h - defaultRowHeight
+          }
+        return base
+      }
+
+      // Column header internal separators
+      ctx.save()
+      const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+      ctx.beginPath(); ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap2), originY); ctx.clip()
+      const baseCW = cumWidth(visible.colStart)
+      ctx.strokeStyle = rc.headerStyle.selectedGridColor
+      ctx.lineWidth = 1
+      for (let c = c0; c < c1; c++) {
+        const xMid = originX - visible.offsetX + (cumWidth(c + 1) - baseCW)
+        ctx.beginPath(); ctx.moveTo(Math.floor(xMid) + 0.5, 0); ctx.lineTo(Math.floor(xMid) + 0.5, originY); ctx.stroke()
+      }
+      ctx.restore()
+
+      // Row header internal separators
+      ctx.save()
+      const hGap2 = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
+      ctx.beginPath(); ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap2)); ctx.clip()
+      const baseCH = cumHeight(visible.rowStart)
+      ctx.strokeStyle = rc.headerStyle.selectedGridColor
+      ctx.lineWidth = 1
+      for (let r = r0; r < r1; r++) {
+        const yMid = originY - visible.offsetY + (cumHeight(r + 1) - baseCH)
+        ctx.beginPath(); ctx.moveTo(0, Math.floor(yMid) + 0.5); ctx.lineTo(originX, Math.floor(yMid) + 0.5); ctx.stroke()
+      }
+      ctx.restore()
+    }
 
     // Outline border between headers and content
     ctx.beginPath()

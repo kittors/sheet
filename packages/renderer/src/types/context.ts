@@ -51,6 +51,18 @@ export interface RenderContext {
     v?: number // x of vertical guide line
     h?: number // y of horizontal guide line
   }
+  // header appearance and labeling
+  headerStyle: {
+    background: string
+    textColor: string
+    gridColor: string
+    selectedBackground: string
+    selectedGridColor?: string
+  }
+  headerLabels?: {
+    col?: (index: number) => string
+    row?: (index: number) => string
+  }
 }
 
 export interface Layer {

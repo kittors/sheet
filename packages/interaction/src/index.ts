@@ -14,11 +14,11 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     renderer: args.renderer,
     sheet: args.sheet,
     metrics: {
-      defaultColWidth: args.renderer.opts.defaultColWidth,
-      defaultRowHeight: args.renderer.opts.defaultRowHeight,
-      headerColWidth: args.renderer.opts.headerColWidth,
-      headerRowHeight: args.renderer.opts.headerRowHeight,
-      scrollbarThickness: args.renderer.opts.scrollbarThickness,
+      defaultColWidth: args.renderer.opts.defaultColWidth!,
+      defaultRowHeight: args.renderer.opts.defaultRowHeight!,
+      headerColWidth: args.renderer.opts.headerColWidth!,
+      headerRowHeight: args.renderer.opts.headerRowHeight!,
+      scrollbarThickness: args.renderer.opts.scrollbarThickness!,
     },
   }
 

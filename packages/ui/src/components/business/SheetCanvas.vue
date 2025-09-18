@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { CanvasRenderer } from '@sheet/renderer'
+import type { HeaderStyle, HeaderLabels } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
 
 // DOM/Renderer refs exposed to parent so interaction layer can attach
@@ -16,6 +17,8 @@ const props = defineProps<{
   headerRowHeight?: number
   overscan?: number
   scrollbarThickness?: number
+  headerStyle?: Partial<HeaderStyle>
+  headerLabels?: HeaderLabels
 }>()
 
 // Use external sheet directly
@@ -51,6 +54,8 @@ onMounted(() => {
     headerColWidth: props.headerColWidth ?? 48,
     headerRowHeight: props.headerRowHeight ?? 28,
     scrollbarThickness: props.scrollbarThickness ?? 12,
+    headerStyle: props.headerStyle,
+    headerLabels: props.headerLabels,
   })
   // Do one passive paint; 交互包挂载后会接管渲染循环
   requestAnimationFrame(renderOnce)

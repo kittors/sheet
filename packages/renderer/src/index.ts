@@ -9,6 +9,19 @@ import { ScrollbarLayer } from './layers/scrollbar'
 import { GuidesLayer } from './layers/guides'
 import type { Layer, RenderContext } from './types/context'
 
+export interface HeaderStyle {
+  background: string
+  textColor: string
+  gridColor: string
+  selectedBackground: string
+  selectedGridColor?: string
+}
+
+export interface HeaderLabels {
+  col?: (index: number) => string
+  row?: (index: number) => string
+}
+
 export interface RendererOptions {
   defaultRowHeight?: number
   defaultColWidth?: number
@@ -17,6 +30,8 @@ export interface RendererOptions {
   headerColWidth?: number
   scrollbarThickness?: number
   scrollbarThumbMinSize?: number
+  headerStyle?: Partial<HeaderStyle>
+  headerLabels?: HeaderLabels
 }
 
 export class CanvasRenderer {
@@ -24,9 +39,11 @@ export class CanvasRenderer {
   ctx: CanvasRenderingContext2D
   dpr: number
   layers: Layer[]
-  opts: Required<RendererOptions>
+  opts: RendererOptions
   selection?: { r0: number; c0: number; r1: number; c1: number }
   guides?: { v?: number; h?: number }
+  headerStyle: HeaderStyle
+  headerLabels?: HeaderLabels
   lastScrollbars: {
     vTrack: { x: number; y: number; w: number; h: number } | null
     vThumb: { x: number; y: number; w: number; h: number } | null
@@ -58,6 +75,14 @@ export class CanvasRenderer {
       scrollbarThickness: opts.scrollbarThickness ?? 12,
       scrollbarThumbMinSize: opts.scrollbarThumbMinSize ?? 24,
     }
+    this.headerStyle = {
+      background: opts.headerStyle?.background ?? '#f9fafb',
+      textColor: opts.headerStyle?.textColor ?? '#374151',
+      gridColor: opts.headerStyle?.gridColor ?? '#e5e7eb',
+      selectedBackground: opts.headerStyle?.selectedBackground ?? '#d1d5db',
+      selectedGridColor: opts.headerStyle?.selectedGridColor,
+    }
+    this.headerLabels = opts.headerLabels
   }
 
   resize(width: number, height: number) {
@@ -66,17 +91,17 @@ export class CanvasRenderer {
 
   render(sheet: Sheet, scrollX: number, scrollY: number) {
     const viewport = { width: this.canvas.clientWidth, height: this.canvas.clientHeight }
-    const originX = this.opts.headerColWidth
-    const originY = this.opts.headerRowHeight
+    const originX = this.opts.headerColWidth!
+    const originY = this.opts.headerRowHeight!
     const viewportContentWidth = Math.max(0, viewport.width - originX)
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
     // Compute content size
-    const contentWidth = sheet.cols * this.opts.defaultColWidth + Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - this.opts.defaultColWidth), 0)
-    const contentHeight = sheet.rows * this.opts.defaultRowHeight + Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - this.opts.defaultRowHeight), 0)
+    const contentWidth = sheet.cols * this.opts.defaultColWidth! + Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - this.opts.defaultColWidth!), 0)
+    const contentHeight = sheet.rows * this.opts.defaultRowHeight! + Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - this.opts.defaultRowHeight!), 0)
 
     // Decide whether scrollbars are needed and compute available content viewport (iterate to resolve interdependency)
-    const thickness = this.opts.scrollbarThickness
+    const thickness = this.opts.scrollbarThickness!
     let vScrollable = contentHeight > viewportContentHeight + 0.5
     let hScrollable = contentWidth > viewportContentWidth + 0.5
     for (let i = 0; i < 2; i++) {
@@ -100,15 +125,15 @@ export class CanvasRenderer {
       viewportHeight: heightAvail,
       colCount: sheet.cols,
       rowCount: sheet.rows,
-      defaultColWidth: this.opts.defaultColWidth,
-      defaultRowHeight: this.opts.defaultRowHeight,
+      defaultColWidth: this.opts.defaultColWidth!,
+      defaultRowHeight: this.opts.defaultRowHeight!,
       colWidths: sheet.colWidths,
       rowHeights: sheet.rowHeights,
       overscan: this.opts.overscan,
     })
 
     // Scrollbar geometry
-    const minThumb = this.opts.scrollbarThumbMinSize
+    const minThumb = this.opts.scrollbarThumbMinSize!
 
     // Vertical scrollbar visible only if content exceeds viewport
     let vTrack: { x: number; y: number; w: number; h: number } | null = null
@@ -160,8 +185,8 @@ export class CanvasRenderer {
       scroll: { x: sX, y: sY },
       sheet,
       visible,
-      defaultRowHeight: this.opts.defaultRowHeight,
-      defaultColWidth: this.opts.defaultColWidth,
+      defaultRowHeight: this.opts.defaultRowHeight!,
+      defaultColWidth: this.opts.defaultColWidth!,
       selection: this.selection,
       contentWidth,
       contentHeight,
@@ -177,6 +202,8 @@ export class CanvasRenderer {
       },
       scrollbarState: this.scrollbarState,
       guides: this.guides,
+      headerStyle: this.headerStyle,
+      headerLabels: this.headerLabels,
     }
 
     // Render layers in order
@@ -197,5 +224,13 @@ export class CanvasRenderer {
 
   setScrollbarState(state: Partial<{ vHover: boolean; hHover: boolean; vActive: boolean; hActive: boolean }>) {
     this.scrollbarState = { ...this.scrollbarState, ...state }
+  }
+
+  setHeaderStyle(style: Partial<HeaderStyle>) {
+    this.headerStyle = { ...this.headerStyle, ...style }
+  }
+
+  setHeaderLabels(labels?: HeaderLabels) {
+    this.headerLabels = labels
   }
 }
