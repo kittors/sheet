@@ -26,6 +26,21 @@ const cells = ref([
 const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, cols: cols.value })
 applyCells(sheet, cells.value)
 
+// App-level size configuration: define a few custom column widths and row heights
+// Adjust or externalize as needed (e.g., from settings or persisted user prefs)
+const initialColWidths: Array<{ index: number; width: number }> = [
+  { index: 0, width: 140 },
+  { index: 1, width: 220 },
+  { index: 3, width: 180 },
+]
+const initialRowHeights: Array<{ index: number; height: number }> = [
+  { index: 0, height: 32 },
+  { index: 1, height: 40 },
+  { index: 5, height: 36 },
+]
+for (const it of initialColWidths) if (it.index >= 0 && it.index < sheet.cols) sheet.setColWidth(it.index, it.width)
+for (const it of initialRowHeights) if (it.index >= 0 && it.index < sheet.rows) sheet.setRowHeight(it.index, it.height)
+
 function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
   // attach interactions as soon as child reports ready
   handle.value = attachSheetInteractions(payload)

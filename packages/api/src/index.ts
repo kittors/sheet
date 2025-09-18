@@ -37,8 +37,18 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
   const hasSubs = () => selListeners.length > 0 || scrListeners.length > 0
   type Sel = { r0: number; c0: number; r1: number; c1: number } | null
   type Scr = { x: number; y: number } | null
-  const eqSel = (a: Sel, b: Sel) => !!a === !!b && (!a || (a.r0 === b.r0 && a.c0 === b.c0 && a.r1 === b.r1 && a.c1 === b.c1))
-  const eqScr = (a: Scr, b: Scr) => !!a === !!b && (!a || (a.x === b.x && a.y === b.y))
+  const eqSel = (a: Sel, b: Sel) => {
+    const aOk = !!a, bOk = !!b
+    if (aOk !== bOk) return false
+    if (!a || !b) return true
+    return a.r0 === b.r0 && a.c0 === b.c0 && a.r1 === b.r1 && a.c1 === b.c1
+  }
+  const eqScr = (a: Scr, b: Scr) => {
+    const aOk = !!a, bOk = !!b
+    if (aOk !== bOk) return false
+    if (!a || !b) return true
+    return a.x === b.x && a.y === b.y
+  }
   const pump = () => {
     if (!hasSubs()) return
     const curSel = interaction?.getSelection?.() ?? null

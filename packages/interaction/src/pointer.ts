@@ -207,6 +207,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const right = left + w
       const xCanvas = ctx.metrics.headerColWidth + right - sX
       ctx.renderer.setGuides?.({ v: xCanvas })
+      ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'col-resize'
       deps.schedule()
       return
     }
@@ -220,6 +221,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       const bottom = top + h
       const yCanvas = ctx.metrics.headerRowHeight + bottom - sY
       ctx.renderer.setGuides?.({ h: yCanvas })
+      ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'row-resize'
       deps.schedule()
       return
     }
@@ -267,6 +269,9 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     state.lastClientY = e.clientY
     const sb0 = ctx.renderer.getScrollbars?.()
     let cursor = 'default'
+    // keep resize cursor style while dragging
+    if (state.dragMode === 'colresize') cursor = 'col-resize'
+    if (state.dragMode === 'rowresize') cursor = 'row-resize'
     if (state.dragMode === 'none' && sb0) {
       const inV = !!(sb0.vTrack && x >= sb0.vTrack.x && x <= sb0.vTrack.x + sb0.vTrack.w && y >= sb0.vTrack.y && y <= sb0.vTrack.y + sb0.vTrack.h)
       const inH = !!(sb0.hTrack && x >= sb0.hTrack.x && x <= sb0.hTrack.x + sb0.hTrack.w && y >= sb0.hTrack.y && y <= sb0.hTrack.y + sb0.hTrack.h)
