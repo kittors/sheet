@@ -1,38 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { CanvasRenderer } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
-import { Workbook } from '@sheet/core'
 
 // DOM/Renderer refs exposed to parent so interaction layer can attach
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const rendererRef = ref<CanvasRenderer | null>(null)
 
-// Props: grid size and initial cell values (UI remains presentational)
-interface InitCell { r: number; c: number; value: string | number | boolean | null }
-const props = defineProps<{ rows?: number; cols?: number; cells?: InitCell[] }>()
+// Props: external sheet provided by app/API (UI remains presentational)
+const props = defineProps<{ sheet: Sheet }>()
 
-// Create a default workbook/sheet for convenience; expose to parent
-const wb = new Workbook()
-let sheet = wb.addSheet('Sheet1', props.rows ?? 100, props.cols ?? 100)
-
-// Apply initial/updated cells (data-only; no interaction here)
-function applyCells(arr?: InitCell[]) {
-  if (!arr) return
-  for (const it of arr) {
-    if (it.r >= 0 && it.r < sheet.rows && it.c >= 0 && it.c < sheet.cols) sheet.setValue(it.r, it.c, it.value)
-  }
-}
-applyCells(props.cells)
-watch(
-  () => props.cells,
-  (arr) => {
-    applyCells(arr)
-    // Trigger a passive re-render so users see updated data even未绑定交互时
-    renderOnce()
-  },
-  { deep: true }
-)
+// Use external sheet directly
+const sheet = props.sheet
 
 // Minimal initial paint so UI不依赖交互层也能显示基础网格/表头
 function renderOnce() {
