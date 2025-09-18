@@ -4,7 +4,13 @@ export class ContentLayer implements Layer {
   name = 'content'
   render(rc: RenderContext) {
     const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+    const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.save()
+    // Clip to content area (exclude headers and scrollbars)
+    ctx.beginPath()
+    ctx.rect(originX, originY, Math.max(0, rc.viewport.width - originX - vGap), Math.max(0, rc.viewport.height - originY - hGap))
+    ctx.clip()
     ctx.fillStyle = '#111827'
     ctx.textBaseline = 'middle'
     ctx.font = 'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'

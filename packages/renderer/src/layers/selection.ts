@@ -33,8 +33,10 @@ export class SelectionLayer implements Layer {
     // Clip to viewport content area (exclude headers)
     const clipLeft = originX
     const clipTop = originY
-    const clipRight = viewport.width
-    const clipBottom = viewport.height
+    const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+    const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
+    const clipRight = viewport.width - vGap
+    const clipBottom = viewport.height - hGap
     const left = Math.max(x0, clipLeft)
     const top = Math.max(y0, clipTop)
     const right = Math.min(x1, clipRight)

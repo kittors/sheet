@@ -60,18 +60,33 @@ export class CanvasRenderer {
     const viewportContentWidth = Math.max(0, viewport.width - originX)
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
-    // Compute content size and clamp scroll first (prevents boundary drift at large scrolls)
+    // Compute content size
     const contentWidth = sheet.cols * this.opts.defaultColWidth + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - this.opts.defaultColWidth), 0)
     const contentHeight = sheet.rows * this.opts.defaultRowHeight + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - this.opts.defaultRowHeight), 0)
-    const maxScrollX = Math.max(0, contentWidth - viewportContentWidth)
-    const maxScrollY = Math.max(0, contentHeight - viewportContentHeight)
+
+    // Decide whether scrollbars are needed and compute available content viewport (iterate to resolve interdependency)
+    const thickness = this.opts.scrollbarThickness
+    let vScrollable = contentHeight > viewportContentHeight + 0.5
+    let hScrollable = contentWidth > viewportContentWidth + 0.5
+    for (let i = 0; i < 2; i++) {
+      const widthAvail = Math.max(0, viewportContentWidth - (vScrollable ? thickness : 0))
+      const heightAvail = Math.max(0, viewportContentHeight - (hScrollable ? thickness : 0))
+      vScrollable = contentHeight > heightAvail + 0.5
+      hScrollable = contentWidth > widthAvail + 0.5
+    }
+    const widthAvail = Math.max(0, viewportContentWidth - (vScrollable ? thickness : 0))
+    const heightAvail = Math.max(0, viewportContentHeight - (hScrollable ? thickness : 0))
+
+    // Clamp scroll to available content viewport (prevents boundary drift)
+    const maxScrollX = Math.max(0, contentWidth - widthAvail)
+    const maxScrollY = Math.max(0, contentHeight - heightAvail)
     const sX = Math.max(0, Math.min(scrollX, maxScrollX))
     const sY = Math.max(0, Math.min(scrollY, maxScrollY))
     const visible = computeVisibleRange({
       scrollX: sX,
       scrollY: sY,
-      viewportWidth: viewportContentWidth,
-      viewportHeight: viewportContentHeight,
+      viewportWidth: widthAvail,
+      viewportHeight: heightAvail,
       colCount: sheet.cols,
       rowCount: sheet.rows,
       defaultColWidth: this.opts.defaultColWidth,
@@ -82,24 +97,22 @@ export class CanvasRenderer {
     })
 
     // Scrollbar geometry
-    const thickness = this.opts.scrollbarThickness
     const minThumb = this.opts.scrollbarThumbMinSize
 
     // Vertical scrollbar visible only if content exceeds viewport
     let vTrack: { x: number; y: number; w: number; h: number } | null = null
     let vThumb: { x: number; y: number; w: number; h: number } | null = null
-    const vScrollable = contentHeight > viewportContentHeight + 0.5
     if (vScrollable) {
       const x = viewport.width - thickness
       const y = originY
       const w = thickness
       // If horizontal bar also visible we keep room for corner
-      const h = viewport.height - originY - (contentWidth > viewportContentWidth + 0.5 ? thickness : 0)
+      const h = viewport.height - originY - (hScrollable ? thickness : 0)
       vTrack = { x, y, w, h }
       const trackSpan = h
-      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (viewportContentHeight / contentHeight))))
+      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (heightAvail / contentHeight))))
       const maxThumbTop = trackSpan - thumbLen
-      const maxScrollY = Math.max(0, contentHeight - viewportContentHeight)
+      const maxScrollY = Math.max(0, contentHeight - heightAvail)
       const frac = maxScrollY > 0 ? sY / maxScrollY : 0
       const thumbTop = y + Math.floor(maxThumbTop * frac)
       vThumb = { x, y: thumbTop, w, h: thumbLen }
@@ -108,7 +121,6 @@ export class CanvasRenderer {
     // Horizontal scrollbar
     let hTrack: { x: number; y: number; w: number; h: number } | null = null
     let hThumb: { x: number; y: number; w: number; h: number } | null = null
-    const hScrollable = contentWidth > viewportContentWidth + 0.5
     if (hScrollable) {
       const x = originX
       const y = viewport.height - thickness
@@ -117,9 +129,9 @@ export class CanvasRenderer {
       const h = thickness
       hTrack = { x, y, w, h }
       const trackSpan = w
-      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (viewportContentWidth / contentWidth))))
+      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (widthAvail / contentWidth))))
       const maxThumbLeft = trackSpan - thumbLen
-      const maxScrollX = Math.max(0, contentWidth - viewportContentWidth)
+      const maxScrollX = Math.max(0, contentWidth - widthAvail)
       const frac = maxScrollX > 0 ? sX / maxScrollX : 0
       const thumbLeft = x + Math.floor(maxThumbLeft * frac)
       hThumb = { x: thumbLeft, y, w: thumbLen, h }
@@ -142,8 +154,8 @@ export class CanvasRenderer {
       selection: this.selection,
       contentWidth,
       contentHeight,
-      viewportContentWidth,
-      viewportContentHeight,
+      viewportContentWidth: widthAvail,
+      viewportContentHeight: heightAvail,
       scrollbar: {
         thickness,
         minThumbSize: minThumb,

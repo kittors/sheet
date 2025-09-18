@@ -26,6 +26,33 @@ type DragMode = 'none' | 'select' | 'vscroll' | 'hscroll'
 const dragMode = ref<DragMode>('none')
 let dragGrabOffset = 0 // for scrollbar dragging (pixels inside thumb)
 let raf = 0
+// UI-side scrollbar thickness should match renderer default unless overridden
+const SCROLL_THICKNESS = 12
+
+function computeAvailViewport(canvas: HTMLCanvasElement) {
+  const viewW = canvas.clientWidth
+  const viewH = canvas.clientHeight
+  const baseW = Math.max(0, viewW - HEADER_COL_W)
+  const baseH = Math.max(0, viewH - HEADER_ROW_H)
+  const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
+  const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
+  let widthAvail = baseW
+  let heightAvail = baseH
+  let vScrollable = contentHeight > heightAvail
+  let hScrollable = contentWidth > widthAvail
+  for (let i = 0; i < 3; i++) {
+    const nextW = Math.max(0, baseW - (vScrollable ? SCROLL_THICKNESS : 0))
+    const nextH = Math.max(0, baseH - (hScrollable ? SCROLL_THICKNESS : 0))
+    const nextV = contentHeight > nextH
+    const nextHFlag = contentWidth > nextW
+    if (nextW === widthAvail && nextH === heightAvail && nextV === vScrollable && nextHFlag === hScrollable) break
+    widthAvail = nextW
+    heightAvail = nextH
+    vScrollable = nextV
+    hScrollable = nextHFlag
+  }
+  return { widthAvail, heightAvail }
+}
 
 function render() {
   const canvas = canvasRef.value!
@@ -77,8 +104,7 @@ function posToCell(clientX: number, clientY: number): { r: number; c: number } |
   // Reuse same formulas as normalizeScroll but without mutating state
   const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
   const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
-  const viewportContentWidth = Math.max(0, canvas.clientWidth - HEADER_COL_W)
-  const viewportContentHeight = Math.max(0, canvas.clientHeight - HEADER_ROW_H)
+  const { widthAvail: viewportContentWidth, heightAvail: viewportContentHeight } = computeAvailViewport(canvas)
   const maxX = Math.max(0, contentWidth - viewportContentWidth)
   const maxY = Math.max(0, contentHeight - viewportContentHeight)
   const sX = Math.max(0, Math.min(scroll.x, maxX))
@@ -269,8 +295,7 @@ function normalizeScroll() {
   const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
   const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
   const canvas = canvasRef.value!
-  const viewportContentWidth = Math.max(0, canvas.clientWidth - HEADER_COL_W)
-  const viewportContentHeight = Math.max(0, canvas.clientHeight - HEADER_ROW_H)
+  const { widthAvail: viewportContentWidth, heightAvail: viewportContentHeight } = computeAvailViewport(canvas)
   const maxX = Math.max(0, contentWidth - viewportContentWidth)
   const maxY = Math.max(0, contentHeight - viewportContentHeight)
   scroll.x = Math.max(0, Math.min(maxX, scroll.x))
@@ -285,7 +310,7 @@ function applyVThumb(newTop: number) {
   const maxThumbTop = Math.max(0, trackSpan - thumbLen)
   const frac = maxThumbTop > 0 ? newTop / maxThumbTop : 0
   const canvas = canvasRef.value!
-  const viewportContentHeight = Math.max(0, canvas.clientHeight - HEADER_ROW_H)
+  const { heightAvail: viewportContentHeight } = computeAvailViewport(canvas)
   const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
   const maxScrollY = Math.max(0, contentHeight - viewportContentHeight)
   scroll.y = Math.max(0, Math.min(maxScrollY, Math.floor(frac * maxScrollY)))
@@ -299,7 +324,7 @@ function applyHThumb(newLeft: number) {
   const maxThumbLeft = Math.max(0, trackSpan - thumbLen)
   const frac = maxThumbLeft > 0 ? newLeft / maxThumbLeft : 0
   const canvas = canvasRef.value!
-  const viewportContentWidth = Math.max(0, canvas.clientWidth - HEADER_COL_W)
+  const { widthAvail: viewportContentWidth } = computeAvailViewport(canvas)
   const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
   const maxScrollX = Math.max(0, contentWidth - viewportContentWidth)
   scroll.x = Math.max(0, Math.min(maxScrollX, Math.floor(frac * maxScrollX)))
