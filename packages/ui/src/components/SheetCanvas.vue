@@ -22,7 +22,7 @@ for (let r = 0; r < 100; r++) {
 
 const scroll = { x: 0, y: 0 }
 const selection = ref<{ r0: number; c0: number; r1: number; c1: number } | undefined>()
-type DragMode = 'none' | 'select' | 'vscroll' | 'hscroll'
+type DragMode = 'none' | 'select' | 'vscroll' | 'hscroll' | 'colheader' | 'rowheader'
 const dragMode = ref<DragMode>('none')
 let dragGrabOffset = 0 // for scrollbar dragging (pixels inside thumb)
 let raf = 0
@@ -166,6 +166,82 @@ function onPointerDown(e: PointerEvent) {
     schedule()
     return
   }
+  // Header hit-testing (after scrollbars)
+  const rightBound = sb?.vTrack ? sb.vTrack.x : canvas.clientWidth
+  const bottomBound = sb?.hTrack ? sb.hTrack.y : canvas.clientHeight
+  // Corner (select all)
+  if (x >= 0 && x < HEADER_COL_W && y >= 0 && y < HEADER_ROW_H) {
+    selection.value = { r0: 0, c0: 0, r1: sheet.rows - 1, c1: sheet.cols - 1 }
+    dragMode.value = 'none'
+    schedule()
+    return
+  }
+  // Column header band
+  if (y >= 0 && y < HEADER_ROW_H && x >= HEADER_COL_W && x < rightBound) {
+    // Map x to column index using clamped scroll X
+    const { widthAvail: viewportContentWidth } = computeAvailViewport(canvas)
+    const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
+    const maxX = Math.max(0, contentWidth - viewportContentWidth)
+    const sX = Math.max(0, Math.min(scroll.x, maxX))
+    const cx = x - HEADER_COL_W + sX
+    const cumWidth = (i: number): number => {
+      let base = i * DEFAULT_COL_W
+      if (sheet.colWidths.size) for (const [c, w] of sheet.colWidths) { if (c < i) base += (w - DEFAULT_COL_W) }
+      return base
+    }
+    const findIndexByPos = (pos: number, count: number, cumFn: (i: number) => number): number => {
+      const total = cumFn(count)
+      const p = Math.max(0, Math.min(total - 1, pos))
+      let lo = 0, hi = count
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1
+        const start = cumFn(mid)
+        const end = cumFn(mid + 1)
+        if (p < start) hi = mid
+        else if (p >= end) lo = mid + 1
+        else return mid
+      }
+      return Math.min(count - 1, lo)
+    }
+    const col = findIndexByPos(cx, sheet.cols, cumWidth)
+    selection.value = { r0: 0, r1: sheet.rows - 1, c0: col, c1: col }
+    dragMode.value = 'colheader'
+    schedule()
+    return
+  }
+  // Row header band
+  if (x >= 0 && x < HEADER_COL_W && y >= HEADER_ROW_H && y < bottomBound) {
+    // Map y to row index using clamped scroll Y
+    const { heightAvail: viewportContentHeight } = computeAvailViewport(canvas)
+    const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
+    const maxY = Math.max(0, contentHeight - viewportContentHeight)
+    const sY = Math.max(0, Math.min(scroll.y, maxY))
+    const cy = y - HEADER_ROW_H + sY
+    const cumHeight = (i: number): number => {
+      let base = i * DEFAULT_ROW_H
+      if (sheet.rowHeights.size) for (const [r, h] of sheet.rowHeights) { if (r < i) base += (h - DEFAULT_ROW_H) }
+      return base
+    }
+    const findIndexByPos = (pos: number, count: number, cumFn: (i: number) => number): number => {
+      const total = cumFn(count)
+      const p = Math.max(0, Math.min(total - 1, pos))
+      let lo = 0, hi = count
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1
+        const start = cumFn(mid)
+        const end = cumFn(mid + 1)
+        if (p < start) hi = mid
+        else if (p >= end) lo = mid + 1
+        else return mid
+      }
+      return Math.min(count - 1, lo)
+    }
+    const row = findIndexByPos(cy, sheet.rows, cumHeight)
+    selection.value = { r0: row, r1: row, c0: 0, c1: sheet.cols - 1 }
+    dragMode.value = 'rowheader'
+    schedule()
+    return
+  }
   if (sb?.hTrack && x >= sb.hTrack.x && x <= sb.hTrack.x + sb.hTrack.w && y >= sb.hTrack.y && y <= sb.hTrack.y + sb.hTrack.h) {
     dragMode.value = 'hscroll'
     rendererRef.value?.setScrollbarState?.({ hActive: true })
@@ -221,6 +297,75 @@ function onPointerMove(e: PointerEvent) {
     const trackSpan = sb.hTrack.w
     const newLeft = Math.max(0, Math.min(trackSpan - sb.hThumb.w, x - sb.hTrack.x - dragGrabOffset))
     applyHThumb(newLeft)
+    schedule()
+    return
+  }
+  if (dragMode.value === 'colheader') {
+    const sb = rendererRef.value?.getScrollbars?.()
+    const rightBound = sb?.vTrack ? sb.vTrack.x : canvasRef.value!.clientWidth
+    // Only respond while within header band horizontally, but allow dragging beyond bounds to clamp
+    const canvas = canvasRef.value!
+    const { widthAvail: viewportContentWidth } = computeAvailViewport(canvas)
+    const contentWidth = sheet.cols * DEFAULT_COL_W + [...sheet.colWidths.entries()].reduce((acc, [c, w]) => acc + (w - DEFAULT_COL_W), 0)
+    const maxX = Math.max(0, contentWidth - viewportContentWidth)
+    const sX = Math.max(0, Math.min(scroll.x, maxX))
+    const cx = Math.max(HEADER_COL_W, Math.min(x, rightBound)) - HEADER_COL_W + sX
+    const cumWidth = (i: number): number => {
+      let base = i * DEFAULT_COL_W
+      if (sheet.colWidths.size) for (const [c, w] of sheet.colWidths) { if (c < i) base += (w - DEFAULT_COL_W) }
+      return base
+    }
+    const findIndexByPos = (pos: number, count: number, cumFn: (i: number) => number): number => {
+      const total = cumFn(count)
+      const p = Math.max(0, Math.min(total - 1, pos))
+      let lo = 0, hi = count
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1
+        const start = cumFn(mid)
+        const end = cumFn(mid + 1)
+        if (p < start) hi = mid
+        else if (p >= end) lo = mid + 1
+        else return mid
+      }
+      return Math.min(count - 1, lo)
+    }
+    const startCol = Math.min(selection.value!.c0, selection.value!.c1)
+    const endCol = findIndexByPos(cx, sheet.cols, cumWidth)
+    selection.value = { r0: 0, r1: sheet.rows - 1, c0: startCol, c1: endCol }
+    schedule()
+    return
+  }
+  if (dragMode.value === 'rowheader') {
+    const sb = rendererRef.value?.getScrollbars?.()
+    const bottomBound = sb?.hTrack ? sb.hTrack.y : canvasRef.value!.clientHeight
+    const canvas = canvasRef.value!
+    const { heightAvail: viewportContentHeight } = computeAvailViewport(canvas)
+    const contentHeight = sheet.rows * DEFAULT_ROW_H + [...sheet.rowHeights.entries()].reduce((acc, [r, h]) => acc + (h - DEFAULT_ROW_H), 0)
+    const maxY = Math.max(0, contentHeight - viewportContentHeight)
+    const sY = Math.max(0, Math.min(scroll.y, maxY))
+    const cy = Math.max(HEADER_ROW_H, Math.min(y, bottomBound)) - HEADER_ROW_H + sY
+    const cumHeight = (i: number): number => {
+      let base = i * DEFAULT_ROW_H
+      if (sheet.rowHeights.size) for (const [r, h] of sheet.rowHeights) { if (r < i) base += (h - DEFAULT_ROW_H) }
+      return base
+    }
+    const findIndexByPos = (pos: number, count: number, cumFn: (i: number) => number): number => {
+      const total = cumFn(count)
+      const p = Math.max(0, Math.min(total - 1, pos))
+      let lo = 0, hi = count
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1
+        const start = cumFn(mid)
+        const end = cumFn(mid + 1)
+        if (p < start) hi = mid
+        else if (p >= end) lo = mid + 1
+        else return mid
+      }
+      return Math.min(count - 1, lo)
+    }
+    const startRow = Math.min(selection.value!.r0, selection.value!.r1)
+    const endRow = findIndexByPos(cy, sheet.rows, cumHeight)
+    selection.value = { r0: startRow, r1: endRow, c0: 0, c1: sheet.cols - 1 }
     schedule()
     return
   }
