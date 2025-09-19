@@ -42,6 +42,7 @@ export class CanvasRenderer {
   layers: Layer[]
   opts: RendererOptions
   selection?: { r0: number; c0: number; r1: number; c1: number }
+  selectionAnchor?: { r: number; c: number }
   editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }
   guides?: { v?: number; h?: number }
   headerStyle: HeaderStyle
@@ -192,6 +193,7 @@ export class CanvasRenderer {
       defaultRowHeight: this.opts.defaultRowHeight!,
       defaultColWidth: this.opts.defaultColWidth!,
       selection: this.selection,
+      selectionAnchor: this.selectionAnchor,
       contentWidth,
       contentHeight,
       viewportContentWidth: widthAvail,
@@ -215,8 +217,9 @@ export class CanvasRenderer {
     for (const l of this.layers) l.render(rc)
   }
 
-  setSelection(sel?: { r0: number; c0: number; r1: number; c1: number }) {
+  setSelection(sel?: { r0: number; c0: number; r1: number; c1: number }, anchor?: { r: number; c: number }) {
     this.selection = sel
+    this.selectionAnchor = anchor
   }
 
   setGuides(g?: { v?: number; h?: number }) {

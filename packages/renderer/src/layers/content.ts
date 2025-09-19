@@ -35,13 +35,14 @@ export class ContentLayer implements Layer {
           aw = 0
           for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
         }
-        // scan to find first blocker (non-empty or editing cell)
+        // scan to find first blocker (non-empty or actively editing cell)
         const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
         let rightLimit = rc.viewport.width - vGap2
         let curX = ax + aw
         let scanC = (am && am.r === r && am.c === editAnchorC) ? (am.c + am.cols) : (editAnchorC + 1)
+        const rowEditing = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
         while (scanC < sheet.cols) {
-          const editingHere = !!rc.editor && rc.editor.r === r && rc.editor.c === scanC
+          const editingHere = rowEditing && rc.editor!.c === scanC
           const vHere = sheet.getValueAt(r, scanC)
           const hasValHere = vHere != null && String(vHere) !== ''
           if (editingHere || hasValHere) { rightLimit = Math.min(rightLimit, curX); break }
@@ -113,9 +114,10 @@ export class ContentLayer implements Layer {
             // Start scanning from the first column after current (or after current merge span)
             let curX = x + drawW
             let scanC = (m && m.r === r && m.c === c) ? (m.c + m.cols) : (c + 1)
+            const rowEditing2 = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
             while (scanC < sheet.cols) {
-              // If the anchor of the editing cell is here, stop before this column
-              const editingHere = !!rc.editor && rc.editor.r === r && rc.editor.c === scanC
+              // If the anchor of an actively editing cell is here, stop before this column
+              const editingHere = rowEditing2 && rc.editor!.c === scanC
               // Treat any non-empty logical value at (r, scanC) as occupied (covers merges too via getValueAt)
               const vHere = sheet.getValueAt(r, scanC)
               const hasValHere = vHere != null && String(vHere) !== ''
@@ -179,9 +181,10 @@ export class ContentLayer implements Layer {
             const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
             // Never clip the editing anchor itself; it should render fully (overflow paints outside via content layer)
             const doClipPolicy = (!isEditingAnchor) && (needsClipPolicy || hasOverflowStop)
-            // Additionally, if this row has an editor and this cell is to the right of the editor,
+            // Additionally, if actively editing on this row and this cell is not the anchor,
             // avoid drawing inside the editor's overflow span [editSpanStartX, editSpanEndX)
-            const avoidEditorSpan = (rc.editor && rc.editor.r === r && c !== editAnchorC && editSpanStartX >= 0)
+            const isRowEditing = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
+            const avoidEditorSpan = (isRowEditing && c !== editAnchorC && editSpanStartX >= 0)
             let didCustomClip = false
             if (avoidEditorSpan) {
               const cellLeft = x

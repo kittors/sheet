@@ -44,17 +44,27 @@ export class EditorLayer implements Layer {
       for (let rr = m.r; rr < m.r + m.rows; rr++) h += sheet.rowHeights.get(rr) ?? defaultRowHeight
     }
 
-    // draw background same as cell fill (cover selection highlight)
+    // Draw background same as cell fill when actively editing only.
+    // When not editing (preview overlay), do NOT paint a background so overflow text
+    // from adjacent cells remains visible when selecting an empty neighbor.
     const style = sheet.getStyleAt(r, c)
     const bg = style?.fill?.backgroundColor ?? '#ffffff'
-    ctx.save()
-    ctx.beginPath()
-    // Clip only for background so it doesn't spill; text/caret may overflow if needed
-    ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
-    ctx.clip()
-    ctx.fillStyle = bg
-    ctx.fillRect(Math.floor(x) + 1, Math.floor(y) + 1, Math.max(0, Math.floor(w) - 2), Math.max(0, Math.floor(h) - 2))
-    ctx.restore()
+    const isEditing = rc.editor?.selStart != null && rc.editor?.selEnd != null
+    if (isEditing) {
+      ctx.save()
+      ctx.beginPath()
+      // Clip only for background so it doesn't spill; text/caret may overflow if needed
+      ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
+      ctx.clip()
+      ctx.fillStyle = bg
+      ctx.fillRect(
+        Math.floor(x) + 1,
+        Math.floor(y) + 1,
+        Math.max(0, Math.floor(w) - 2),
+        Math.max(0, Math.floor(h) - 2),
+      )
+      ctx.restore()
+    }
 
     // draw caret (and position), and overlay text; ensure我们优先显示编辑内容，并在需要时遮挡右侧固定内容
     // font from style if provided
@@ -111,9 +121,16 @@ export class EditorLayer implements Layer {
       ctx.beginPath()
       ctx.rect(x + 1, y + 1, Math.max(0, clipW - 2), Math.max(0, h - 2))
       ctx.clip()
-      // Fill overlay background across the extended region to occlude right-cell content
-      ctx.fillStyle = bg
-      ctx.fillRect(Math.floor(x) + 1, Math.floor(y) + 1, Math.max(0, Math.floor(clipW) - 2), Math.max(0, Math.floor(h) - 2))
+      // Only when actively editing do we occlude right-side content with background.
+      if (isEditing) {
+        ctx.fillStyle = bg
+        ctx.fillRect(
+          Math.floor(x) + 1,
+          Math.floor(y) + 1,
+          Math.max(0, Math.floor(clipW) - 2),
+          Math.max(0, Math.floor(h) - 2),
+        )
+      }
     } else {
       ctx.beginPath()
       ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))

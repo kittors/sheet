@@ -9,7 +9,7 @@ import { createPointerHandlers } from './pointer'
 import { createCommands } from './commands'
 import { attachKeyboard } from './keyboard'
 import { posToCell } from './hit'
-import { caretIndexFromPoint, fontStringFromStyle, wrapTextIndices } from '@sheet/api'
+import { caretIndexFromPoint, fontStringFromStyle } from '@sheet/api'
 
 export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   const ctx: Context = {
@@ -37,7 +37,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   function schedule() {
     baseSchedule()
     // Keep non-editing overlay + IME host synced to selection/editor state
-    try { kb?.editor.syncSelectionPreview?.() } catch {}
+    try { kb?.editor.syncSelectionPreview?.() } catch (e) { void e }
     // if user scrolled and editor exists but is off-screen, commit the edit
     const scChanged = (state.scroll.x !== lastScrollX) || (state.scroll.y !== lastScrollY)
     if (scChanged) {
@@ -170,10 +170,8 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const x0 = originX + colLeft(ac) - state.scroll.x
     const y0 = originY + rowTop(ar) - state.scroll.y
     let w = ctx.sheet.colWidths.get(ac) ?? ctx.metrics.defaultColWidth
-    let h = ctx.sheet.rowHeights.get(ar) ?? ctx.metrics.defaultRowHeight
     if (m) {
       w = 0; for (let cc = m.c; cc < m.c + m.cols; cc++) w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
-      h = 0; for (let rr = m.r; rr < m.r + m.rows; rr++) h += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
     }
     // map click x to caret index
     const rect = ctx.canvas.getBoundingClientRect()

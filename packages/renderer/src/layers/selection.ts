@@ -45,9 +45,60 @@ export class SelectionLayer implements Layer {
     const h = bottom - top
     if (w <= 0 || h <= 0) return
 
+    // For single-cell selection, do NOT paint a translucent fill.
+    // This avoids covering overflow text from adjacent cells (e.g. A8 flowing into B8).
+    // For multi-cell selection, paint fill but punch a hole at the top-left cell (active cell)
+    // so the user can see the anchor cell clearly.
+    const isSingleCell = r0 === r1 && c0 === c1
+
     ctx.save()
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'
-    ctx.fillRect(Math.floor(left) + 1, Math.floor(top) + 1, Math.max(0, Math.floor(w) - 2), Math.max(0, Math.floor(h) - 2))
+    if (!isSingleCell) {
+      // Selection interior (shrink by 1px to keep stroke crisp)
+      const selL = Math.floor(left) + 1
+      const selT = Math.floor(top) + 1
+      const selW = Math.max(0, Math.floor(w) - 2)
+      const selH = Math.max(0, Math.floor(h) - 2)
+
+      // Active/anchor cell: prefer provided selectionAnchor, fallback to selection's top-left
+      let ar = rc.selectionAnchor?.r ?? r0
+      let ac = rc.selectionAnchor?.c ?? c0
+      // If anchor lies outside the current selection (e.g. header/corner select), fallback to top-left
+      const rrMin = Math.min(r0, r1), rrMax = Math.max(r0, r1)
+      const ccMin = Math.min(c0, c1), ccMax = Math.max(c0, c1)
+      if (ar < rrMin || ar > rrMax || ac < ccMin || ac > ccMax) { ar = r0; ac = c0 }
+      // Compute anchor cell box in canvas coords (respect merges if anchor is a merge anchor)
+      const xA0 = originX + cumWidth(ac) - scroll.x
+      let xA1 = originX + cumWidth(ac + 1) - scroll.x
+      const yA0 = originY + cumHeight(ar) - scroll.y
+      let yA1 = originY + cumHeight(ar + 1) - scroll.y
+      const mA = sheet.getMergeAt(ar, ac)
+      if (mA && mA.r === ar && mA.c === ac) {
+        xA1 = originX + cumWidth(ac + mA.cols) - scroll.x
+        yA1 = originY + cumHeight(ar + mA.rows) - scroll.y
+      }
+      // Clip anchor box to content area
+      const aL = Math.max(Math.floor(xA0), Math.floor(originX))
+      const aT = Math.max(Math.floor(yA0), Math.floor(originY))
+      const aR = Math.min(Math.floor(xA1), Math.floor(viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)))
+      const aB = Math.min(Math.floor(yA1), Math.floor(viewport.height - (rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0)))
+      // Anchor interior (also shrink by 1px to align with selection interior and keep borders crisp)
+      const holeL = Math.max(selL, aL + 1)
+      const holeT = Math.max(selT, aT + 1)
+      const holeR = Math.min(selL + selW, aR - 1)
+      const holeB = Math.min(selT + selH, aB - 1)
+
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'
+      ctx.beginPath()
+      // Outer selection interior rect
+      ctx.rect(selL, selT, Math.max(0, selW), Math.max(0, selH))
+      // Subtract anchor interior using even-odd rule (if hole is valid)
+      if (holeR > holeL && holeB > holeT) {
+        ctx.rect(holeL, holeT, Math.max(0, holeR - holeL), Math.max(0, holeB - holeT))
+        ctx.fill('evenodd')
+      } else {
+        ctx.fill()
+      }
+    }
     ctx.strokeStyle = '#3b82f6'
     ctx.lineWidth = 2
     ctx.strokeRect(Math.floor(left) + 0.5, Math.floor(top) + 0.5, Math.floor(w) - 1, Math.floor(h) - 1)

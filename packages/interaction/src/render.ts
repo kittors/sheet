@@ -10,7 +10,7 @@ export function createRender(ctx: Context, state: State) {
       ctx.canvas.style.height = `${h}px`
       ctx.renderer.resize(w, h)
     }
-    ctx.renderer.setSelection(state.selection)
+    ctx.renderer.setSelection(state.selection, state.selectAnchor)
     ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y)
   }
 

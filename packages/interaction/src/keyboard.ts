@@ -15,8 +15,12 @@ export function attachKeyboard(
   function getActiveCell(): { r: number; c: number } | null {
     const sel = state.selection
     if (!sel) return null
-    const r = Math.min(sel.r0, sel.r1)
-    const c = Math.min(sel.c0, sel.c1)
+    // Prefer the actual selection anchor (start of drag); fallback to top-left of selection
+    let r = state.selectAnchor?.r ?? Math.min(sel.r0, sel.r1)
+    let c = state.selectAnchor?.c ?? Math.min(sel.c0, sel.c1)
+    // If anchor lies in a merge, use merge anchor
+    const m = ctx.sheet.getMergeAt(r, c)
+    if (m) { r = m.r; c = m.c }
     return { r, c }
   }
 
@@ -37,13 +41,13 @@ export function attachKeyboard(
       const s = edState.selAll ? 0 : Math.min(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
       const ee = edState.selAll ? text.length : Math.max(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
       const slice = hasRange ? text.slice(s, ee) : ''
-      if (slice) { try { navigator.clipboard.writeText(slice) } catch {} }
+      if (slice) { try { navigator.clipboard.writeText(slice) } catch (err) { void err } }
       e.preventDefault(); return
     }
     if (editing && (e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
       try {
         navigator.clipboard.readText().then((clip) => { if (clip) { ed.insertText(clip); deps.schedule() } })
-      } catch {}
+      } catch (err) { void err }
       e.preventDefault(); return
     }
     // While an IME composition is active, let the IME own the keystrokes

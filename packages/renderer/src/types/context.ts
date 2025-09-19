@@ -25,6 +25,8 @@ export interface RenderContext {
   defaultRowHeight: number
   defaultColWidth: number
   selection?: { r0: number; c0: number; r1: number; c1: number }
+  // the active/anchor cell for selection (starting point of a multi-cell selection)
+  selectionAnchor?: { r: number; c: number }
   // content metrics
   contentWidth: number
   contentHeight: number
