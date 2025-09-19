@@ -236,5 +236,26 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     },
     getSelection() { return state.selection },
     getScroll() { return { ...state.scroll } },
+    hitTest(clientX: number, clientY: number) {
+      const rect = ctx.canvas.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      const originX = ctx.metrics.headerColWidth
+      const originY = ctx.metrics.headerRowHeight
+      // 先排除滚动条
+      const sb = ctx.renderer.getScrollbars?.()
+      if (sb) {
+        const inV = sb.vTrack && x >= sb.vTrack.x && x <= sb.vTrack.x + sb.vTrack.w && y >= sb.vTrack.y && y <= sb.vTrack.y + sb.vTrack.h
+        const inH = sb.hTrack && x >= sb.hTrack.x && x <= sb.hTrack.x + sb.hTrack.w && y >= sb.hTrack.y && y <= sb.hTrack.y + sb.hTrack.h
+        if (inV || inH) return { area: 'outside' as const }
+      }
+      if (x < originX && y >= originY) return { area: 'rowHeader' }
+      if (y < originY && x >= originX) return { area: 'colHeader' }
+      if (x >= originX && y >= originY) {
+        const cell = posToCell(ctx, state, clientX, clientY)
+        if (cell) return { area: 'cell', cell }
+      }
+      return { area: 'outside' }
+    },
   }
 }

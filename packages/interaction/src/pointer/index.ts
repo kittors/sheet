@@ -53,6 +53,8 @@ export function createPointerHandlers(
   const selHandlers = createSelectionHandlers(ctx, state, { schedule: deps.schedule, previewAt: deps.previewAt, prepareImeAt: deps.prepareImeAt, clearPreview: deps.clearPreview, updateAutoScrollVelocity })
 
   function onPointerDown(e: PointerEvent) {
+    // 仅处理左键；右键（contextmenu）不改变选择状态，也不开始拖拽
+    if (e.button !== 0) return
     try { ctx.canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
     // If clicking inside the active editor cell, move caret instead of committing
     if (state.editor) { if (textSel.tryBeginFromPointer(e)) return; deps.finishEdit?.('commit') }

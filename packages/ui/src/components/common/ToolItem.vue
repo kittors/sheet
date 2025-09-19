@@ -78,7 +78,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
         { disabled: props.disabled }
       ]"
       :aria-label="ariaLabel || label"
-      :aria-expanded="wantsMenu ? String(open) : undefined"
+      :aria-expanded="wantsMenu ? open : undefined"
       aria-haspopup="menu"
       @click="onButtonClick"
     >

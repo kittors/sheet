@@ -1,2 +1,2 @@
-import base from '@sheet/testing/vitest.config.shared'
+import base from '../testing/vitest.config.shared'
 export default base

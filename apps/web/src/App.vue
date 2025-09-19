@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
-import { SheetCanvas, SheetControlLayout } from '@sheet/ui'
+import { SheetCanvas, SheetControlLayout, ContextMenu } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
 import { createWorkbookWithSheet, applyCells, applyMerges, createSheetApi } from '@sheet/api'
 import type { CanvasRenderer } from '@sheet/renderer'
@@ -33,16 +33,21 @@ const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, co
 applyCells(sheet, cells.value)
 applyMerges(sheet, merges.value)
 // Demo: overflow/clip/ellipsis/wrap
-const longText = 'This is a very very long content to demonstrate overflow, clipping and wrapping behavior.'
+const longText =
+  'This is a very very long content to demonstrate overflow, clipping and wrapping behavior.'
 // Styles for alignment/flow
 const styleClip = sheet.defineStyle({ alignment: { overflow: 'clip' } })
 const styleEllipsis = sheet.defineStyle({ alignment: { overflow: 'ellipsis' } })
 const styleWrap = sheet.defineStyle({ alignment: { wrapText: true, vertical: 'top' } })
 // Place sample cells (same column to compare)
 sheet.setValue(7, 0, 'Overflow: ' + longText) // default overflow
-sheet.setValue(8, 0, 'Clip: ' + longText); sheet.setCellStyle(8, 0, styleClip)
-sheet.setValue(9, 0, 'Ellipsis: ' + longText); sheet.setCellStyle(9, 0, styleEllipsis)
-sheet.setValue(10, 0, 'Wrap: ' + longText); sheet.setCellStyle(10, 0, styleWrap); sheet.setRowHeight(10, 72)
+sheet.setValue(8, 0, 'Clip: ' + longText)
+sheet.setCellStyle(8, 0, styleClip)
+sheet.setValue(9, 0, 'Ellipsis: ' + longText)
+sheet.setCellStyle(9, 0, styleEllipsis)
+sheet.setValue(10, 0, 'Wrap: ' + longText)
+sheet.setCellStyle(10, 0, styleWrap)
+sheet.setRowHeight(10, 72)
 
 // App-level size configuration: define a few custom column widths and row heights
 // Adjust or externalize as needed (e.g., from settings or persisted user prefs)
@@ -75,22 +80,22 @@ const headerLabels = {
   // row: (i: number) => `行${i + 1}`,
 }
 
-  function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
-    // attach interactions as soon as child reports ready
-    handle.value = attachSheetInteractions(payload)
-    // build API and subscribe formula to selection changes
-    api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
-    // live sync formula bar while editing
-    handle.value!.onEditorChange?.((e) => {
-      if (e && e.editing) {
-        formula.value = e.text ?? ''
-      }
-    })
-    offSel = api.onSelectionChange((sel) => {
-      hasSelection.value = !!sel
-      // format selection like A1 or A1:B3
-      selectionLabel.value = formatSelection(sel)
-      const active = api!.getActiveCell()
+function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
+  // attach interactions as soon as child reports ready
+  handle.value = attachSheetInteractions(payload)
+  // build API and subscribe formula to selection changes
+  api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
+  // live sync formula bar while editing
+  handle.value!.onEditorChange?.((e) => {
+    if (e && e.editing) {
+      formula.value = e.text ?? ''
+    }
+  })
+  offSel = api.onSelectionChange((sel) => {
+    hasSelection.value = !!sel
+    // format selection like A1 or A1:B3
+    selectionLabel.value = formatSelection(sel)
+    const active = api!.getActiveCell()
     if (!active) {
       formula.value = ''
       return
@@ -129,6 +134,25 @@ function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number }
   const b = `${colName(c1)}${r1 + 1}`
   return a === b ? a : `${a}:${b}`
 }
+
+// 右键菜单（仅在表格内容区域触发）
+import { Scissors, Copy, ClipboardPaste } from 'lucide-vue-next'
+import type { ContextMenuItem } from '@sheet/ui'
+const cmRef = ref<InstanceType<typeof ContextMenu> | null>(null)
+const cmItems = ref<ContextMenuItem[]>([])
+const cellMenu: ContextMenuItem[] = [
+  { id: 'cut', label: '剪切', icon: Scissors, shortcut: '⌘X' },
+  { id: 'copy', label: '复制', icon: Copy, shortcut: '⌘C' },
+  { id: 'paste', label: '粘贴', icon: ClipboardPaste, shortcut: '⌘V' },
+]
+function onOpenContextMenu(e: MouseEvent) {
+  // 仅在内容区域（cell）打开
+  const hit = handle.value?.hitTest(e.clientX, e.clientY)
+  if (hit && hit.area === 'cell') {
+    cmItems.value = cellMenu
+    cmRef.value?.openWithEvent(e)
+  }
+}
 </script>
 
 <template>
@@ -141,7 +165,7 @@ function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number }
       @merge-cells="onMergeCells"
       @unmerge-cells="onUnmergeCells"
     />
-    <div style="flex: 1; min-height: 0">
+    <div style="flex: 1; min-height: 0" @contextmenu="onOpenContextMenu">
       <SheetCanvas
         :sheet="sheet"
         :header-style="headerStyle"
@@ -149,6 +173,7 @@ function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number }
         @ready="onReady"
       />
     </div>
+    <ContextMenu ref="cmRef" :menu-items="cmItems" />
   </div>
 </template>
 

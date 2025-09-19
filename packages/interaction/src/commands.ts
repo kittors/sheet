@@ -1,6 +1,6 @@
 import type { Context, State, InteractionHandle } from './types'
 
-export function createCommands(ctx: Context, state: State, deps: { schedule: () => void }): Omit<InteractionHandle, 'destroy'> {
+export function createCommands(ctx: Context, state: State, deps: { schedule: () => void }): Omit<InteractionHandle, 'destroy' | 'hitTest'> {
   function forEachSelected(cb: (r: number, c: number) => void) {
     const sel = state.selection
     if (!sel) return

@@ -79,6 +79,8 @@ export interface InteractionHandle {
   // queries
   getSelection(): Selection | undefined
   getScroll(): { x: number; y: number }
+  // 命中测试：返回区域类别以及命中的单元格（如有）
+  hitTest(clientX: number, clientY: number): { area: 'cell' | 'rowHeader' | 'colHeader' | 'outside'; cell?: { r: number; c: number } }
   // events
   onEditorChange?(cb: (e: { editing: boolean; r: number; c: number; text: string; caret: number; selAll?: boolean }) => void): () => void
 }

@@ -104,7 +104,7 @@ export class ContentLayer implements Layer {
           const valign = style?.alignment?.vertical ?? 'middle'
           const wrap = style?.alignment?.wrapText ?? false
           // While editing, force overflow rendering so hidden text is visible.
-          let overflow: 'overflow' | 'clip' | 'ellipsis' = isEditingAnchor ? 'overflow' : (style?.alignment?.overflow ?? 'overflow')
+          const overflow: 'overflow' | 'clip' | 'ellipsis' = isEditingAnchor ? 'overflow' : (style?.alignment?.overflow ?? 'overflow')
 
           // Compute dynamic right stop for overflow so that any occupied or editing cell to the right is preserved.
           // Default to content area right edge (content layer already clipped to content area)
