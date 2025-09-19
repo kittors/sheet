@@ -26,7 +26,33 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   }
 
   const state = createState()
-  const { schedule } = createRender(ctx, state)
+  const { schedule: baseSchedule } = createRender(ctx, state)
+  // editor change listeners
+  const editorListeners: Array<(e: { editing: boolean; r: number; c: number; text: string; caret: number; selAll?: boolean }) => void> = []
+  // Schedule proxy: also keeps IME overlay synced with caret/scroll
+  let kb: ReturnType<typeof attachKeyboard> | null = null
+  let lastProgScrollTs = 0
+  let lastScrollX = state.scroll.x
+  let lastScrollY = state.scroll.y
+  function schedule() {
+    baseSchedule()
+    // Keep non-editing overlay + IME host synced to selection/editor state
+    try { kb?.editor.syncSelectionPreview?.() } catch {}
+    // if user scrolled and editor exists but is off-screen, commit the edit
+    const scChanged = (state.scroll.x !== lastScrollX) || (state.scroll.y !== lastScrollY)
+    if (scChanged) {
+      const now = performance.now()
+      lastScrollX = state.scroll.x; lastScrollY = state.scroll.y
+      if (kb?.editor && state.editor) {
+        const r = state.editor.r, c = state.editor.c
+        if (now - lastProgScrollTs > 120) {
+          if (!isCellVisible(r, c)) {
+            kb.editor.commit()
+          }
+        }
+      }
+    }
+  }
 
   function normalizeScroll() {
     const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
@@ -37,8 +63,25 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   }
 
   const { onWheel } = createWheelHandler(ctx, state, { schedule, normalizeScroll })
-  const { onPointerDown, onPointerMove, onPointerUp, onPointerLeave } = createPointerHandlers(ctx, state, { schedule })
-  const kb = attachKeyboard(ctx, state, { schedule })
+  const { onPointerDown, onPointerMove, onPointerUp, onPointerLeave } = createPointerHandlers(ctx, state, {
+    schedule,
+    finishEdit: (mode) => {
+      if (mode === 'commit') kb!.editor.commit(); else kb!.editor.cancel()
+    },
+    previewAt: (r, c) => { kb!.editor.previewAt(r, c) },
+    clearPreview: () => { ctx.renderer.setEditor(undefined); schedule() },
+    focusIme: () => { kb!.editor.focusIme?.() },
+    prepareImeAt: (r, c) => { kb!.editor.prepareImeAt?.(r, c) },
+    setCaret: (pos) => { kb!.editor.setCaret(pos) },
+    setSelectionRange: (a, b) => { kb!.editor.setSelectionRange?.(a, b) },
+  })
+  kb = attachKeyboard(ctx, state, {
+    schedule,
+    ensureVisible: ensureCellVisible,
+    onEditorUpdate: (e) => {
+      for (const f of editorListeners) f({ editing: true, r: e.r, c: e.c, text: e.text, caret: e.caret, selAll: e.selAll })
+    },
+  })
 
   // prevent browser defaults that interfere with pointer interactions
   ctx.canvas.style.touchAction = 'none'
@@ -62,6 +105,56 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     let base = index * ctx.metrics.defaultRowHeight
     if (ctx.sheet.rowHeights.size) for (const [r, h] of ctx.sheet.rowHeights) { if (r < index) base += (h - ctx.metrics.defaultRowHeight) }
     return base
+  }
+  function cellSpanSize(r: number, c: number): { w: number; h: number } {
+    let w = ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth
+    let h = ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight
+    const m = ctx.sheet.getMergeAt(r, c)
+    if (m && m.r === r && m.c === c) {
+      w = 0; for (let cc = m.c; cc < m.c + m.cols; cc++) w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+      h = 0; for (let rr = m.r; rr < m.r + m.rows; rr++) h += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
+    }
+    return { w, h }
+  }
+  function ensureCellVisible(r: number, c: number, mode: 'center' | 'nearest' = 'nearest') {
+    const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
+    const { w, h } = cellSpanSize(r, c)
+    const left = colLeft(c)
+    const top = rowTop(r)
+    const right = left + w
+    const bottom = top + h
+    let sX = state.scroll.x
+    let sY = state.scroll.y
+    if (mode === 'center') {
+      sX = Math.max(0, Math.min(contentWidth - widthAvail, Math.floor(left + w / 2 - widthAvail / 2)))
+      sY = Math.max(0, Math.min(contentHeight - heightAvail, Math.floor(top + h / 2 - heightAvail / 2)))
+    } else {
+      if (left < sX) sX = left
+      else if (right > sX + widthAvail) sX = Math.max(0, right - widthAvail)
+      if (top < sY) sY = top
+      else if (bottom > sY + heightAvail) sY = Math.max(0, bottom - heightAvail)
+    }
+    if (sX !== state.scroll.x || sY !== state.scroll.y) {
+      state.scroll.x = sX
+      state.scroll.y = sY
+      lastProgScrollTs = performance.now()
+      baseSchedule()
+    }
+  }
+  function isCellVisible(r: number, c: number): boolean {
+    const { widthAvail, heightAvail } = computeAvailViewport(ctx)
+    const { w, h } = cellSpanSize(r, c)
+    const viewLeft = state.scroll.x
+    const viewTop = state.scroll.y
+    const viewRight = viewLeft + widthAvail
+    const viewBottom = viewTop + heightAvail
+    const left = colLeft(c)
+    const top = rowTop(r)
+    const right = left + w
+    const bottom = top + h
+    const hOverlap = !(right <= viewLeft || left >= viewRight)
+    const vOverlap = !(bottom <= viewTop || top >= viewBottom)
+    return hOverlap && vOverlap
   }
   function onDblClick(e: MouseEvent) {
     const cell = posToCell(ctx, state, e.clientX, e.clientY)
@@ -121,9 +214,9 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       }
     }
     ctx.renderer.ctx.restore()
-    // begin editing and set caret at computed position
-    kb.editor.beginAt(ar, ac)
-    kb.editor.setCaret(caret)
+    // begin editing and set caret at computed position (do not auto-scroll here to reduce disruption)
+    kb!.editor.beginAt(ar, ac)
+    kb!.editor.setCaret(caret)
   }
 
   const cmds = createCommands(ctx, state, { schedule })
@@ -139,6 +232,10 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       cancelAnimationFrame(state.raf)
     },
     ...cmds,
+    onEditorChange(cb: (e: { editing: boolean; r: number; c: number; text: string; caret: number; selAll?: boolean }) => void) {
+      editorListeners.push(cb)
+      return () => { const i = editorListeners.indexOf(cb); if (i >= 0) editorListeners.splice(i, 1) }
+    },
     getSelection() { return state.selection },
     getScroll() { return { ...state.scroll } },
   }

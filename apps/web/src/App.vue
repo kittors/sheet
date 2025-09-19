@@ -75,16 +75,22 @@ const headerLabels = {
   // row: (i: number) => `行${i + 1}`,
 }
 
-function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
-  // attach interactions as soon as child reports ready
-  handle.value = attachSheetInteractions(payload)
-  // build API and subscribe formula to selection changes
-  api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
-  offSel = api.onSelectionChange((sel) => {
-    hasSelection.value = !!sel
-    // format selection like A1 or A1:B3
-    selectionLabel.value = formatSelection(sel)
-    const active = api!.getActiveCell()
+  function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
+    // attach interactions as soon as child reports ready
+    handle.value = attachSheetInteractions(payload)
+    // build API and subscribe formula to selection changes
+    api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
+    // live sync formula bar while editing
+    handle.value!.onEditorChange?.((e) => {
+      if (e && e.editing) {
+        formula.value = e.text ?? ''
+      }
+    })
+    offSel = api.onSelectionChange((sel) => {
+      hasSelection.value = !!sel
+      // format selection like A1 or A1:B3
+      selectionLabel.value = formatSelection(sel)
+      const active = api!.getActiveCell()
     if (!active) {
       formula.value = ''
       return

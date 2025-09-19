@@ -35,23 +35,45 @@ export function measureText(text: string, font?: Style['font'], defaultSize = 14
 }
 
 export function wrapTextIndices(text: string, maxWidth: number, font?: Style['font'], defaultSize = 14): Array<{ start: number; end: number }> {
+  // Break text into visual lines that fit within maxWidth, honoring explicit newlines ("\n").
+  // The returned segments are [start, end) index pairs into the original string. Newline characters
+  // are not included in any segment; consecutive newlines yield zero-length segments.
   const ctx = getCtx()
   ctx.font = fontStringFromStyle(font, defaultSize)
   const lines: Array<{ start: number; end: number }> = []
-  let i = 0
   const n = text.length
-  while (i < n) {
-    let lo = i + 1, hi = n
-    while (lo <= hi) {
-      const mid = Math.min(n, Math.max(i + 1, Math.floor((lo + hi) / 2)))
-      const seg = text.slice(i, mid)
-      const w = ctx.measureText(seg).width
-      if (w <= maxWidth) lo = mid + 1
-      else hi = mid - 1
+  let base = 0
+  while (base <= n) {
+    // find next newline (or end of string)
+    const nl = text.indexOf('\n', base)
+    const paraEnd = nl === -1 ? n : nl
+    const paraText = text.slice(base, paraEnd)
+    if (paraText.length === 0) {
+      // explicit blank line (e.g., consecutive \n or leading/trailing \n)
+      lines.push({ start: base, end: base })
+    } else {
+      // wrap paragraph by width
+      let i = 0
+      const m = paraText.length
+      while (i < m) {
+        let lo = i + 1, hi = m
+        while (lo <= hi) {
+          const mid = Math.min(m, Math.max(i + 1, Math.floor((lo + hi) / 2)))
+          const seg = paraText.slice(i, mid)
+          const w = ctx.measureText(seg).width
+          if (w <= maxWidth) lo = mid + 1
+          else hi = mid - 1
+        }
+        const k = Math.max(i + 1, hi)
+        lines.push({ start: base + i, end: base + k })
+        i = k
+      }
     }
-    const k = Math.max(i + 1, hi)
-    lines.push({ start: i, end: k })
-    i = k
+    if (nl === -1) break
+    // move past the newline character; caret positions may land at this index
+    base = paraEnd + 1
+    // If newline is at end of string, ensure we emit a trailing blank line
+    if (base === n + 1) lines.push({ start: n, end: n })
   }
   return lines
 }
@@ -90,4 +112,3 @@ export function ellipsize(text: string, maxWidth: number, font?: Style['font'], 
   const n = Math.max(0, lo - 1)
   return text.slice(0, n) + ell
 }
-

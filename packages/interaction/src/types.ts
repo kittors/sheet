@@ -6,6 +6,8 @@ export type Selection = { r0: number; c0: number; r1: number; c1: number }
 export type DragMode =
   | 'none'
   | 'select'
+  // drag a text range inside the active editor
+  | 'textselect'
   | 'vscroll'
   | 'hscroll'
   | 'colheader'
@@ -37,7 +39,9 @@ export interface State {
   selection?: Selection
   // anchor cell where a drag selection started (raw cell, not merged anchor)
   selectAnchor?: { r: number; c: number }
-  editor?: { r: number; c: number; text: string; caret: number; startText: string }
+  // anchor caret index when starting a drag text-selection inside the editor
+  textSelectAnchor?: number
+  editor?: { r: number; c: number; text: string; caret: number; startText: string; selAll?: boolean; selStart?: number; selEnd?: number }
   dragMode: DragMode
   dragGrabOffset: number
   raf: number
@@ -75,4 +79,6 @@ export interface InteractionHandle {
   // queries
   getSelection(): Selection | undefined
   getScroll(): { x: number; y: number }
+  // events
+  onEditorChange?(cb: (e: { editing: boolean; r: number; c: number; text: string; caret: number; selAll?: boolean }) => void): () => void
 }

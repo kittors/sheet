@@ -64,7 +64,7 @@ export interface RenderContext {
     row?: (index: number) => string
   }
   // optional in-place editor overlay
-  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean }
+  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }
 }
 
 export interface Layer {

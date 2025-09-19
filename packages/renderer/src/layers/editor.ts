@@ -1,4 +1,5 @@
 import type { Layer, RenderContext } from '../types/context'
+import { wrapTextIndices } from '@sheet/api'
 
 export class EditorLayer implements Layer {
   name = 'editor'
@@ -7,17 +8,32 @@ export class EditorLayer implements Layer {
     if (!ed) return
     const { ctx } = rc
     ctx.save()
+    // Clip editor rendering to content area so it never intrudes into headers bands
+    const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+    const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
+    ctx.beginPath()
+    ctx.rect(rc.originX, rc.originY, Math.max(0, rc.viewport.width - rc.originX - vGap), Math.max(0, rc.viewport.height - rc.originY - hGap))
+    ctx.clip()
+
     const { sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
     const { r, c } = ed
     // compute cell position
     if (r < 0 || c < 0 || r >= sheet.rows || c >= sheet.cols) return
 
     // If cell is within a merge, anchor is top-left; this layer is called with anchor coords
-    // compute x,y,width,height summing through possible merged span
-    let x = originX
-    for (let cc = 0; cc < c; cc++) x += sheet.colWidths.get(cc) ?? defaultColWidth
-    let y = originY
-    for (let rr = 0; rr < r; rr++) y += sheet.rowHeights.get(rr) ?? defaultRowHeight
+    // compute x,y using cumulative sizes minus scroll offsets so editor follows scroll
+    const cumCol = (i: number) => {
+      let sum = 0
+      for (let cc = 0; cc < i; cc++) sum += sheet.colWidths.get(cc) ?? defaultColWidth
+      return sum
+    }
+    const cumRow = (i: number) => {
+      let sum = 0
+      for (let rr = 0; rr < i; rr++) sum += sheet.rowHeights.get(rr) ?? defaultRowHeight
+      return sum
+    }
+    const x = originX + cumCol(c) - rc.scroll.x
+    const y = originY + cumRow(r) - rc.scroll.y
     let w = sheet.colWidths.get(c) ?? defaultColWidth
     let h = sheet.rowHeights.get(r) ?? defaultRowHeight
     const m = sheet.getMergeAt(r, c)
@@ -40,7 +56,7 @@ export class EditorLayer implements Layer {
     ctx.fillRect(Math.floor(x) + 1, Math.floor(y) + 1, Math.max(0, Math.floor(w) - 2), Math.max(0, Math.floor(h) - 2))
     ctx.restore()
 
-    // draw caret (and position) without clipping
+    // draw caret (and position), and overlay text; ensure我们优先显示编辑内容，并在需要时遮挡右侧固定内容
     // font from style if provided
     if (style?.font) {
       const size = style.font.size ?? 14
@@ -59,35 +75,109 @@ export class EditorLayer implements Layer {
     ctx.textAlign = 'left'
     ctx.textBaseline = wrap ? 'top' : 'middle'
 
-    // Draw current editing text (clipped within cell); caret may overflow separately
-    const text = ed.text || ''
-    ctx.fillStyle = style?.font?.color ?? '#111827'
+    // Prepare text and compute dynamic right limit for editor overlay
+    const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+    let editorRightLimitX = rc.viewport.width - vGap2
+    const textToDraw = ed.text || ''
+    // default desired right edge based on text width (for single-line)
+    const desiredRight = tx + (textToDraw ? ctx.measureText(textToDraw).width : 0) + 2
+    if (!wrap) {
+      // anchor width (respect merges)
+      let aw = sheet.colWidths.get(c) ?? defaultColWidth
+      const am = sheet.getMergeAt(r, c)
+      if (am && am.r === r && am.c === c) {
+        aw = 0
+        for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
+      }
+      let curX = x + aw
+      let scanC = (am && am.r === r && am.c === c) ? (am.c + am.cols) : (c + 1)
+      while (scanC < sheet.cols) {
+        const editingHere = !!rc.editor && rc.editor.r === r && rc.editor.c === scanC
+        // Only stop at another editing cell; fixed content should be occluded by overlay
+        if (editingHere) { editorRightLimitX = Math.min(editorRightLimitX, curX); break }
+        const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
+        curX += w2
+        scanC++
+      }
+      // If no editing cell encountered to the right, extend to desiredRight (clamped to viewport right)
+      editorRightLimitX = Math.min(editorRightLimitX, desiredRight)
+    }
+
+    // Draw overlay text within allowed region (for single-line); wrap stays within cell anyway
     ctx.save()
-    ctx.beginPath()
-    ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
-    ctx.clip()
+    if (!wrap) {
+      const maxRight = Math.max(tx, Math.floor(editorRightLimitX) - 1)
+      const clipW = Math.max(0, maxRight - x)
+      ctx.beginPath()
+      ctx.rect(x + 1, y + 1, Math.max(0, clipW - 2), Math.max(0, h - 2))
+      ctx.clip()
+      // Fill overlay background across the extended region to occlude right-cell content
+      ctx.fillStyle = bg
+      ctx.fillRect(Math.floor(x) + 1, Math.floor(y) + 1, Math.max(0, Math.floor(clipW) - 2), Math.max(0, Math.floor(h) - 2))
+    } else {
+      ctx.beginPath()
+      ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
+      ctx.clip()
+    }
+    // draw text
+    const textColor = style?.font?.color ?? '#111827'
+    ctx.fillStyle = textColor
     if (wrap) {
       const maxW = Math.max(0, w - 8)
-      let i = 0
-      const nAll = text.length
       let cursorY2 = y + 3
-      while (i < nAll && cursorY2 <= y + h - 3) {
-        let lo2 = i + 1, hi2 = nAll
-        while (lo2 <= hi2) {
-          const mid2 = Math.min(nAll, Math.max(i + 1, Math.floor((lo2 + hi2) / 2)))
-          const seg2 = text.slice(i, mid2)
-          const wSeg2 = ctx.measureText(seg2).width
-          if (wSeg2 <= maxW) lo2 = mid2 + 1
-          else hi2 = mid2 - 1
+      const size = style?.font?.size ?? 14
+      const lineH = Math.max(12, Math.round(size * 1.25))
+      const lines = wrapTextIndices(textToDraw, maxW, style?.font, 14)
+      for (let li = 0; li < lines.length; li++) {
+        if (cursorY2 > y + h - 3) break
+        const seg = lines[li]
+        const run = textToDraw.slice(seg.start, seg.end)
+        // draw selection highlight for selAll or partial range
+        const selStart = rc.editor?.selAll ? 0 : (rc.editor?.selStart ?? rc.editor?.caret ?? 0)
+        const selEnd = rc.editor?.selAll ? textToDraw.length : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
+        const s = Math.min(selStart, selEnd)
+        const e = Math.max(selStart, selEnd)
+        const lineS = Math.max(seg.start, s)
+        const lineE = Math.min(seg.end, e)
+        if (lineE > lineS) {
+          const headW = ctx.measureText(textToDraw.slice(seg.start, lineS)).width
+          const selW = ctx.measureText(textToDraw.slice(lineS, lineE)).width
+          ctx.fillStyle = 'rgba(59,130,246,0.35)'
+          ctx.fillRect(Math.floor(tx + headW), Math.floor(cursorY2), Math.max(0, Math.floor(selW)), Math.max(0, lineH))
+          // restore text color for drawing
+          ctx.fillStyle = textColor
+        } else if (ed.selAll) {
+          const segW = ctx.measureText(run).width
+          ctx.fillStyle = 'rgba(59,130,246,0.35)'
+          ctx.fillRect(Math.floor(tx), Math.floor(cursorY2), Math.max(0, Math.floor(segW)), Math.max(0, lineH))
+          // restore text color for drawing
+          ctx.fillStyle = textColor
         }
-        const k2 = Math.max(i + 1, hi2)
-        ctx.fillText(text.slice(i, k2), tx, cursorY2)
+        ctx.fillText(run, tx, cursorY2)
         cursorY2 += lineH
-        i = k2
       }
     } else {
       const ty = y + h / 2
-      ctx.fillText(text, tx, ty)
+      // selection highlight for single line
+      const selStart = rc.editor?.selAll ? 0 : (rc.editor?.selStart ?? rc.editor?.caret ?? 0)
+      const selEnd = rc.editor?.selAll ? textToDraw.length : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
+      const s = Math.min(selStart, selEnd)
+      const e = Math.max(selStart, selEnd)
+      if (e > s) {
+        const headW = ctx.measureText(textToDraw.slice(0, s)).width
+        const selW = ctx.measureText(textToDraw.slice(s, e)).width
+        ctx.fillStyle = 'rgba(59,130,246,0.35)'
+        ctx.fillRect(Math.floor(tx + headW), Math.floor(ty - lineH / 2), Math.max(0, Math.floor(selW)), Math.max(0, lineH))
+        // restore text color for drawing
+        ctx.fillStyle = textColor
+      } else if (ed.selAll) {
+        const segW = ctx.measureText(textToDraw).width
+        ctx.fillStyle = 'rgba(59,130,246,0.35)'
+        ctx.fillRect(Math.floor(tx), Math.floor(ty - lineH / 2), Math.max(0, Math.floor(segW)), Math.max(0, lineH))
+        // restore text color for drawing
+        ctx.fillStyle = textColor
+      }
+      ctx.fillText(textToDraw, tx, ty)
     }
     ctx.restore()
 
@@ -96,47 +186,28 @@ export class EditorLayer implements Layer {
     let caretY = wrap ? (y + 3) : (y + h / 2)
     if (wrap) {
       const maxW = Math.max(0, w - 8)
-      let i = 0
-      const n = text.length
-      let cy = y + 3
-      while (i < Math.min(ed.caret, n)) {
-        // find longest substring from i that fits
-        let lo = i + 1, hi = Math.min(ed.caret, n)
-        while (lo <= hi) {
-          const mid = Math.min(Math.min(ed.caret, n), Math.max(i + 1, Math.floor((lo + hi) / 2)))
-          const seg = text.slice(i, mid)
-          const wSeg = ctx.measureText(seg).width
-          if (wSeg <= maxW) lo = mid + 1
-          else hi = mid - 1
-        }
-        const k = Math.max(i + 1, hi)
-        // if caret is within this segment, measure head
-        if (ed.caret <= k) {
-          const head = text.slice(i, ed.caret)
-          caretX = Math.floor(tx + ctx.measureText(head).width) + 0.5
-          caretY = cy
-          break
-        }
-        // advance to next line
-        cy += lineH
-        i = k
-      }
-      // if caret is at end and loop didn't set it
-      if (i >= Math.min(ed.caret, n)) {
-        const head = text.slice(i, Math.min(ed.caret, n))
-        caretX = Math.floor(tx + ctx.measureText(head).width) + 0.5
-        caretY = cy
-      }
+      const lines = wrapTextIndices(textToDraw, maxW, style?.font, 14)
+      const size2 = style?.font?.size ?? 14
+      const lineH2 = Math.max(12, Math.round(size2 * 1.25))
+      // find the first line whose end is >= caret index
+      let lineIndex = 0
+      for (let li = 0; li < lines.length; li++) { if (ed.caret <= lines[li].end) { lineIndex = li; break } lineIndex = li }
+      const seg = lines[Math.min(lineIndex, Math.max(0, lines.length - 1))]
+      const head = textToDraw.slice(seg.start, Math.min(seg.end, ed.caret))
+      caretX = Math.floor(tx + ctx.measureText(head).width) + 0.5
+      caretY = y + 3 + lineIndex * lineH2
     } else {
       // single line: caret x is width of head
-      const head = ed.text?.substring(0, Math.max(0, Math.min(ed.caret, ed.text.length))) ?? ''
+      const head = textToDraw.substring(0, Math.max(0, Math.min(ed.caret, textToDraw.length)))
       const advance = head ? ctx.measureText(head).width : 0
       caretX = Math.floor(tx + advance) + 0.5
     }
 
     // Draw caret (may overflow horizontally)
-    if (ed.caretVisible) {
+    if (ed.caretVisible && !(rc.editor?.selStart != null && rc.editor?.selEnd != null && rc.editor.selStart !== rc.editor.selEnd)) {
       const caretHeight = 16
+      // clamp caret to editorRightLimitX in single-line mode to avoid drawing into protected region
+      if (!wrap) caretX = Math.min(caretX, Math.floor(editorRightLimitX) - 1 + 0.5)
       const top = wrap ? Math.floor(caretY) + 0.5 : Math.floor(y + (h - caretHeight) / 2) + 0.5
       const bottom = wrap ? top + lineH : top + caretHeight
       ctx.strokeStyle = '#1f2937'

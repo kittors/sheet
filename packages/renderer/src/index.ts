@@ -42,7 +42,7 @@ export class CanvasRenderer {
   layers: Layer[]
   opts: RendererOptions
   selection?: { r0: number; c0: number; r1: number; c1: number }
-  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean }
+  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }
   guides?: { v?: number; h?: number }
   headerStyle: HeaderStyle
   headerLabels?: HeaderLabels
@@ -64,6 +64,7 @@ export class CanvasRenderer {
       new GridLayer(),
       new ContentLayer(),
       new SelectionLayer(),
+      // Editor should be above content/selection but below headers
       new EditorLayer(),
       new HeadersLayer(),
       new GuidesLayer(),
@@ -238,7 +239,7 @@ export class CanvasRenderer {
     this.headerLabels = labels
   }
 
-  setEditor(editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean }) {
+  setEditor(editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }) {
     this.editor = editor
   }
 }
