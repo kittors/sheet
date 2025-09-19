@@ -1,5 +1,6 @@
 import type { Context, State } from './types'
 import { posToCell, colAtX, rowAtY } from './hit'
+import { expandSelectionByMerges as expandSel } from './merge-util'
 import { applyHThumb, applyVThumb } from './scrollbar'
 import { computeAvailViewport } from './viewport'
 
@@ -102,7 +103,13 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
 
       if (state.dragMode === 'select') {
         const cell = posToCell(ctx, state, clientX, clientY)
-        if (cell && state.selection) state.selection = { ...state.selection, r1: cell.r, c1: cell.c }
+        if (cell && state.selection) {
+          const anchor = state.selectAnchor ?? { r: state.selection.r0, c: state.selection.c0 }
+          const next = { r0: anchor.r, c0: anchor.c, r1: cell.r, c1: cell.c }
+          // During auto-scroll dragging, also expand selection to include merges
+          expandSel(ctx, next)
+          state.selection = next
+        }
       } else if (state.dragMode === 'colheader') {
         const endCol = colAtX(ctx, state, clampX)
         const startCol = state.selection ? Math.min(state.selection.c0, state.selection.c1) : 0
@@ -118,6 +125,8 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     }
     state.autoRaf = requestAnimationFrame(step)
   }
+
+  // selection-expansion helper wrapper lives in merge-util.ts
 
   function updateAutoScrollVelocity(x: number, y: number) {
     const sb = ctx.renderer.getScrollbars?.()
@@ -254,7 +263,14 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     // Default cell selection
     const cell = posToCell(ctx, state, e.clientX, e.clientY)
     if (!cell) return
-    state.selection = { r0: cell.r, c0: cell.c, r1: cell.r, c1: cell.c }
+    state.selectAnchor = { r: cell.r, c: cell.c }
+    // If inside a merged range, start with the whole merge block, but keep raw anchor at clicked cell
+    const m = ctx.sheet.getMergeAt?.(cell.r, cell.c)
+    if (m) {
+      state.selection = { r0: m.r, c0: m.c, r1: m.r + m.rows - 1, c1: m.c + m.cols - 1 }
+    } else {
+      state.selection = { r0: cell.r, c0: cell.c, r1: cell.r, c1: cell.c }
+    }
     state.dragMode = 'select'
     deps.schedule()
     // initialize potential autoscroll based on current pointer position
@@ -359,7 +375,12 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
       if (!state.selection) return
       const cell = posToCell(ctx, state, e.clientX, e.clientY)
       if (cell) {
-        state.selection = { ...state.selection, r1: cell.r, c1: cell.c }
+        // Always build next rectangle using the original anchor to avoid jumping when entering merges from right/bottom
+        const anchor = state.selectAnchor ?? { r: state.selection.r0, c: state.selection.c0 }
+        const next = { r0: anchor.r, c0: anchor.c, r1: cell.r, c1: cell.c }
+        // Expand to include any intersecting merges while dragging
+        expandSel(ctx, next)
+        state.selection = next
         deps.schedule()
       }
       updateAutoScrollVelocity(x, y)
@@ -374,6 +395,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     ctx.renderer.setScrollbarState?.({ vActive: false, hActive: false })
     deps.schedule()
     stopAutoScroll()
+    state.selectAnchor = undefined
   }
 
   function onPointerLeave() {
@@ -382,6 +404,7 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
     ctx.renderer.setGuides?.(undefined)
     deps.schedule()
     stopAutoScroll()
+    state.selectAnchor = undefined
   }
 
   return { onPointerDown, onPointerMove, onPointerUp, onPointerLeave }

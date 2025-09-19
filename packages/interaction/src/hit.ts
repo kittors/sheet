@@ -49,6 +49,7 @@ export function posToCell(ctx: Context, state: State, clientX: number, clientY: 
   const col = findIndexByPos(cx, ctx.sheet.cols, cumWidth)
   const row = findIndexByPos(cy, ctx.sheet.rows, cumHeight)
   if (row >= ctx.sheet.rows || col >= ctx.sheet.cols) return null
+  // Return raw cell under pointer; callers decide how to handle merges
   return { r: row, c: col }
 }
 
@@ -105,4 +106,3 @@ export function rowAtY(ctx: Context, state: State, yCanvas: number): number {
   }
   return findIndexByPos(cy, ctx.sheet.rows, cumHeight)
 }
-

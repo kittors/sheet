@@ -14,24 +14,72 @@ export class GridLayer implements Layer {
     ctx.strokeStyle = '#e5e7eb' // light gray
     ctx.lineWidth = 1
 
-    // Vertical grid lines
+    // Helpers to test if a grid boundary sits inside a merge interior
+    // Vertical boundary at column index b (line at start of column b)
+    function isVBoundaryBlockedAtRow(b: number, r: number) {
+      // interior boundaries for a merge m are at b in (m.c, m.c + m.cols)
+      for (const m of sheet.merges) {
+        // skip only degenerate 1x1 (not a merge). 1xN or Nx1 should still suppress interior lines
+        if (m.rows === 1 && m.cols === 1) continue
+        if (r < m.r || r > m.r + m.rows - 1) continue
+        // boundary index b represents the line at start of column b
+        if (b <= m.c || b >= m.c + m.cols) continue
+        return true
+      }
+      return false
+    }
+
+    // Horizontal boundary at row index b (line at start of row b)
+    function isHBoundaryBlockedAtCol(b: number, c: number) {
+      // interior boundaries for a merge m are at b in (m.r, m.r + m.rows)
+      for (const m of sheet.merges) {
+        if (m.rows === 1 && m.cols === 1) continue
+        if (c < m.c || c > m.c + m.cols - 1) continue
+        // boundary index b represents the line at start of row b
+        if (b <= m.r || b >= m.r + m.rows) continue
+        return true
+      }
+      return false
+    }
+
+    // Vertical grid lines (skip interior segments within merges)
     let x = originX - visible.offsetX
-    for (let c = visible.colStart; c <= visible.colEnd + 1; c++) {
-      const w = sheet.colWidths.get(c) ?? defaultColWidth
+    for (let b = visible.colStart; b <= visible.colEnd + 1; b++) {
+      const w = sheet.colWidths.get(b) ?? defaultColWidth
       ctx.beginPath()
-      ctx.moveTo(Math.floor(x) + 0.5, originY)
-      ctx.lineTo(Math.floor(x) + 0.5, viewport.height - hGap)
+      let y = originY - visible.offsetY
+      for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+        const h = sheet.rowHeights.get(r) ?? defaultRowHeight
+        if (!isVBoundaryBlockedAtRow(b, r)) {
+          const xx = Math.floor(x) + 0.5
+          const y0 = Math.floor(y)
+          const y1 = Math.floor(y + h)
+          ctx.moveTo(xx, y0 + 0.5)
+          ctx.lineTo(xx, y1 + 0.5)
+        }
+        y += h
+      }
       ctx.stroke()
       x += w
     }
 
-    // Horizontal grid lines
+    // Horizontal grid lines (skip interior segments within merges)
     let y = originY - visible.offsetY
-    for (let r = visible.rowStart; r <= visible.rowEnd + 1; r++) {
-      const h = sheet.rowHeights.get(r) ?? defaultRowHeight
+    for (let b = visible.rowStart; b <= visible.rowEnd + 1; b++) {
+      const h = sheet.rowHeights.get(b) ?? defaultRowHeight
       ctx.beginPath()
-      ctx.moveTo(originX, Math.floor(y) + 0.5)
-      ctx.lineTo(viewport.width - vGap, Math.floor(y) + 0.5)
+      let x2 = originX - visible.offsetX
+      for (let c = visible.colStart; c <= visible.colEnd; c++) {
+        const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+        if (!isHBoundaryBlockedAtCol(b, c)) {
+          const yy = Math.floor(y) + 0.5
+          const xL = Math.floor(x2)
+          const xR = Math.floor(x2 + w2)
+          ctx.moveTo(xL + 0.5, yy)
+          ctx.lineTo(xR + 0.5, yy)
+        }
+        x2 += w2
+      }
       ctx.stroke()
       y += h
     }

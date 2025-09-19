@@ -10,7 +10,12 @@ import { FunctionSquare } from 'lucide-vue-next'
 // - update:modelValue on input typing
 // - submit when user presses Enter in the input
 defineProps<{ modelValue: string; disabled?: boolean; placeholder?: string; selectionText?: string }>()
-const emit = defineEmits<{ (e: 'update:modelValue', v: string): void; (e: 'submit'): void }>()
+const emit = defineEmits<{
+  (e: 'update:modelValue', v: string): void
+  (e: 'submit'): void
+  (e: 'merge-cells'): void
+  (e: 'unmerge-cells'): void
+}>()
 
 function onInput(e: Event) {
   emit('update:modelValue', (e.target as HTMLInputElement).value)
@@ -21,7 +26,7 @@ function onEnter() { emit('submit') }
 <template>
   <div class="control-container">
     <div class="toolbar-wrap">
-      <SheetToolbar />
+      <SheetToolbar @merge-cells="() => emit('merge-cells')" @unmerge-cells="() => emit('unmerge-cells')" />
     </div>
     <div class="controls-row">
       <div class="range-card" :title="selectionText || ''">

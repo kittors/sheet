@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { SheetCanvas, SheetControlLayout } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
-import { createWorkbookWithSheet, applyCells, createSheetApi } from '@sheet/api'
+import { createWorkbookWithSheet, applyCells, applyMerges, createSheetApi } from '@sheet/api'
 import type { CanvasRenderer } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
 
@@ -21,10 +21,17 @@ const cells = ref([
   { r: 1, c: 1, value: 'B2' },
   { r: 2, c: 2, value: 'C3' },
 ])
+// Initial merged ranges (non-overlapping)
+const merges = ref([
+  { r: 0, c: 0, rows: 2, cols: 3 }, // A1:C2
+  { r: 4, c: 0, rows: 1, cols: 2 }, // A5:B5 (row merge)
+  { r: 0, c: 5, rows: 3, cols: 1 }, // F1:F3 (col merge)
+])
 
 // Create workbook/sheet externally and fill initial cells
 const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, cols: cols.value })
 applyCells(sheet, cells.value)
+applyMerges(sheet, merges.value)
 
 // App-level size configuration: define a few custom column widths and row heights
 // Adjust or externalize as needed (e.g., from settings or persisted user prefs)
@@ -82,6 +89,8 @@ onBeforeUnmount(() => {
 })
 
 const applyFormula = () => api?.setValueInSelection(formula.value)
+const onMergeCells = () => api?.mergeSelection()
+const onUnmergeCells = () => api?.unmergeSelection()
 
 function colName(n: number) {
   let s = ''
@@ -112,6 +121,8 @@ function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number }
       :selection-text="selectionLabel"
       :disabled="!hasSelection"
       @submit="applyFormula"
+      @merge-cells="onMergeCells"
+      @unmerge-cells="onUnmergeCells"
     />
     <div style="flex: 1; min-height: 0">
       <SheetCanvas

@@ -17,6 +17,8 @@ export interface SheetApi {
   applyTextColor(color: string): void
   applyFillColor(backgroundColor: string): void
   setValueInSelection(text: string): void
+  mergeSelection(): void
+  unmergeSelection(): void
   applyFontSize(size: number): void
   applyFontFamily(family: string): void
   applyHorizontalAlign(al: 'left' | 'center' | 'right'): void
@@ -67,8 +69,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
 
   return {
     // Queries
-    getCellValue(r, c) { return sheet.getCell(r, c)?.value ?? null },
-    getCellStyle(r, c) { return sheet.getStyle(sheet.getCell(r, c)?.styleId) },
+    getCellValue(r, c) { return sheet.getValueAt(r, c) ?? null },
+    getCellStyle(r, c) { return sheet.getStyleAt(r, c) },
     getSelection() { return interaction?.getSelection() ?? null },
     getActiveCell() { return interaction?.getFirstSelectedCell() ?? null },
     getRowCount() { return sheet.rows },
@@ -80,6 +82,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     applyTextColor(color) { interaction?.applyTextColor(color) },
     applyFillColor(backgroundColor) { interaction?.applyFillColor(backgroundColor) },
     setValueInSelection(text) { interaction?.setValueInSelection(text) },
+    mergeSelection() { interaction?.mergeSelection() },
+    unmergeSelection() { interaction?.unmergeSelection() },
     applyFontSize(size) {
       const styleId = sheet.defineStyle({ font: { size } })
       const sel = interaction?.getSelection?.()
@@ -147,6 +151,7 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
 
 // Shared helpers for UI/app layers
 export type InitCell = { r: number; c: number; value: string | number | boolean | null }
+export type InitMerge = { r: number; c: number; rows: number; cols: number }
 
 export function applyCells(sheet: Sheet, cells?: InitCell[]) {
   if (!cells?.length) return
@@ -154,6 +159,13 @@ export function applyCells(sheet: Sheet, cells?: InitCell[]) {
     if (it.r >= 0 && it.r < sheet.rows && it.c >= 0 && it.c < sheet.cols) {
       sheet.setValue(it.r, it.c, it.value)
     }
+  }
+}
+
+export function applyMerges(sheet: Sheet, merges?: InitMerge[]) {
+  if (!merges?.length) return
+  for (const m of merges) {
+    if (m.rows >= 1 && m.cols >= 1) sheet.addMerge(m.r, m.c, m.rows, m.cols)
   }
 }
 

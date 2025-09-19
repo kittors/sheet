@@ -35,6 +35,8 @@ export interface Context {
 export interface State {
   scroll: { x: number; y: number }
   selection?: Selection
+  // anchor cell where a drag selection started (raw cell, not merged anchor)
+  selectAnchor?: { r: number; c: number }
   dragMode: DragMode
   dragGrabOffset: number
   raf: number
@@ -65,6 +67,8 @@ export interface InteractionHandle {
   setValueInSelection(text: string): void
   setColumnWidth(px: number): void
   setRowHeight(px: number): void
+  mergeSelection(): void
+  unmergeSelection(): void
   getFirstSelectedCell(): { r: number; c: number } | null
   getValueAt(r: number, c: number): string
   // queries

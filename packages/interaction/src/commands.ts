@@ -48,6 +48,24 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
     deps.schedule()
   }
 
+  function mergeSelection() {
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    const ok = ctx.sheet.addMerge(r0, c0, r1 - r0 + 1, c1 - c0 + 1)
+    if (ok) deps.schedule()
+  }
+
+  function unmergeSelection() {
+    const first = getFirstSelectedCell()
+    if (!first) return
+    const ok = ctx.sheet.removeMergeAt(first.r, first.c)
+    if (ok) deps.schedule()
+  }
+
   function getFirstSelectedCell(): { r: number; c: number } | null {
     const sel = state.selection
     if (!sel) return null
@@ -57,9 +75,9 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
   }
 
   function getValueAt(r: number, c: number): string {
-    const v = ctx.sheet.getCell(r, c)?.value
+    const v = ctx.sheet.getValueAt(r, c)
     return v == null ? '' : String(v)
   }
 
-  return { applyTextColor, applyFillColor, setValueInSelection, setColumnWidth, setRowHeight, getFirstSelectedCell, getValueAt }
+  return { applyTextColor, applyFillColor, setValueInSelection, setColumnWidth, setRowHeight, mergeSelection, unmergeSelection, getFirstSelectedCell, getValueAt }
 }
