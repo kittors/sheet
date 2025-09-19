@@ -5,6 +5,7 @@ import { GridLayer } from './layers/grid'
 import { ContentLayer } from './layers/content'
 import { HeadersLayer } from './layers/headers'
 import { SelectionLayer } from './layers/selection'
+import { EditorLayer } from './layers/editor'
 import { ScrollbarLayer } from './layers/scrollbar'
 import { GuidesLayer } from './layers/guides'
 import type { Layer, RenderContext } from './types/context'
@@ -41,6 +42,7 @@ export class CanvasRenderer {
   layers: Layer[]
   opts: RendererOptions
   selection?: { r0: number; c0: number; r1: number; c1: number }
+  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean }
   guides?: { v?: number; h?: number }
   headerStyle: HeaderStyle
   headerLabels?: HeaderLabels
@@ -62,6 +64,7 @@ export class CanvasRenderer {
       new GridLayer(),
       new ContentLayer(),
       new SelectionLayer(),
+      new EditorLayer(),
       new HeadersLayer(),
       new GuidesLayer(),
       new ScrollbarLayer(),
@@ -204,6 +207,7 @@ export class CanvasRenderer {
       guides: this.guides,
       headerStyle: this.headerStyle,
       headerLabels: this.headerLabels,
+      editor: this.editor,
     }
 
     // Render layers in order
@@ -232,5 +236,9 @@ export class CanvasRenderer {
 
   setHeaderLabels(labels?: HeaderLabels) {
     this.headerLabels = labels
+  }
+
+  setEditor(editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean }) {
+    this.editor = editor
   }
 }

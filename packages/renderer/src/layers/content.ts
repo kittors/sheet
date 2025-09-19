@@ -43,7 +43,10 @@ export class ContentLayer implements Layer {
 
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
-        const txt = cell?.value != null ? String(cell.value) : ''
+        const raw = cell?.value != null ? String(cell.value) : ''
+        // while editing, reflect live text for the editing anchor cell so overflow behaves like normal content
+        const isEditingAnchor = !!rc.editor && rc.editor.r === r && rc.editor.c === c
+        const txt = isEditingAnchor ? (rc.editor!.text ?? '') : raw
 
         // Background fill (covers merged span if any)
         if (style?.fill?.backgroundColor) {
@@ -61,9 +64,12 @@ export class ContentLayer implements Layer {
             ctx.font = `${italic}${weight} ${size}px ${family}`
           }
           ctx.fillStyle = style?.font?.color ?? '#111827'
-          // alignment
+          // alignment & flow
           const halign = style?.alignment?.horizontal ?? 'left'
           const valign = style?.alignment?.vertical ?? 'middle'
+          const wrap = style?.alignment?.wrapText ?? false
+          // While editing, force overflow rendering so hidden text is visible (even if style says clip/ellipsis)
+          const overflow = isEditingAnchor ? 'overflow' : (style?.alignment?.overflow ?? 'overflow')
           // horizontal
           let tx = x + 4
           if (halign === 'center') tx = x + drawW / 2
@@ -77,7 +83,63 @@ export class ContentLayer implements Layer {
           if (halign === 'left') ctx.textAlign = 'left'
           else if (halign === 'right') ctx.textAlign = 'right'
           else ctx.textAlign = 'center'
-          ctx.fillText(txt, tx, ty)
+
+          const maxW = Math.max(0, drawW - 8)
+          if (wrap) {
+            // multi-line wrap within cell box (naive char-based)
+            const sizePx = style?.font?.size ?? 14
+            const lineH = Math.max(12, Math.round(sizePx * 1.25))
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
+            ctx.clip()
+            ctx.textBaseline = 'top'
+            let i = 0
+            const n = txt.length
+            let cursorY = y + 3
+            while (i < n && cursorY <= y + drawH - 3) {
+              // find max substring that fits in width
+              let lo = i + 1, hi = n
+              while (lo <= hi) {
+                const mid = Math.min(n, Math.max(i + 1, Math.floor((lo + hi) / 2)))
+                const seg = txt.slice(i, mid)
+                const w = ctx.measureText(seg).width
+                if (w <= maxW) lo = mid + 1
+                else hi = mid - 1
+              }
+              const k = Math.max(i + 1, hi)
+              const seg = txt.slice(i, k)
+              let lx = x + 4
+              if (halign === 'center') lx = x + drawW / 2
+              else if (halign === 'right') lx = x + drawW - 4
+              ctx.fillText(seg, lx, cursorY)
+              cursorY += lineH
+              i = k
+            }
+            ctx.restore()
+          } else {
+            // single-line: apply overflow policy
+            const needsClip = overflow === 'clip' || overflow === 'ellipsis'
+            if (needsClip) { ctx.save(); ctx.beginPath(); ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2)); ctx.clip() }
+            let out = txt
+            if (overflow === 'ellipsis' && maxW > 0) {
+              const w0 = ctx.measureText(out).width
+              if (w0 > maxW) {
+                const ell = '...'
+                let lo = 0, hi = out.length
+                while (lo < hi) {
+                  const mid = (lo + hi) >>> 1
+                  const w = ctx.measureText(out.slice(0, mid) + ell).width
+                  if (w <= maxW) lo = mid + 1
+                  else hi = mid
+                }
+                const n2 = Math.max(0, lo - 1)
+                out = out.slice(0, n2) + ell
+              }
+            }
+            ctx.fillText(out, tx, ty)
+            if (needsClip) ctx.restore()
+          }
         }
         x += baseW
       }

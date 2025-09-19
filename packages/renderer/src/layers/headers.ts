@@ -18,6 +18,8 @@ export class HeadersLayer implements Layer {
     const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } =
       rc
     ctx.save()
+    // Set a stable font for headers to avoid leaking state from other layers
+    ctx.font = 'normal 12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
     // Column/Row header backgrounds (avoid overlapping scrollbar tracks)
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0

@@ -37,6 +37,7 @@ export interface State {
   selection?: Selection
   // anchor cell where a drag selection started (raw cell, not merged anchor)
   selectAnchor?: { r: number; c: number }
+  editor?: { r: number; c: number; text: string; caret: number; startText: string }
   dragMode: DragMode
   dragGrabOffset: number
   raf: number

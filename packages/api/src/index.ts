@@ -177,3 +177,6 @@ export function createWorkbookWithSheet(args: { name?: string; rows?: number; co
   const sheet = wb.addSheet(name, rows, cols)
   return { workbook: wb, sheet }
 }
+
+// text layout helpers (re-export)
+export { fontStringFromStyle, measureText, wrapTextIndices, caretIndexFromPoint, ellipsize } from './text-layout'

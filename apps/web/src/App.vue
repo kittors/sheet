@@ -32,6 +32,17 @@ const merges = ref([
 const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, cols: cols.value })
 applyCells(sheet, cells.value)
 applyMerges(sheet, merges.value)
+// Demo: overflow/clip/ellipsis/wrap
+const longText = 'This is a very very long content to demonstrate overflow, clipping and wrapping behavior.'
+// Styles for alignment/flow
+const styleClip = sheet.defineStyle({ alignment: { overflow: 'clip' } })
+const styleEllipsis = sheet.defineStyle({ alignment: { overflow: 'ellipsis' } })
+const styleWrap = sheet.defineStyle({ alignment: { wrapText: true, vertical: 'top' } })
+// Place sample cells (same column to compare)
+sheet.setValue(7, 0, 'Overflow: ' + longText) // default overflow
+sheet.setValue(8, 0, 'Clip: ' + longText); sheet.setCellStyle(8, 0, styleClip)
+sheet.setValue(9, 0, 'Ellipsis: ' + longText); sheet.setCellStyle(9, 0, styleEllipsis)
+sheet.setValue(10, 0, 'Wrap: ' + longText); sheet.setCellStyle(10, 0, styleWrap); sheet.setRowHeight(10, 72)
 
 // App-level size configuration: define a few custom column widths and row heights
 // Adjust or externalize as needed (e.g., from settings or persisted user prefs)

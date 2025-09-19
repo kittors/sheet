@@ -20,7 +20,17 @@ export interface Style {
   font?: Font
   fill?: { backgroundColor?: string }
   border?: { top?: BorderSide; bottom?: BorderSide; left?: BorderSide; right?: BorderSide }
-  alignment?: { horizontal?: 'left' | 'center' | 'right'; vertical?: 'top' | 'middle' | 'bottom'; wrapText?: boolean }
+  alignment?: {
+    horizontal?: 'left' | 'center' | 'right'
+    vertical?: 'top' | 'middle' | 'bottom'
+    // If true, renderer may wrap text within cell (future enhancement)
+    wrapText?: boolean
+    // Single-line overflow behavior when wrapText is false
+    // 'overflow' (default): text may render beyond the cell if neighbors are empty
+    // 'clip': text is clipped to the cell box
+    // 'ellipsis': clipped with '...' appended
+    overflow?: 'overflow' | 'clip' | 'ellipsis'
+  }
 }
 
 export interface Cell {

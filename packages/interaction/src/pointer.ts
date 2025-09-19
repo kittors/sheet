@@ -168,6 +168,9 @@ export function createPointerHandlers(ctx: Context, state: State, deps: { schedu
 
   function onPointerDown(e: PointerEvent) {
     try { ctx.canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+    // End any active editing session when a new pointer interaction starts
+    state.editor = undefined
+    ctx.renderer.setEditor(undefined)
     const rect = ctx.canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
