@@ -47,8 +47,11 @@ export class SelectionLayer implements Layer {
 
     // For single-cell selection, do NOT paint a translucent fill.
     // This avoids covering overflow text from adjacent cells (e.g. A8 flowing into B8).
-    // For multi-cell selection, paint fill but punch a hole at the top-left cell (active cell)
-    // so the user can see the anchor cell clearly.
+    // For multi-cell selection, paint fill but punch a hole at the active cell (anchor)
+    // so the user can see the anchor cell clearly. If the anchor lies anywhere inside a
+    // merged block, the hole must cover the entire merged block rather than a 1x1 cell
+    // to avoid showing a small square when the selection was started from a non-top-left
+    // corner of the merge.
     const isSingleCell = r0 === r1 && c0 === c1
 
     ctx.save()
@@ -66,13 +69,17 @@ export class SelectionLayer implements Layer {
       const rrMin = Math.min(r0, r1), rrMax = Math.max(r0, r1)
       const ccMin = Math.min(c0, c1), ccMax = Math.max(c0, c1)
       if (ar < rrMin || ar > rrMax || ac < ccMin || ac > ccMax) { ar = r0; ac = c0 }
-      // Compute anchor cell box in canvas coords (respect merges if anchor is a merge anchor)
+      // If the anchor lies anywhere inside a merged block, resolve to the block's top-left
+      // for the purpose of computing the punched hole.
+      const mAtAnchor = sheet.getMergeAt(ar, ac)
+      if (mAtAnchor) { ar = mAtAnchor.r; ac = mAtAnchor.c }
+      // Compute anchor cell box in canvas coords (respect merges)
       const xA0 = originX + cumWidth(ac) - scroll.x
       let xA1 = originX + cumWidth(ac + 1) - scroll.x
       const yA0 = originY + cumHeight(ar) - scroll.y
       let yA1 = originY + cumHeight(ar + 1) - scroll.y
       const mA = sheet.getMergeAt(ar, ac)
-      if (mA && mA.r === ar && mA.c === ac) {
+      if (mA) {
         xA1 = originX + cumWidth(ac + mA.cols) - scroll.x
         yA1 = originY + cumHeight(ar + mA.rows) - scroll.y
       }
