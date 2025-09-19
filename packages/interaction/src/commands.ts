@@ -93,5 +93,21 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
     return v == null ? '' : String(v)
   }
 
-  return { applyTextColor, applyFillColor, setValueInSelection, setColumnWidth, setRowHeight, mergeSelection, unmergeSelection, getFirstSelectedCell, getValueAt }
+  // queries required by InteractionHandle (created here for typing symmetry)
+  function getSelection() { return state.selection }
+  function getScroll() { return { ...state.scroll } }
+
+  return {
+    applyTextColor,
+    applyFillColor,
+    setValueInSelection,
+    setColumnWidth,
+    setRowHeight,
+    mergeSelection,
+    unmergeSelection,
+    getFirstSelectedCell,
+    getValueAt,
+    getSelection,
+    getScroll,
+  }
 }
