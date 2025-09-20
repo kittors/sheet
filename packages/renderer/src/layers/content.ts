@@ -25,11 +25,11 @@ export class ContentLayer implements Layer {
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
-      let x = originX - visible.offsetX
       // If this row has an active editor, pre-compute its overflow span in pixel space
       let editSpanStartX = -1,
         editSpanEndX = -1,
         editAnchorC = -1
+      let x = originX - visible.offsetX
       if (rc.editor && rc.editor.r === r) {
         editAnchorC = rc.editor.c
         // compute anchor start X
@@ -66,47 +66,137 @@ export class ContentLayer implements Layer {
         editSpanStartX = ax
         editSpanEndX = rightLimit
       }
+
+      // PASS 1: backgrounds only (to avoid covering overflow text from previous cells)
+      x = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
         const baseW = sheet.colWidths.get(c) ?? defaultColWidth
-
-        // Skip covered cells of a merge (only draw at anchor)
         const m = sheet.getMergeAt(r, c)
         if (m && !(m.r === r && m.c === c)) {
           x += baseW
           continue
         }
-
-        // Resolve anchor cell and compute span sizes if merged
         let drawW = baseW
         let drawH = baseH
         if (m) {
-          // Sum widths across merged columns
           drawW = 0
           for (let cc = m.c; cc < m.c + m.cols; cc++)
             drawW += sheet.colWidths.get(cc) ?? defaultColWidth
-          // Sum heights across merged rows
           drawH = 0
           for (let rr = m.r; rr < m.r + m.rows; rr++)
             drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
         }
+        const cell = sheet.getCell(r, c)
+        const style = sheet.getStyle(cell?.styleId)
+        if (style?.fill?.backgroundColor) {
+          ctx.fillStyle = style.fill.backgroundColor
+          // Fill full cell; grid lines will be drawn after backgrounds to stay visible
+          ctx.fillRect(
+            Math.floor(x),
+            Math.floor(y),
+            Math.max(0, Math.floor(drawW)),
+            Math.max(0, Math.floor(drawH)),
+          )
+        }
+        x += baseW
+      }
 
+      // PASS 1.5: grid lines (drawn above backgrounds, below text)
+      // Helpers to test if a grid boundary sits inside a merge interior
+      const isVBoundaryBlockedAtRow = (b: number, row: number) => {
+        for (const m of sheet.merges) {
+          if (m.rows === 1 && m.cols === 1) continue
+          if (row < m.r || row > m.r + m.rows - 1) continue
+          if (b <= m.c || b >= m.c + m.cols) continue
+          return true
+        }
+        return false
+      }
+      const isHBoundaryBlockedAtCol = (b: number, col: number) => {
+        for (const m of sheet.merges) {
+          if (m.rows === 1 && m.cols === 1) continue
+          if (col < m.c || col > m.c + m.cols - 1) continue
+          if (b <= m.r || b >= m.r + m.rows) continue
+          return true
+        }
+        return false
+      }
+      // vertical segments for this row band
+      ctx.save()
+      ctx.strokeStyle = rc.headerStyle.gridColor
+      ctx.lineWidth = 1
+      let xV = originX - visible.offsetX
+      ctx.beginPath()
+      for (let b = visible.colStart; b <= visible.colEnd + 1; b++) {
+        const xx = Math.floor(xV) + 0.5
+        if (!isVBoundaryBlockedAtRow(b, r)) {
+          const y0 = Math.floor(y) + 0.5
+          const y1 = Math.floor(y + baseH) + 0.5
+          ctx.moveTo(xx, y0)
+          ctx.lineTo(xx, y1)
+        }
+        const w = sheet.colWidths.get(b) ?? defaultColWidth
+        xV += w
+      }
+      ctx.stroke()
+      // horizontal top boundary for this row
+      let xH = originX - visible.offsetX
+      ctx.beginPath()
+      for (let c = visible.colStart; c <= visible.colEnd; c++) {
+        const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+        if (!isHBoundaryBlockedAtCol(r, c)) {
+          const yy = Math.floor(y) + 0.5
+          const xL = Math.floor(xH) + 0.5
+          const xR = Math.floor(xH + w2) + 0.5
+          ctx.moveTo(xL, yy)
+          ctx.lineTo(xR, yy)
+        }
+        xH += w2
+      }
+      ctx.stroke()
+      // bottom boundary only for the last visible row
+      if (r === visible.rowEnd) {
+        xH = originX - visible.offsetX
+        ctx.beginPath()
+        for (let c = visible.colStart; c <= visible.colEnd; c++) {
+          const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+          if (!isHBoundaryBlockedAtCol(r + 1, c)) {
+            const yy = Math.floor(y + baseH) + 0.5
+            const xL = Math.floor(xH) + 0.5
+            const xR = Math.floor(xH + w2) + 0.5
+            ctx.moveTo(xL, yy)
+            ctx.lineTo(xR, yy)
+          }
+          xH += w2
+        }
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // PASS 2: text
+      x = originX - visible.offsetX
+      for (let c = visible.colStart; c <= visible.colEnd; c++) {
+        const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+        const m = sheet.getMergeAt(r, c)
+        if (m && !(m.r === r && m.c === c)) {
+          x += baseW
+          continue
+        }
+        let drawW = baseW
+        let drawH = baseH
+        if (m) {
+          drawW = 0
+          for (let cc = m.c; cc < m.c + m.cols; cc++)
+            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+          drawH = 0
+          for (let rr = m.r; rr < m.r + m.rows; rr++)
+            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+        }
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
         const raw = cell?.value != null ? String(cell.value) : ''
-        // while editing, reflect live text for the editing anchor cell so overflow behaves like normal content
         const isEditingAnchor = !!rc.editor && rc.editor.r === r && rc.editor.c === c
         const txt = isEditingAnchor ? (rc.editor!.text ?? '') : raw
-
-        // Background fill (covers merged span if any)
-        if (style?.fill?.backgroundColor) {
-          ctx.fillStyle = style.fill.backgroundColor
-          ctx.fillRect(
-            Math.floor(x) + 1,
-            Math.floor(y) + 1,
-            Math.max(0, Math.floor(drawW) - 2),
-            Math.max(0, Math.floor(drawH) - 2),
-          )
-        }
 
         // Do not draw text for the editing anchor here; editor layer is responsible for it
         if (txt && !isEditingAnchor) {
@@ -218,9 +308,13 @@ export class ContentLayer implements Layer {
               const finalRight = Math.min(desiredRight, allowedRight)
               clipW = Math.max(0, Math.floor(finalRight - x))
             }
-            const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
-            // Never clip the editing anchor itself; it should render fully (overflow paints outside via content layer)
-            const doClipPolicy = !isEditingAnchor && (needsClipPolicy || hasOverflowStop)
+          const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
+          // Never clip the editing anchor itself; it should render fully (overflow paints outside via content layer)
+          // Additionally, avoid creating a zero/near-zero clip that would hide text entirely (observed when
+          // a blocker sits immediately at the right edge). Fallback to no-clip in that case.
+          const interiorClipW = Math.max(0, Math.floor(clipW) - 2)
+          const doClipPolicy =
+            !isEditingAnchor && (needsClipPolicy || hasOverflowStop) && interiorClipW > 2
             // Additionally, if actively editing on this row and this cell is not the anchor,
             // avoid drawing inside the editor's overflow span [editSpanStartX, editSpanEndX)
             const isRowEditing =
@@ -254,7 +348,7 @@ export class ContentLayer implements Layer {
             if (!didCustomClip && doClipPolicy) {
               ctx.save()
               ctx.beginPath()
-              ctx.rect(x + 1, y + 1, Math.max(0, clipW - 2), Math.max(0, drawH - 2))
+              ctx.rect(x + 1, y + 1, interiorClipW, Math.max(0, drawH - 2))
               ctx.clip()
             }
             let out = txt
@@ -277,6 +371,73 @@ export class ContentLayer implements Layer {
             ctx.fillText(out, tx, ty)
             if (didCustomClip || (!didCustomClip && doClipPolicy)) ctx.restore()
           }
+        }
+
+        x += baseW
+      }
+
+      // PASS 3: borders (on top)
+      x = originX - visible.offsetX
+      for (let c = visible.colStart; c <= visible.colEnd; c++) {
+        const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+        const m = sheet.getMergeAt(r, c)
+        if (m && !(m.r === r && m.c === c)) {
+          x += baseW
+          continue
+        }
+        let drawW = baseW
+        let drawH = baseH
+        if (m) {
+          drawW = 0
+          for (let cc = m.c; cc < m.c + m.cols; cc++)
+            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+          drawH = 0
+          for (let rr = m.r; rr < m.r + m.rows; rr++)
+            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+        }
+        const cell = sheet.getCell(r, c)
+        const style = sheet.getStyle(cell?.styleId)
+        if (style?.border) {
+          const bx = Math.floor(x) + 0.5
+          const by = Math.floor(y) + 0.5
+          const bw = Math.floor(drawW)
+          const bh = Math.floor(drawH)
+          const drawSide = (
+            side: 'top' | 'bottom' | 'left' | 'right',
+            cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number } | undefined,
+          ) => {
+            if (!cfg) return
+            const color = cfg.color ?? '#111827'
+            const width = Math.max(1, Math.floor(cfg.width ?? 1))
+            const styleKind = cfg.style ?? 'solid'
+            ctx.save()
+            ctx.strokeStyle = color
+            ctx.lineWidth = width
+            if (styleKind === 'dashed') ctx.setLineDash([4 * width, 2 * width])
+            else if (styleKind === 'dotted') ctx.setLineDash([width, width])
+            ctx.beginPath()
+            if (side === 'top') {
+              ctx.moveTo(bx, by)
+              ctx.lineTo(bx + bw, by)
+            } else if (side === 'bottom') {
+              const yy = by + bh
+              ctx.moveTo(bx, yy)
+              ctx.lineTo(bx + bw, yy)
+            } else if (side === 'left') {
+              ctx.moveTo(bx, by)
+              ctx.lineTo(bx, by + bh)
+            } else if (side === 'right') {
+              const xx = bx + bw
+              ctx.moveTo(xx, by)
+              ctx.lineTo(xx, by + bh)
+            }
+            ctx.stroke()
+            ctx.restore()
+          }
+          if (style.border.top) drawSide('top', style.border.top)
+          if (style.border.bottom) drawSide('bottom', style.border.bottom)
+          if (style.border.left) drawSide('left', style.border.left)
+          if (style.border.right) drawSide('right', style.border.right)
         }
         x += baseW
       }

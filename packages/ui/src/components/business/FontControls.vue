@@ -22,6 +22,15 @@ import IconWithSwatch from '../common/IconWithSwatch.vue'
 import ColorGridMenu from '../business/color/ColorGridMenu.vue'
 import ColorPickerModal from '../business/color/ColorPickerModal.vue'
 
+// Emit actions upward so app can wire to Sheet API
+const emit = defineEmits<{
+  (e: 'apply-fill', color: string): void
+  (e: 'apply-border', payload: {
+    mode: 'none' | 'all' | 'outside' | 'thick'
+    color?: string
+  }): void
+}>()
+
 // purely UI controls block (no functionality wired)
 const fontOptions = [
   { label: '宋体', value: 'SongTi' },
@@ -80,9 +89,11 @@ const tempFill = ref<string>('#4b5563')
 const fillMenu = fillPresets.map((c) => ({ label: c, value: c, icon: PaintBucket }))
 function setFill(c: string) {
   fillColor.value = c
+  emit('apply-fill', fillColor.value)
 }
 function onFillPicked(e: Event) {
   fillColor.value = (e.target as HTMLInputElement).value
+  emit('apply-fill', fillColor.value)
 }
 function onSelectColor(c: string, close: () => void) {
   setFill(c)
@@ -109,6 +120,11 @@ const borderMenu = [
   { label: '外侧框线', value: 'outside', icon: Square },
   { label: '粗框线', value: 'thick', icon: SquarePlus },
 ]
+
+function onBorderSelect(p: { label: string; value: string }) {
+  const v = p.value as 'none' | 'all' | 'outside' | 'thick'
+  emit('apply-border', { mode: v, color: '#374151' })
+}
 </script>
 
 <template>
@@ -140,6 +156,7 @@ const borderMenu = [
         :menu-items="borderMenu"
         label-position="none"
         aria-label="单元格边框"
+        @select="onBorderSelect"
       />
       <ToolItem
         v-model="fillColor"

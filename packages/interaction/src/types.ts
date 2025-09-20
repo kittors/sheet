@@ -78,6 +78,13 @@ export interface InteractionHandle {
   // selection-aware operations
   applyTextColor(color: string): void
   applyFillColor(backgroundColor: string): void
+  applyBorder(args: {
+    mode: 'none' | 'all' | 'outside' | 'custom'
+    color?: string
+    width?: number
+    style?: import('@sheet/core').BorderStyle
+    sides?: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean }
+  }): void
   setValueInSelection(text: string): void
   setColumnWidth(px: number): void
   setRowHeight(px: number): void

@@ -1,7 +1,6 @@
 import { computeVisibleRange, resizeCanvasForDPR, getDPR } from '@sheet/shared-utils'
 import type { Sheet } from '@sheet/core'
 import { BackgroundLayer } from './layers/background'
-import { GridLayer } from './layers/grid'
 import { ContentLayer } from './layers/content'
 import { HeadersLayer } from './layers/headers'
 import { SelectionLayer } from './layers/selection'
@@ -71,7 +70,7 @@ export class CanvasRenderer {
     // Draw headers above content to avoid any overlap artifacts in top/right areas
     this.layers = [
       new BackgroundLayer(),
-      new GridLayer(),
+      // Draw content backgrounds first, then internal grid (inside ContentLayer), then text and borders
       new ContentLayer(),
       new SelectionLayer(),
       // Editor should be above content/selection but below headers

@@ -18,14 +18,113 @@ export function createCommands(
   }
 
   function applyTextColor(color: string) {
-    const styleId = ctx.sheet.defineStyle({ font: { color } })
-    forEachSelected((r, c) => ctx.sheet.setCellStyle(r, c, styleId))
+    forEachSelected((r, c) => {
+      const base = ctx.sheet.getStyleAt(r, c)
+      const next = {
+        font: { ...(base?.font ?? {}), color },
+        fill: base?.fill,
+        border: base?.border,
+        alignment: base?.alignment,
+      }
+      const id = ctx.sheet.defineStyle(next as any)
+      ctx.sheet.setCellStyle(r, c, id)
+    })
     deps.schedule()
   }
 
   function applyFillColor(backgroundColor: string) {
-    const styleId = ctx.sheet.defineStyle({ fill: { backgroundColor } })
-    forEachSelected((r, c) => ctx.sheet.setCellStyle(r, c, styleId))
+    forEachSelected((r, c) => {
+      const base = ctx.sheet.getStyleAt(r, c)
+      const next = {
+        font: base?.font,
+        fill: { ...(base?.fill ?? {}), backgroundColor },
+        border: base?.border,
+        alignment: base?.alignment,
+      }
+      const id = ctx.sheet.defineStyle(next as any)
+      ctx.sheet.setCellStyle(r, c, id)
+    })
+    deps.schedule()
+  }
+
+  function applyBorder(args: {
+    mode: 'none' | 'all' | 'outside' | 'custom'
+    color?: string
+    width?: number
+    style?: import('@sheet/core').BorderStyle
+    sides?: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean }
+  }) {
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    const color = args.color ?? '#374151'
+    const width = Math.max(1, Math.floor(args.width ?? 1))
+    const style = args.style ?? 'solid'
+
+    if (args.mode === 'none') {
+      forEachSelected((r, c) => {
+        const base = ctx.sheet.getStyleAt(r, c)
+        const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: {} }
+        const id = ctx.sheet.defineStyle(next as any)
+        ctx.sheet.setCellStyle(r, c, id)
+      })
+      deps.schedule()
+      return
+    }
+
+    if (args.mode === 'all') {
+      forEachSelected((r, c) => {
+        const base = ctx.sheet.getStyleAt(r, c)
+        const next = {
+          font: base?.font,
+          fill: base?.fill,
+          alignment: base?.alignment,
+          border: {
+            top: { color, width, style },
+            bottom: { color, width, style },
+            left: { color, width, style },
+            right: { color, width, style },
+          },
+        }
+        const id = ctx.sheet.defineStyle(next as any)
+        ctx.sheet.setCellStyle(r, c, id)
+      })
+      deps.schedule()
+      return
+    }
+
+    if (args.mode === 'outside') {
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const base = ctx.sheet.getStyleAt(r, c)
+          const top = r === r0 ? { color, width, style } : base?.border?.top
+          const bottom = r === r1 ? { color, width, style } : base?.border?.bottom
+          const left = c === c0 ? { color, width, style } : base?.border?.left
+          const right = c === c1 ? { color, width, style } : base?.border?.right
+          const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: { top, bottom, left, right } }
+          const id = ctx.sheet.defineStyle(next as any)
+          ctx.sheet.setCellStyle(r, c, id)
+        }
+      }
+      deps.schedule()
+      return
+    }
+
+    // custom mode
+    const sides = args.sides ?? {}
+    const top = sides.top ? { color, width, style } : undefined
+    const bottom = sides.bottom ? { color, width, style } : undefined
+    const left = sides.left ? { color, width, style } : undefined
+    const right = sides.right ? { color, width, style } : undefined
+    forEachSelected((r, c) => {
+      const base = ctx.sheet.getStyleAt(r, c)
+      const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: { top, bottom, left, right } }
+      const id = ctx.sheet.defineStyle(next as any)
+      ctx.sheet.setCellStyle(r, c, id)
+    })
     deps.schedule()
   }
 
@@ -110,6 +209,7 @@ export function createCommands(
   return {
     applyTextColor,
     applyFillColor,
+    applyBorder,
     setValueInSelection,
     setColumnWidth,
     setRowHeight,

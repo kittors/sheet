@@ -3,8 +3,13 @@ import { Paintbrush, ClipboardPaste, Copy, Combine, Split } from 'lucide-vue-nex
 import ToolItem from '../common/ToolItem.vue'
 import ToolGroup from '../common/ToolGroup.vue'
 import FontControls from './FontControls.vue'
-// Emits: merge/unmerge commands upward to layout/app
-const emit = defineEmits<{ (e: 'merge-cells'): void; (e: 'unmerge-cells'): void }>()
+// Emits: merge/unmerge and styling commands upward to layout/app
+const emit = defineEmits<{
+  (e: 'merge-cells'): void
+  (e: 'unmerge-cells'): void
+  (e: 'apply-fill', color: string): void
+  (e: 'apply-border', payload: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }): void
+}>()
 </script>
 
 <template>
@@ -29,7 +34,7 @@ const emit = defineEmits<{ (e: 'merge-cells'): void; (e: 'unmerge-cells'): void 
     <div class="vsep"></div>
 
     <!-- 字体控制块：上下 group（上：两个下拉紧贴；下：四个样式icon） -->
-    <FontControls />
+    <FontControls @apply-fill="(c) => emit('apply-fill', c)" @apply-border="(p) => emit('apply-border', p)" />
 
     <!-- 合并/取消合并 -->
     <div class="vsep"></div>

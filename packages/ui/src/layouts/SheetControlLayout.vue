@@ -20,6 +20,8 @@ const emit = defineEmits<{
   (e: 'submit'): void
   (e: 'merge-cells'): void
   (e: 'unmerge-cells'): void
+  (e: 'apply-fill', color: string): void
+  (e: 'apply-border', payload: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }): void
 }>()
 
 function onInput(e: Event) {
@@ -36,6 +38,8 @@ function onEnter() {
       <SheetToolbar
         @merge-cells="() => emit('merge-cells')"
         @unmerge-cells="() => emit('unmerge-cells')"
+        @apply-fill="(c) => emit('apply-fill', c)"
+        @apply-border="(p) => emit('apply-border', p)"
       />
     </div>
     <div class="controls-row">

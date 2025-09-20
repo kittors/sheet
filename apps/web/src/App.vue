@@ -114,6 +114,14 @@ onBeforeUnmount(() => {
 const applyFormula = () => api?.setValueInSelection(formula.value)
 const onMergeCells = () => api?.mergeSelection()
 const onUnmergeCells = () => api?.unmergeSelection()
+const onApplyFill = (color: string) => api?.applyFillColor(color)
+const onApplyBorder = (p: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }) => {
+  if (!api) return
+  if (p.mode === 'thick') api.applyBorder({ mode: 'all', width: 2, style: 'solid', color: p.color })
+  else if (p.mode === 'outside') api.applyBorder({ mode: 'outside', width: 1, style: 'solid', color: p.color })
+  else if (p.mode === 'all') api.applyBorder({ mode: 'all', width: 1, style: 'solid', color: p.color })
+  else api.applyBorder({ mode: 'none' })
+}
 
 function colName(n: number) {
   let s = ''
@@ -262,6 +270,8 @@ function onOpenContextMenu(e: MouseEvent) {
       @submit="applyFormula"
       @merge-cells="onMergeCells"
       @unmerge-cells="onUnmergeCells"
+      @apply-fill="onApplyFill"
+      @apply-border="onApplyBorder"
     />
     <div style="flex: 1; min-height: 0" @contextmenu="onOpenContextMenu">
       <SheetCanvas

@@ -16,6 +16,13 @@ export interface SheetApi {
   // Commands (pass-through to interaction when present)
   applyTextColor(color: string): void
   applyFillColor(backgroundColor: string): void
+  applyBorder(args: {
+    mode: 'none' | 'all' | 'outside' | 'custom'
+    color?: string
+    width?: number
+    style?: import('@sheet/core').BorderStyle
+    sides?: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean }
+  }): void
   setValueInSelection(text: string): void
   mergeSelection(): void
   unmergeSelection(): void
@@ -111,6 +118,9 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     },
     applyFillColor(backgroundColor) {
       interaction?.applyFillColor(backgroundColor)
+    },
+    applyBorder(args) {
+      interaction?.applyBorder(args)
     },
     setValueInSelection(text) {
       interaction?.setValueInSelection(text)

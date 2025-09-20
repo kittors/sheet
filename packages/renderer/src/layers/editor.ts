@@ -57,16 +57,13 @@ export class EditorLayer implements Layer {
     const isEditing = rc.editor?.selStart != null && rc.editor?.selEnd != null
     if (isEditing) {
       ctx.save()
-      ctx.beginPath()
-      // Clip only for background so it doesn't spill; text/caret may overflow if needed
-      ctx.rect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
-      ctx.clip()
+      // Fill the full cell box to avoid gaps, while still keeping editor text/caret allowed to overflow
       ctx.fillStyle = bg
       ctx.fillRect(
-        Math.floor(x) + 1,
-        Math.floor(y) + 1,
-        Math.max(0, Math.floor(w) - 2),
-        Math.max(0, Math.floor(h) - 2),
+        Math.floor(x),
+        Math.floor(y),
+        Math.max(0, Math.floor(w)),
+        Math.max(0, Math.floor(h)),
       )
       ctx.restore()
     }
