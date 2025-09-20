@@ -7,7 +7,12 @@ export function getDPR(): number {
 }
 
 // Resize canvas to account for DPR to keep crisp rendering
-export function resizeCanvasForDPR(canvas: HTMLCanvasElement, width: number, height: number, dpr = getDPR()): CanvasRenderingContext2D {
+export function resizeCanvasForDPR(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  dpr = getDPR(),
+): CanvasRenderingContext2D {
   canvas.width = Math.floor(width * dpr)
   canvas.height = Math.floor(height * dpr)
   canvas.style.width = `${width}px`

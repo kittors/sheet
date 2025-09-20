@@ -24,4 +24,3 @@ export function applyHThumb(ctx: Context, state: State, newLeft: number) {
   const maxScrollX = Math.max(0, contentWidth - viewportContentWidth)
   state.scroll.x = Math.max(0, Math.min(maxScrollX, Math.floor(frac * maxScrollX)))
 }
-

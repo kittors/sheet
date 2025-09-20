@@ -18,9 +18,12 @@ defineProps<{ item: MenuItem; hasChildren: boolean }>()
       <ChevronRight v-if="hasChildren" :size="14" class="ctx-arrow" />
     </template>
     <template v-else>
-      <component v-if="typeof item.customRender !== 'function'" :is="item.customRender" :item="item" />
+      <component
+        v-if="typeof item.customRender !== 'function'"
+        :is="item.customRender"
+        :item="item"
+      />
       <RenderFn v-else :renderer="item.customRender" :item="item" />
     </template>
   </div>
 </template>
-

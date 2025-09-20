@@ -8,7 +8,10 @@ export interface MenuItem {
   id: string | number
   label?: string
   icon?: string | Component
-  action?: (payload: { id: string | number; event: MouseEvent | KeyboardEvent | null }) => void | Promise<void>
+  action?: (payload: {
+    id: string | number
+    event: MouseEvent | KeyboardEvent | null
+  }) => void | Promise<void>
   children?: MenuItem[]
   disabled?: boolean | ((ctx: OpenContext) => boolean)
   hidden?: boolean | ((ctx: OpenContext) => boolean)

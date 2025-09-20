@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Paintbrush, ClipboardPaste, Copy, Combine, Split } from "lucide-vue-next";
-import ToolItem from "../common/ToolItem.vue";
-import ToolGroup from "../common/ToolGroup.vue";
-import FontControls from "./FontControls.vue";
+import { Paintbrush, ClipboardPaste, Copy, Combine, Split } from 'lucide-vue-next'
+import ToolItem from '../common/ToolItem.vue'
+import ToolGroup from '../common/ToolGroup.vue'
+import FontControls from './FontControls.vue'
 // Emits: merge/unmerge commands upward to layout/app
 const emit = defineEmits<{ (e: 'merge-cells'): void; (e: 'unmerge-cells'): void }>()
 </script>
@@ -21,12 +21,8 @@ const emit = defineEmits<{ (e: 'merge-cells'): void; (e: 'unmerge-cells'): void 
 
     <!-- 右侧：复制/粘贴 竖直排列，无底部文字 -->
     <ToolGroup direction="vertical" :gap="2">
-      <ToolItem label-position="none" aria-label="剪切"
-        ><ClipboardPaste :size="18"
-      /></ToolItem>
-      <ToolItem label-position="none" aria-label="复制"
-        ><Copy :size="18"
-      /></ToolItem>
+      <ToolItem label-position="none" aria-label="剪切"><ClipboardPaste :size="18" /></ToolItem>
+      <ToolItem label-position="none" aria-label="复制"><Copy :size="18" /></ToolItem>
     </ToolGroup>
 
     <!-- 竖向分割线 -->

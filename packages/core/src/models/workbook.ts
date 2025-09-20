@@ -10,5 +10,7 @@ export class Workbook {
     return s
   }
 
-  get active(): Sheet | undefined { return this.sheets[this.activeIndex] }
+  get active(): Sheet | undefined {
+    return this.sheets[this.activeIndex]
+  }
 }

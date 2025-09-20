@@ -36,8 +36,10 @@ describe('viewport sizing', () => {
 describe('thumb application', () => {
   it('applies vertical and horizontal thumbs to state scroll', () => {
     const base = ctxStub()
-    const trackSpanV = 100, thumbLenV = 50
-    const trackSpanH = 120, thumbLenH = 40
+    const trackSpanV = 100,
+      thumbLenV = 50
+    const trackSpanH = 120,
+      thumbLenH = 40
     const ctx: Context = {
       ...base,
       // minimal stub for renderer

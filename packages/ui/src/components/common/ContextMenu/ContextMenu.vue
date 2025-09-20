@@ -7,18 +7,21 @@ import { useHoverIntent } from './useHoverIntent'
 import type { MenuItem, CtxMenuApi } from './types'
 import { CTX_MENU_KEY } from './types'
 
-const props = withDefaults(defineProps<{
-  menuItems: MenuItem[]
-  targetSelector?: string
-  customClass?: string
-  keepOpenOnClick?: boolean
-  listenGlobal?: boolean
-}>(), {
-  targetSelector: '',
-  customClass: '',
-  keepOpenOnClick: false,
-  listenGlobal: false,
-})
+const props = withDefaults(
+  defineProps<{
+    menuItems: MenuItem[]
+    targetSelector?: string
+    customClass?: string
+    keepOpenOnClick?: boolean
+    listenGlobal?: boolean
+  }>(),
+  {
+    targetSelector: '',
+    customClass: '',
+    keepOpenOnClick: false,
+    listenGlobal: false,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'open', ev: MouseEvent | null): void
@@ -91,7 +94,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (!cm.isOpen.value) return
   const key = e.key
   if (key === 'Escape') {
-    e.preventDefault(); close(null); return
+    e.preventDefault()
+    close(null)
+    return
   }
   const level = cm.activePath.value.length - 1
   const items = cm.getItemsAtLevel(level, visibleTree.value)
@@ -106,11 +111,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
     const prev = cm.prevEnabledIndex(items, idx - 1)
     if (prev !== -1) cm.setActiveIndex(level, prev)
   } else if (key === 'ArrowRight') {
-    e.preventDefault(); cm.tryOpenChild(level, visibleTree.value)
+    e.preventDefault()
+    cm.tryOpenChild(level, visibleTree.value)
   } else if (key === 'ArrowLeft') {
-    e.preventDefault(); if (level > 0) cm.activePath.value.pop()
+    e.preventDefault()
+    if (level > 0) cm.activePath.value.pop()
   } else if (key === 'Enter') {
-    e.preventDefault();
+    e.preventDefault()
     const item = items[idx]
     if (!item) return
     if (item.children && item.children.length) cm.tryOpenChild(level, visibleTree.value)
@@ -150,7 +157,12 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(isOpen, async (v) => { if (v) { await nextTick(); rootEl.value?.focus() } })
+watch(isOpen, async (v) => {
+  if (v) {
+    await nextTick()
+    rootEl.value?.focus()
+  }
+})
 </script>
 
 <template>
@@ -164,7 +176,11 @@ watch(isOpen, async (v) => { if (v) { await nextTick(); rootEl.value?.focus() } 
       @contextmenu.prevent
       @mousemove="onMouseMove"
     >
-      <div ref="mainMenuEl" class="ctx-menu" :style="{ left: position.x + 'px', top: position.y + 'px' }">
+      <div
+        ref="mainMenuEl"
+        class="ctx-menu"
+        :style="{ left: position.x + 'px', top: position.y + 'px' }"
+      >
         <ContextMenuList :level="0" :items="visibleTree" />
       </div>
     </div>

@@ -24,29 +24,36 @@ export interface SheetApi {
   applyHorizontalAlign(al: 'left' | 'center' | 'right'): void
   applyVerticalAlign(al: 'top' | 'middle' | 'bottom'): void
   // Events (rAF-polled subscriptions)
-  onSelectionChange(cb: (sel: { r0: number; c0: number; r1: number; c1: number } | null) => void): () => void
+  onSelectionChange(
+    cb: (sel: { r0: number; c0: number; r1: number; c1: number } | null) => void,
+  ): () => void
   onScrollChange(cb: (scroll: { x: number; y: number }) => void): () => void
 }
 
 export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHandle }): SheetApi {
   const { sheet, interaction } = args
   // subscription state (started on demand)
-  const selListeners: Array<(s: { r0: number; c0: number; r1: number; c1: number } | null) => void> = []
+  const selListeners: Array<
+    (s: { r0: number; c0: number; r1: number; c1: number } | null) => void
+  > = []
   const scrListeners: Array<(s: { x: number; y: number }) => void> = []
-  let lastSel: { r0: number; c0: number; r1: number; c1: number } | null = interaction?.getSelection?.() ?? null
+  let lastSel: { r0: number; c0: number; r1: number; c1: number } | null =
+    interaction?.getSelection?.() ?? null
   let lastScr: { x: number; y: number } | null = interaction?.getScroll?.() ?? null
   let raf = 0
   const hasSubs = () => selListeners.length > 0 || scrListeners.length > 0
   type Sel = { r0: number; c0: number; r1: number; c1: number } | null
   type Scr = { x: number; y: number } | null
   const eqSel = (a: Sel, b: Sel) => {
-    const aOk = !!a, bOk = !!b
+    const aOk = !!a,
+      bOk = !!b
     if (aOk !== bOk) return false
     if (!a || !b) return true
     return a.r0 === b.r0 && a.c0 === b.c0 && a.r1 === b.r1 && a.c1 === b.c1
   }
   const eqScr = (a: Scr, b: Scr) => {
-    const aOk = !!a, bOk = !!b
+    const aOk = !!a,
+      bOk = !!b
     if (aOk !== bOk) return false
     if (!a || !b) return true
     return a.x === b.x && a.y === b.y
@@ -65,25 +72,55 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     }
     raf = requestAnimationFrame(pump)
   }
-  const ensureLoop = () => { if (!raf && hasSubs()) raf = requestAnimationFrame(pump) }
+  const ensureLoop = () => {
+    if (!raf && hasSubs()) raf = requestAnimationFrame(pump)
+  }
 
   return {
     // Queries
-    getCellValue(r, c) { return sheet.getValueAt(r, c) ?? null },
-    getCellStyle(r, c) { return sheet.getStyleAt(r, c) },
-    getSelection() { return interaction?.getSelection() ?? null },
-    getActiveCell() { return interaction?.getFirstSelectedCell() ?? null },
-    getRowCount() { return sheet.rows },
-    getColCount() { return sheet.cols },
-    getRowHeight(r) { return sheet.rowHeights.get(r) },
-    getColWidth(c) { return sheet.colWidths.get(c) },
-    getScroll() { return interaction?.getScroll() ?? null },
+    getCellValue(r, c) {
+      return sheet.getValueAt(r, c) ?? null
+    },
+    getCellStyle(r, c) {
+      return sheet.getStyleAt(r, c)
+    },
+    getSelection() {
+      return interaction?.getSelection() ?? null
+    },
+    getActiveCell() {
+      return interaction?.getFirstSelectedCell() ?? null
+    },
+    getRowCount() {
+      return sheet.rows
+    },
+    getColCount() {
+      return sheet.cols
+    },
+    getRowHeight(r) {
+      return sheet.rowHeights.get(r)
+    },
+    getColWidth(c) {
+      return sheet.colWidths.get(c)
+    },
+    getScroll() {
+      return interaction?.getScroll() ?? null
+    },
     // Commands
-    applyTextColor(color) { interaction?.applyTextColor(color) },
-    applyFillColor(backgroundColor) { interaction?.applyFillColor(backgroundColor) },
-    setValueInSelection(text) { interaction?.setValueInSelection(text) },
-    mergeSelection() { interaction?.mergeSelection() },
-    unmergeSelection() { interaction?.unmergeSelection() },
+    applyTextColor(color) {
+      interaction?.applyTextColor(color)
+    },
+    applyFillColor(backgroundColor) {
+      interaction?.applyFillColor(backgroundColor)
+    },
+    setValueInSelection(text) {
+      interaction?.setValueInSelection(text)
+    },
+    mergeSelection() {
+      interaction?.mergeSelection()
+    },
+    unmergeSelection() {
+      interaction?.unmergeSelection()
+    },
     applyFontSize(size) {
       const styleId = sheet.defineStyle({ font: { size } })
       const sel = interaction?.getSelection?.()
@@ -92,7 +129,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
       const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
       const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     applyFontFamily(family) {
       const styleId = sheet.defineStyle({ font: { family } })
@@ -102,7 +140,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
       const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
       const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     applyHorizontalAlign(al) {
       const styleId = sheet.defineStyle({ alignment: { horizontal: al } })
@@ -112,7 +151,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
       const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
       const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     applyVerticalAlign(al) {
       const styleId = sheet.defineStyle({ alignment: { vertical: al } })
@@ -122,7 +162,8 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
       const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
       const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     // Events
     onSelectionChange(cb) {
@@ -131,7 +172,10 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       return () => {
         const i = selListeners.indexOf(cb)
         if (i >= 0) selListeners.splice(i, 1)
-        if (!hasSubs() && raf) { cancelAnimationFrame(raf); raf = 0 }
+        if (!hasSubs() && raf) {
+          cancelAnimationFrame(raf)
+          raf = 0
+        }
       }
     },
     onScrollChange(cb) {
@@ -140,7 +184,10 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       return () => {
         const i = scrListeners.indexOf(cb)
         if (i >= 0) scrListeners.splice(i, 1)
-        if (!hasSubs() && raf) { cancelAnimationFrame(raf); raf = 0 }
+        if (!hasSubs() && raf) {
+          cancelAnimationFrame(raf)
+          raf = 0
+        }
       }
     },
   }
@@ -179,4 +226,10 @@ export function createWorkbookWithSheet(args: { name?: string; rows?: number; co
 }
 
 // text layout helpers (re-export)
-export { fontStringFromStyle, measureText, wrapTextIndices, caretIndexFromPoint, ellipsize } from './text-layout'
+export {
+  fontStringFromStyle,
+  measureText,
+  wrapTextIndices,
+  caretIndexFromPoint,
+  ellipsize,
+} from './text-layout'

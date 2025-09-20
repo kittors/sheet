@@ -28,4 +28,3 @@ export class GuidesLayer implements Layer {
     ctx.restore()
   }
 }
-

@@ -43,7 +43,16 @@ export class CanvasRenderer {
   opts: RendererOptions
   selection?: { r0: number; c0: number; r1: number; c1: number }
   selectionAnchor?: { r: number; c: number }
-  editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }
+  editor?: {
+    r: number
+    c: number
+    text: string
+    caret: number
+    caretVisible: boolean
+    selAll?: boolean
+    selStart?: number
+    selEnd?: number
+  }
   guides?: { v?: number; h?: number }
   headerStyle: HeaderStyle
   headerLabels?: HeaderLabels
@@ -102,8 +111,18 @@ export class CanvasRenderer {
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
     // Compute content size
-    const contentWidth = sheet.cols * this.opts.defaultColWidth! + Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - this.opts.defaultColWidth!), 0)
-    const contentHeight = sheet.rows * this.opts.defaultRowHeight! + Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - this.opts.defaultRowHeight!), 0)
+    const contentWidth =
+      sheet.cols * this.opts.defaultColWidth! +
+      Array.from(sheet.colWidths.values()).reduce(
+        (acc, w) => acc + (w - this.opts.defaultColWidth!),
+        0,
+      )
+    const contentHeight =
+      sheet.rows * this.opts.defaultRowHeight! +
+      Array.from(sheet.rowHeights.values()).reduce(
+        (acc, h) => acc + (h - this.opts.defaultRowHeight!),
+        0,
+      )
 
     // Decide whether scrollbars are needed and compute available content viewport (iterate to resolve interdependency)
     const thickness = this.opts.scrollbarThickness!
@@ -151,7 +170,10 @@ export class CanvasRenderer {
       const h = viewport.height - originY - (hScrollable ? thickness : 0)
       vTrack = { x, y, w, h }
       const trackSpan = h
-      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (heightAvail / contentHeight))))
+      const thumbLen = Math.max(
+        minThumb,
+        Math.max(0, Math.floor(trackSpan * (heightAvail / contentHeight))),
+      )
       const maxThumbTop = trackSpan - thumbLen
       const maxScrollY = Math.max(0, contentHeight - heightAvail)
       const frac = maxScrollY > 0 ? sY / maxScrollY : 0
@@ -170,7 +192,10 @@ export class CanvasRenderer {
       const h = thickness
       hTrack = { x, y, w, h }
       const trackSpan = w
-      const thumbLen = Math.max(minThumb, Math.max(0, Math.floor(trackSpan * (widthAvail / contentWidth))))
+      const thumbLen = Math.max(
+        minThumb,
+        Math.max(0, Math.floor(trackSpan * (widthAvail / contentWidth))),
+      )
       const maxThumbLeft = trackSpan - thumbLen
       const maxScrollX = Math.max(0, contentWidth - widthAvail)
       const frac = maxScrollX > 0 ? sX / maxScrollX : 0
@@ -217,7 +242,10 @@ export class CanvasRenderer {
     for (const l of this.layers) l.render(rc)
   }
 
-  setSelection(sel?: { r0: number; c0: number; r1: number; c1: number }, anchor?: { r: number; c: number }) {
+  setSelection(
+    sel?: { r0: number; c0: number; r1: number; c1: number },
+    anchor?: { r: number; c: number },
+  ) {
     this.selection = sel
     this.selectionAnchor = anchor
   }
@@ -230,7 +258,9 @@ export class CanvasRenderer {
     return this.lastScrollbars
   }
 
-  setScrollbarState(state: Partial<{ vHover: boolean; hHover: boolean; vActive: boolean; hActive: boolean }>) {
+  setScrollbarState(
+    state: Partial<{ vHover: boolean; hHover: boolean; vActive: boolean; hActive: boolean }>,
+  ) {
     this.scrollbarState = { ...this.scrollbarState, ...state }
   }
 
@@ -242,7 +272,16 @@ export class CanvasRenderer {
     this.headerLabels = labels
   }
 
-  setEditor(editor?: { r: number; c: number; text: string; caret: number; caretVisible: boolean; selAll?: boolean; selStart?: number; selEnd?: number }) {
+  setEditor(editor?: {
+    r: number
+    c: number
+    text: string
+    caret: number
+    caretVisible: boolean
+    selAll?: boolean
+    selStart?: number
+    selEnd?: number
+  }) {
     this.editor = editor
   }
 }

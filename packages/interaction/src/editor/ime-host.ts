@@ -48,7 +48,10 @@ export function createImeHost(
           let r = state.selectAnchor?.r ?? Math.min(sel.r0, sel.r1)
           let c = state.selectAnchor?.c ?? Math.min(sel.c0, sel.c1)
           const m = ctx.sheet.getMergeAt(r, c)
-          if (m) { r = m.r; c = m.c }
+          if (m) {
+            r = m.r
+            c = m.c
+          }
           deps.beginAt(r, c)
         }
       }
@@ -129,7 +132,10 @@ export function createImeHost(
             let r = state.selectAnchor?.r ?? Math.min(sel.r0, sel.r1)
             let c = state.selectAnchor?.c ?? Math.min(sel.c0, sel.c1)
             const m = ctx.sheet.getMergeAt(r, c)
-            if (m) { r = m.r; c = m.c }
+            if (m) {
+              r = m.r
+              c = m.c
+            }
             deps.beginAt(r, c)
           }
         } else {

@@ -50,7 +50,7 @@ export function useHoverIntent(opts: {
     if (!submenu) return 0
     const r = row.getBoundingClientRect()
     const s = submenu.getBoundingClientRect()
-    const cur = { x: (ev?.clientX ?? lastMouse.x), y: (ev?.clientY ?? lastMouse.y) }
+    const cur = { x: ev?.clientX ?? lastMouse.x, y: ev?.clientY ?? lastMouse.y }
     const openRight = s.left >= r.right
     const A = { x: openRight ? r.right : r.left, y: r.top }
     const B = { x: openRight ? s.left : s.right, y: s.top }
@@ -61,4 +61,3 @@ export function useHoverIntent(opts: {
 
   return { onItemMouseEnter, onMouseMove, clearAll }
 }
-

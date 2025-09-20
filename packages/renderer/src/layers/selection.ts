@@ -3,7 +3,17 @@ import type { Layer, RenderContext } from '../types/context'
 export class SelectionLayer implements Layer {
   name = 'selection'
   render(rc: RenderContext) {
-    const { ctx, sheet, defaultColWidth, defaultRowHeight, originX, originY, selection, scroll, viewport } = rc
+    const {
+      ctx,
+      sheet,
+      defaultColWidth,
+      defaultRowHeight,
+      originX,
+      originY,
+      selection,
+      scroll,
+      viewport,
+    } = rc
     if (!selection) return
 
     // Normalize selection (0-based inclusive indices)
@@ -15,12 +25,18 @@ export class SelectionLayer implements Layer {
     // Compute cumulative sizes helpers (defaults + overrides delta)
     const cumWidth = (i: number): number => {
       let base = i * defaultColWidth
-      if (sheet.colWidths.size) for (const [c, w] of sheet.colWidths) { if (c < i) base += (w - defaultColWidth) }
+      if (sheet.colWidths.size)
+        for (const [c, w] of sheet.colWidths) {
+          if (c < i) base += w - defaultColWidth
+        }
       return base
     }
     const cumHeight = (i: number): number => {
       let base = i * defaultRowHeight
-      if (sheet.rowHeights.size) for (const [r, h] of sheet.rowHeights) { if (r < i) base += (h - defaultRowHeight) }
+      if (sheet.rowHeights.size)
+        for (const [r, h] of sheet.rowHeights) {
+          if (r < i) base += h - defaultRowHeight
+        }
       return base
     }
 
@@ -66,13 +82,21 @@ export class SelectionLayer implements Layer {
       let ar = rc.selectionAnchor?.r ?? r0
       let ac = rc.selectionAnchor?.c ?? c0
       // If anchor lies outside the current selection (e.g. header/corner select), fallback to top-left
-      const rrMin = Math.min(r0, r1), rrMax = Math.max(r0, r1)
-      const ccMin = Math.min(c0, c1), ccMax = Math.max(c0, c1)
-      if (ar < rrMin || ar > rrMax || ac < ccMin || ac > ccMax) { ar = r0; ac = c0 }
+      const rrMin = Math.min(r0, r1),
+        rrMax = Math.max(r0, r1)
+      const ccMin = Math.min(c0, c1),
+        ccMax = Math.max(c0, c1)
+      if (ar < rrMin || ar > rrMax || ac < ccMin || ac > ccMax) {
+        ar = r0
+        ac = c0
+      }
       // If the anchor lies anywhere inside a merged block, resolve to the block's top-left
       // for the purpose of computing the punched hole.
       const mAtAnchor = sheet.getMergeAt(ar, ac)
-      if (mAtAnchor) { ar = mAtAnchor.r; ac = mAtAnchor.c }
+      if (mAtAnchor) {
+        ar = mAtAnchor.r
+        ac = mAtAnchor.c
+      }
       // Compute anchor cell box in canvas coords (respect merges)
       const xA0 = originX + cumWidth(ac) - scroll.x
       let xA1 = originX + cumWidth(ac + 1) - scroll.x
@@ -86,8 +110,14 @@ export class SelectionLayer implements Layer {
       // Clip anchor box to content area
       const aL = Math.max(Math.floor(xA0), Math.floor(originX))
       const aT = Math.max(Math.floor(yA0), Math.floor(originY))
-      const aR = Math.min(Math.floor(xA1), Math.floor(viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)))
-      const aB = Math.min(Math.floor(yA1), Math.floor(viewport.height - (rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0)))
+      const aR = Math.min(
+        Math.floor(xA1),
+        Math.floor(viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)),
+      )
+      const aB = Math.min(
+        Math.floor(yA1),
+        Math.floor(viewport.height - (rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0)),
+      )
       // Anchor interior (also shrink by 1px to align with selection interior and keep borders crisp)
       const holeL = Math.max(selL, aL + 1)
       const holeT = Math.max(selT, aT + 1)
@@ -108,7 +138,12 @@ export class SelectionLayer implements Layer {
     }
     ctx.strokeStyle = '#3b82f6'
     ctx.lineWidth = 2
-    ctx.strokeRect(Math.floor(left) + 0.5, Math.floor(top) + 0.5, Math.floor(w) - 1, Math.floor(h) - 1)
+    ctx.strokeRect(
+      Math.floor(left) + 0.5,
+      Math.floor(top) + 0.5,
+      Math.floor(w) - 1,
+      Math.floor(h) - 1,
+    )
     ctx.restore()
   }
 }

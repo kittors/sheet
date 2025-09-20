@@ -22,7 +22,8 @@ function getCtx(): CanvasRenderingContext2D {
 
 export function fontStringFromStyle(font?: Style['font'], defaultSize = 14): string {
   const size = font?.size ?? defaultSize
-  const family = font?.family ?? 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+  const family =
+    font?.family ?? 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
   const weight = font?.bold ? 'bold' : 'normal'
   const italic = font?.italic ? 'italic ' : ''
   return `${italic}${weight} ${size}px ${family}`
@@ -34,7 +35,12 @@ export function measureText(text: string, font?: Style['font'], defaultSize = 14
   return ctx.measureText(text).width
 }
 
-export function wrapTextIndices(text: string, maxWidth: number, font?: Style['font'], defaultSize = 14): Array<{ start: number; end: number }> {
+export function wrapTextIndices(
+  text: string,
+  maxWidth: number,
+  font?: Style['font'],
+  defaultSize = 14,
+): Array<{ start: number; end: number }> {
   // Break text into visual lines that fit within maxWidth, honoring explicit newlines ("\n").
   // The returned segments are [start, end) index pairs into the original string. Newline characters
   // are not included in any segment; consecutive newlines yield zero-length segments.
@@ -56,7 +62,8 @@ export function wrapTextIndices(text: string, maxWidth: number, font?: Style['fo
       let i = 0
       const m = paraText.length
       while (i < m) {
-        let lo = i + 1, hi = m
+        let lo = i + 1,
+          hi = m
         while (lo <= hi) {
           const mid = Math.min(m, Math.max(i + 1, Math.floor((lo + hi) / 2)))
           const seg = paraText.slice(i, mid)
@@ -78,7 +85,12 @@ export function wrapTextIndices(text: string, maxWidth: number, font?: Style['fo
   return lines
 }
 
-export function caretIndexFromPoint(text: string, relX: number, relY: number, opts: { maxWidth: number; font?: Style['font']; defaultSize?: number; lineHeight?: number }): number {
+export function caretIndexFromPoint(
+  text: string,
+  relX: number,
+  relY: number,
+  opts: { maxWidth: number; font?: Style['font']; defaultSize?: number; lineHeight?: number },
+): number {
   const defaultSize = opts.defaultSize ?? 14
   const ctx = getCtx()
   ctx.font = fontStringFromStyle(opts.font, defaultSize)
@@ -90,19 +102,28 @@ export function caretIndexFromPoint(text: string, relX: number, relY: number, op
   let caret = seg.start
   for (let i = seg.start; i < seg.end; i++) {
     const w = ctx.measureText(text[i]).width
-    if (acc + w / 2 >= relX) { caret = i; break }
+    if (acc + w / 2 >= relX) {
+      caret = i
+      break
+    }
     acc += w
     caret = i + 1
   }
   return caret
 }
 
-export function ellipsize(text: string, maxWidth: number, font?: Style['font'], defaultSize = 14): string {
+export function ellipsize(
+  text: string,
+  maxWidth: number,
+  font?: Style['font'],
+  defaultSize = 14,
+): string {
   const ctx = getCtx()
   ctx.font = fontStringFromStyle(font, defaultSize)
   if (ctx.measureText(text).width <= maxWidth) return text
   const ell = '...'
-  let lo = 0, hi = text.length
+  let lo = 0,
+    hi = text.length
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
     const w = ctx.measureText(text.slice(0, mid) + ell).width

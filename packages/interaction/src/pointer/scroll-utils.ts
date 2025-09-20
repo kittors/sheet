@@ -10,4 +10,3 @@ export function getScrollClamped(ctx: Context, state: State) {
     sY: Math.max(0, Math.min(state.scroll.y, maxY)),
   }
 }
-

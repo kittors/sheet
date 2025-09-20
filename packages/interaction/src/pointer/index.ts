@@ -40,24 +40,53 @@ export function createPointerHandlers(
   const getScrollClamped = () => getScrollClampedUtil(ctx, state)
 
   // Resize hit-test helpers
-  const { hitColResize, hitRowResize } = createResizeHitters(ctx, state, {
-    getScrollClamped,
-    colLeft: (index: number) => colLeftFor(index, ctx.metrics.defaultColWidth, ctx.sheet.colWidths),
-    rowTop: (index: number) => rowTopFor(index, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights),
-  }, { hitMargin: config.resize.hitMargin })
+  const { hitColResize, hitRowResize } = createResizeHitters(
+    ctx,
+    state,
+    {
+      getScrollClamped,
+      colLeft: (index: number) =>
+        colLeftFor(index, ctx.metrics.defaultColWidth, ctx.sheet.colWidths),
+      rowTop: (index: number) =>
+        rowTopFor(index, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights),
+    },
+    { hitMargin: config.resize.hitMargin },
+  )
   // Auto-scroll logic extracted
-  const { stopAutoScroll, updateAutoScrollVelocity } = createAutoScroll(ctx, state, { schedule: deps.schedule, config: config.autoScroll })
+  const { stopAutoScroll, updateAutoScrollVelocity } = createAutoScroll(ctx, state, {
+    schedule: deps.schedule,
+    config: config.autoScroll,
+  })
 
-  const textSel = createTextSelectHandlers(ctx, state, { setSelectionRange: deps.setSelectionRange, schedule: deps.schedule })
-  const sbHandlers = createScrollbarHandlers(ctx, state, { schedule: deps.schedule, focusIme: deps.focusIme })
-  const selHandlers = createSelectionHandlers(ctx, state, { schedule: deps.schedule, previewAt: deps.previewAt, prepareImeAt: deps.prepareImeAt, clearPreview: deps.clearPreview, updateAutoScrollVelocity })
+  const textSel = createTextSelectHandlers(ctx, state, {
+    setSelectionRange: deps.setSelectionRange,
+    schedule: deps.schedule,
+  })
+  const sbHandlers = createScrollbarHandlers(ctx, state, {
+    schedule: deps.schedule,
+    focusIme: deps.focusIme,
+  })
+  const selHandlers = createSelectionHandlers(ctx, state, {
+    schedule: deps.schedule,
+    previewAt: deps.previewAt,
+    prepareImeAt: deps.prepareImeAt,
+    clearPreview: deps.clearPreview,
+    updateAutoScrollVelocity,
+  })
 
   function onPointerDown(e: PointerEvent) {
     // 仅处理左键；右键（contextmenu）不改变选择状态，也不开始拖拽
     if (e.button !== 0) return
-    try { ctx.canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+    try {
+      ctx.canvas.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
     // If clicking inside the active editor cell, move caret instead of committing
-    if (state.editor) { if (textSel.tryBeginFromPointer(e)) return; deps.finishEdit?.('commit') }
+    if (state.editor) {
+      if (textSel.tryBeginFromPointer(e)) return
+      deps.finishEdit?.('commit')
+    }
     const rect = ctx.canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
@@ -156,7 +185,13 @@ export function createPointerHandlers(
   }
 
   function onPointerUp(e?: PointerEvent) {
-    if (e) { try { ctx.canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ } }
+    if (e) {
+      try {
+        ctx.canvas.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
     state.dragMode = 'none'
     state.resize = undefined
     ctx.renderer.setGuides?.(undefined)
@@ -170,7 +205,12 @@ export function createPointerHandlers(
 
   function onPointerLeave() {
     ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'default'
-    ctx.renderer.setScrollbarState?.({ vHover: false, hHover: false, vActive: false, hActive: false })
+    ctx.renderer.setScrollbarState?.({
+      vHover: false,
+      hHover: false,
+      vActive: false,
+      hActive: false,
+    })
     ctx.renderer.setGuides?.(undefined)
     deps.schedule()
     stopAutoScroll()

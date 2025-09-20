@@ -3,13 +3,19 @@ import type { Layer, RenderContext } from '../types/context'
 export class GridLayer implements Layer {
   name = 'grid'
   render(rc: RenderContext) {
-    const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } =
+      rc
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.save()
     // Clip to content area (exclude headers and scrollbars)
     ctx.beginPath()
-    ctx.rect(originX, originY, Math.max(0, viewport.width - originX - vGap), Math.max(0, viewport.height - originY - hGap))
+    ctx.rect(
+      originX,
+      originY,
+      Math.max(0, viewport.width - originX - vGap),
+      Math.max(0, viewport.height - originY - hGap),
+    )
     ctx.clip()
     ctx.strokeStyle = '#e5e7eb' // light gray
     ctx.lineWidth = 1

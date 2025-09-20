@@ -26,10 +26,16 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
   const overscan = Math.max(0, p.overscan ?? 2)
 
   // Compute total content size to clamp scroll offsets and avoid boundary bugs
-  const totalWidth = p.colCount * p.defaultColWidth +
-    (p.colWidths ? Array.from(p.colWidths.values()).reduce((acc, w) => acc + (w - p.defaultColWidth), 0) : 0)
-  const totalHeight = p.rowCount * p.defaultRowHeight +
-    (p.rowHeights ? Array.from(p.rowHeights.values()).reduce((acc, h) => acc + (h - p.defaultRowHeight), 0) : 0)
+  const totalWidth =
+    p.colCount * p.defaultColWidth +
+    (p.colWidths
+      ? Array.from(p.colWidths.values()).reduce((acc, w) => acc + (w - p.defaultColWidth), 0)
+      : 0)
+  const totalHeight =
+    p.rowCount * p.defaultRowHeight +
+    (p.rowHeights
+      ? Array.from(p.rowHeights.values()).reduce((acc, h) => acc + (h - p.defaultRowHeight), 0)
+      : 0)
 
   const maxScrollX = Math.max(0, totalWidth - p.viewportWidth)
   const maxScrollY = Math.max(0, totalHeight - p.viewportHeight)

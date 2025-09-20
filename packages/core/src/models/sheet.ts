@@ -9,7 +9,12 @@ import type { Cell, Style } from './cell'
  * - Only the anchor cell may physically exist in `cells` for a merged area;
  *   all covered cells must not be present in `cells`.
  */
-export interface MergeRange { r: number; c: number; rows: number; cols: number }
+export interface MergeRange {
+  r: number
+  c: number
+  rows: number
+  cols: number
+}
 
 export class Sheet {
   name: string
@@ -34,13 +39,17 @@ export class Sheet {
     this.cols = cols
   }
 
-  private key(r: number, c: number) { return `${r},${c}` }
+  private key(r: number, c: number) {
+    return `${r},${c}`
+  }
 
   /**
    * Returns the physical cell stored at (r,c) if any. Does not follow merges.
    * Use `getValueAt`/`getStyleAt` to resolve across merged coverage.
    */
-  getCell(r: number, c: number): Cell | undefined { return this.cells.get(this.key(r, c)) }
+  getCell(r: number, c: number): Cell | undefined {
+    return this.cells.get(this.key(r, c))
+  }
 
   /**
    * Sets the cell at (r,c). If (r,c) is covered by a merge, redirects to the anchor.
@@ -65,7 +74,9 @@ export class Sheet {
     return id
   }
 
-  getStyle(id?: number): Style | undefined { return id ? this.styles.get(id) : undefined }
+  getStyle(id?: number): Style | undefined {
+    return id ? this.styles.get(id) : undefined
+  }
 
   setCellStyle(r: number, c: number, styleId: number): void {
     const { ar, ac } = this.getMergeAnchorFor(r, c) ?? { ar: r, ac: c }
@@ -75,8 +86,12 @@ export class Sheet {
     this.cells.set(k, cur)
   }
 
-  setRowHeight(r: number, h: number) { this.rowHeights.set(r, h) }
-  setColWidth(c: number, w: number) { this.colWidths.set(c, w) }
+  setRowHeight(r: number, h: number) {
+    this.rowHeights.set(r, h)
+  }
+  setColWidth(c: number, w: number) {
+    this.colWidths.set(c, w)
+  }
 
   /**
    * Returns the anchor (ar,ac) if (r,c) is covered by a merge and is not the anchor itself.
@@ -91,7 +106,9 @@ export class Sheet {
   }
 
   /** True if (r,c) is the top-left anchor of a merge. */
-  isMergeAnchor(r: number, c: number): boolean { return this.merges.some((m) => m.r === r && m.c === c) }
+  isMergeAnchor(r: number, c: number): boolean {
+    return this.merges.some((m) => m.r === r && m.c === c)
+  }
 
   /** Returns the merge range that contains (r,c), if any. */
   getMergeAt(r: number, c: number): MergeRange | undefined {
@@ -132,8 +149,10 @@ export class Sheet {
     const toRemove: MergeRange[] = []
     for (const m of this.merges) {
       if (!Sheet.rectsIntersect(m, next)) continue
-      const mR1 = m.r, mR2 = m.r + m.rows - 1
-      const mC1 = m.c, mC2 = m.c + m.cols - 1
+      const mR1 = m.r,
+        mR2 = m.r + m.rows - 1
+      const mC1 = m.c,
+        mC2 = m.c + m.cols - 1
       const fullyInside = mR1 >= r && mR2 <= rEnd && mC1 >= c && mC2 <= cEnd
       if (fullyInside) toRemove.push(m)
       else return false // partial overlap not allowed
@@ -180,10 +199,14 @@ export class Sheet {
 
   /** Utility: rectangle intersection test for merges. */
   static rectsIntersect(a: MergeRange, b: MergeRange): boolean {
-    const aR1 = a.r, aR2 = a.r + a.rows - 1
-    const aC1 = a.c, aC2 = a.c + a.cols - 1
-    const bR1 = b.r, bR2 = b.r + b.rows - 1
-    const bC1 = b.c, bC2 = b.c + b.cols - 1
+    const aR1 = a.r,
+      aR2 = a.r + a.rows - 1
+    const aC1 = a.c,
+      aC2 = a.c + a.cols - 1
+    const bR1 = b.r,
+      bR2 = b.r + b.rows - 1
+    const bC1 = b.c,
+      bC2 = b.c + b.cols - 1
     const rOverlap = aR1 <= bR2 && bR1 <= aR2
     const cOverlap = aC1 <= bC2 && bC1 <= aC2
     return rOverlap && cOverlap

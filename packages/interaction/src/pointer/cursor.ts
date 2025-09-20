@@ -13,7 +13,12 @@ export function createCursorHandlers(
     hoverPointerOnScrollbar?: boolean
   },
 ) {
-  const names = opts?.names ?? { default: 'default', pointer: 'pointer', colResize: 'col-resize', rowResize: 'row-resize' }
+  const names = opts?.names ?? {
+    default: 'default',
+    pointer: 'pointer',
+    colResize: 'col-resize',
+    rowResize: 'row-resize',
+  }
   const hoverOnSb = opts?.hoverPointerOnScrollbar ?? true
 
   function update(x: number, y: number) {
@@ -25,8 +30,20 @@ export function createCursorHandlers(
     // Scrollbar hover state (only when not dragging anything else)
     const sb0 = ctx.renderer.getScrollbars?.()
     if (state.dragMode === 'none' && sb0) {
-      const inV = !!(sb0.vTrack && x >= sb0.vTrack.x && x <= sb0.vTrack.x + sb0.vTrack.w && y >= sb0.vTrack.y && y <= sb0.vTrack.y + sb0.vTrack.h)
-      const inH = !!(sb0.hTrack && x >= sb0.hTrack.x && x <= sb0.hTrack.x + sb0.hTrack.w && y >= sb0.hTrack.y && y <= sb0.hTrack.y + sb0.hTrack.h)
+      const inV = !!(
+        sb0.vTrack &&
+        x >= sb0.vTrack.x &&
+        x <= sb0.vTrack.x + sb0.vTrack.w &&
+        y >= sb0.vTrack.y &&
+        y <= sb0.vTrack.y + sb0.vTrack.h
+      )
+      const inH = !!(
+        sb0.hTrack &&
+        x >= sb0.hTrack.x &&
+        x <= sb0.hTrack.x + sb0.hTrack.w &&
+        y >= sb0.hTrack.y &&
+        y <= sb0.hTrack.y + sb0.hTrack.h
+      )
       ctx.renderer.setScrollbarState?.({ vHover: inV, hHover: inH })
       deps.schedule()
       if (hoverOnSb && (inV || inH)) cursor = names.pointer

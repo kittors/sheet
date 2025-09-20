@@ -32,7 +32,11 @@ function setRowRef(index: number, el: Element | null) {
 }
 function setSubmenuRef(index: number, el: Element | null) {
   submenuRefs.value[index] = (el as HTMLElement) || null
-  if (el) nextTick(() => { computePlacement(index); requestAnimationFrame(() => computePlacement(index)) })
+  if (el)
+    nextTick(() => {
+      computePlacement(index)
+      requestAnimationFrame(() => computePlacement(index))
+    })
 }
 
 function recomputeAll() {
@@ -79,14 +83,26 @@ function computePlacement(index: number) {
       :ref="(el) => setRowRef(index, el as any)"
     >
       <!-- Pure separator row: when item is marked as seperator and carries no own content -->
-      <template v-if="item.seperator && !item.label && !item.icon && !(item.children && item.children.length) && !item.customRender">
+      <template
+        v-if="
+          item.seperator &&
+          !item.label &&
+          !item.icon &&
+          !(item.children && item.children.length) &&
+          !item.customRender
+        "
+      >
         <div v-if="index > 0" class="ctx-sep" />
       </template>
       <template v-else>
         <div v-if="item.separatorBefore && index > 0" class="ctx-sep" />
         <button
           class="ctx-item"
-          :class="{ active: api.isActive(props.level, index), disabled: api.isDisabled(item), 'has-children': api.hasChildren(item) }"
+          :class="{
+            active: api.isActive(props.level, index),
+            disabled: api.isDisabled(item),
+            'has-children': api.hasChildren(item),
+          }"
           role="menuitem"
           :aria-disabled="api.isDisabled(item) || undefined"
           @mouseenter="(ev) => api.onItemMouseEnter(props.level, index, item, ev)"

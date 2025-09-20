@@ -18,7 +18,11 @@ export class ScrollbarLayer implements Layer {
       ctx.fillStyle = '#e5e7eb'
       ctx.fillRect(vTrack.x, vTrack.y, 1, vTrack.h)
       if (vThumb) {
-        ctx.fillStyle = scrollbarState.vActive ? '#4b5563' : (scrollbarState.vHover ? '#6b7280' : '#9ca3af') // active darker
+        ctx.fillStyle = scrollbarState.vActive
+          ? '#4b5563'
+          : scrollbarState.vHover
+            ? '#6b7280'
+            : '#9ca3af' // active darker
         const r = Math.floor(thickness / 2)
         this.roundRect(ctx, vThumb.x, vThumb.y, vThumb.w, vThumb.h, r)
         ctx.fill()
@@ -32,7 +36,11 @@ export class ScrollbarLayer implements Layer {
       ctx.fillStyle = '#e5e7eb'
       ctx.fillRect(hTrack.x, hTrack.y, hTrack.w, 1)
       if (hThumb) {
-        ctx.fillStyle = scrollbarState.hActive ? '#4b5563' : (scrollbarState.hHover ? '#6b7280' : '#9ca3af')
+        ctx.fillStyle = scrollbarState.hActive
+          ? '#4b5563'
+          : scrollbarState.hHover
+            ? '#6b7280'
+            : '#9ca3af'
         const r = Math.floor(thickness / 2)
         this.roundRect(ctx, hThumb.x, hThumb.y, hThumb.w, hThumb.h, r)
         ctx.fill()
@@ -48,7 +56,14 @@ export class ScrollbarLayer implements Layer {
     ctx.restore()
   }
 
-  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  private roundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ) {
     const rr = Math.min(r, Math.floor(Math.min(w, h) / 2))
     ctx.beginPath()
     ctx.moveTo(x + rr, y)

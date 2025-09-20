@@ -23,7 +23,14 @@ export interface PointerConfig {
 
 export const defaultPointerConfig: PointerConfig = {
   resize: { minCol: 30, minRow: 16, hitMargin: 4 },
-  autoScroll: { edgeMargin: 48, maxV: 24, ease: 0.2, stopThreshold: 0.1, dtClampMin: 0.5, dtClampMax: 2 },
+  autoScroll: {
+    edgeMargin: 48,
+    maxV: 24,
+    ease: 0.2,
+    stopThreshold: 0.1,
+    dtClampMin: 0.5,
+    dtClampMax: 2,
+  },
   cursor: {
     defaultCursor: 'default',
     pointerCursor: 'pointer',

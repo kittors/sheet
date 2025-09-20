@@ -25,9 +25,10 @@ describe('workbook helpers', () => {
 describe('SheetApi commands', () => {
   it('applies font and alignment commands to selection', () => {
     const { sheet } = createWorkbookWithSheet({ rows: 10, cols: 10 })
-    const interaction: { getSelection: () => { r0: number; c0: number; r1: number; c1: number } } = {
-      getSelection: () => ({ r0: 1, c0: 1, r1: 2, c1: 2 }),
-    }
+    const interaction: { getSelection: () => { r0: number; c0: number; r1: number; c1: number } } =
+      {
+        getSelection: () => ({ r0: 1, c0: 1, r1: 2, c1: 2 }),
+      }
     const api = createSheetApi({ sheet, interaction })
     api.applyFontFamily('Inter')
     const cell1 = sheet.getCell(1, 1)
@@ -37,18 +38,18 @@ describe('SheetApi commands', () => {
     expect(st?.font?.family).toBe('Inter')
 
     api.applyHorizontalAlign('center')
-    stId = (sheet.getCell(1, 1)?.styleId as number)
+    stId = sheet.getCell(1, 1)?.styleId as number
     st = sheet.getStyle(stId)
     expect(st?.alignment?.horizontal).toBe('center')
 
     api.applyVerticalAlign('middle')
-    stId = (sheet.getCell(1, 1)?.styleId as number)
+    stId = sheet.getCell(1, 1)?.styleId as number
     st = sheet.getStyle(stId)
     expect(st?.alignment?.vertical).toBe('middle')
 
     // Applying size later overrides the style id; property should be present
     api.applyFontSize(18)
-    stId = (sheet.getCell(1, 1)?.styleId as number)
+    stId = sheet.getCell(1, 1)?.styleId as number
     st = sheet.getStyle(stId)
     expect(st?.font?.size).toBe(18)
   })

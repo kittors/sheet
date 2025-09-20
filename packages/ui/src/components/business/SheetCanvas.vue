@@ -42,7 +42,9 @@ function renderOnce() {
   renderer.render(sheet, 0, 0)
 }
 
-const emit = defineEmits<{ (e: 'ready', payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }): void }>()
+const emit = defineEmits<{
+  (e: 'ready', payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }): void
+}>()
 
 onMounted(() => {
   if (!canvasRef.value) return
@@ -68,11 +70,15 @@ defineExpose({ canvasRef, rendererRef, sheet })
 </script>
 
 <template>
-  <div class="sheet-canvas" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
-    <canvas ref="canvasRef" style="display:block; width:100%; height:100%;"></canvas>
+  <div class="sheet-canvas" style="position: relative; width: 100%; height: 100%; overflow: hidden">
+    <canvas ref="canvasRef" style="display: block; width: 100%; height: 100%"></canvas>
   </div>
 </template>
 
 <style scoped>
-.sheet-canvas { background: #fff; touch-action: none; user-select: none; }
+.sheet-canvas {
+  background: #fff;
+  touch-action: none;
+  user-select: none;
+}
 </style>

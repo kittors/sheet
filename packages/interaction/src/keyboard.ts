@@ -6,7 +6,13 @@ export function attachKeyboard(
   state: State,
   deps: {
     schedule: () => void
-    onEditorUpdate?: (e: { r: number; c: number; text: string; caret: number; selAll?: boolean }) => void
+    onEditorUpdate?: (e: {
+      r: number
+      c: number
+      text: string
+      caret: number
+      selAll?: boolean
+    }) => void
     ensureVisible?: (r: number, c: number, mode: 'center' | 'nearest') => void
   },
 ) {
@@ -20,13 +26,18 @@ export function attachKeyboard(
     let c = state.selectAnchor?.c ?? Math.min(sel.c0, sel.c1)
     // If anchor lies in a merge, use merge anchor
     const m = ctx.sheet.getMergeAt(r, c)
-    if (m) { r = m.r; c = m.c }
+    if (m) {
+      r = m.r
+      c = m.c
+    }
     return { r, c }
   }
 
   function onKeyDown(e: KeyboardEvent) {
     const editing = !!state.editor
-    const imeHasFocus = (document.activeElement && (document.activeElement as HTMLElement).getAttribute('data-sheet-ime') === '1')
+    const imeHasFocus =
+      document.activeElement &&
+      (document.activeElement as HTMLElement).getAttribute('data-sheet-ime') === '1'
     // Editing: handle Command/Ctrl + A (select all) before any early returns so IME state doesn't block it
     if (editing && (e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
       ed.selectAll()
@@ -37,18 +48,39 @@ export function attachKeyboard(
     if (editing && (e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
       const edState = state.editor!
       const text = edState.text || ''
-      const hasRange = (edState.selAll || (edState.selStart != null && edState.selEnd != null && edState.selStart !== edState.selEnd))
-      const s = edState.selAll ? 0 : Math.min(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
-      const ee = edState.selAll ? text.length : Math.max(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
+      const hasRange =
+        edState.selAll ||
+        (edState.selStart != null && edState.selEnd != null && edState.selStart !== edState.selEnd)
+      const s = edState.selAll
+        ? 0
+        : Math.min(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
+      const ee = edState.selAll
+        ? text.length
+        : Math.max(edState.selStart ?? edState.caret, edState.selEnd ?? edState.caret)
       const slice = hasRange ? text.slice(s, ee) : ''
-      if (slice) { try { navigator.clipboard.writeText(slice) } catch (err) { void err } }
-      e.preventDefault(); return
+      if (slice) {
+        try {
+          navigator.clipboard.writeText(slice)
+        } catch (err) {
+          void err
+        }
+      }
+      e.preventDefault()
+      return
     }
     if (editing && (e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
       try {
-        navigator.clipboard.readText().then((clip) => { if (clip) { ed.insertText(clip); deps.schedule() } })
-      } catch (err) { void err }
-      e.preventDefault(); return
+        navigator.clipboard.readText().then((clip) => {
+          if (clip) {
+            ed.insertText(clip)
+            deps.schedule()
+          }
+        })
+      } catch (err) {
+        void err
+      }
+      e.preventDefault()
+      return
     }
     // While an IME composition is active, let the IME own the keystrokes
     if (editing && (e.isComposing || ed.isComposing?.())) {
@@ -68,20 +100,30 @@ export function attachKeyboard(
       // navigation when not editing
       if (e.key === 'Enter') {
         // Move selection down (sheet-wide wrap). Respect merges when stepping down and stepping into merged blocks.
-        const ac = getActiveCell(); if (!ac) return
+        const ac = getActiveCell()
+        if (!ac) return
         let r = ac.r
         let c = ac.c
         const curM = ctx.sheet.getMergeAt(r, c)
         const curIsAnchor = !!curM && curM.r === r && curM.c === c
         if (curIsAnchor) r = Math.min(ctx.sheet.rows - 1, curM!.r + curM!.rows)
         else r = r + 1
-        if (r >= ctx.sheet.rows) { r = 0; c = c + 1 }
-        if (c >= ctx.sheet.cols) { c = 0 }
+        if (r >= ctx.sheet.rows) {
+          r = 0
+          c = c + 1
+        }
+        if (c >= ctx.sheet.cols) {
+          c = 0
+        }
         // If landing inside a merged block, select the full block at its anchor
         const nextM = ctx.sheet.getMergeAt(r, c)
-        let ar = r, ac2 = c, r1 = r, c1 = c
+        let ar = r,
+          ac2 = c,
+          r1 = r,
+          c1 = c
         if (nextM) {
-          ar = nextM.r; ac2 = nextM.c
+          ar = nextM.r
+          ac2 = nextM.c
           r1 = nextM.r + nextM.rows - 1
           c1 = nextM.c + nextM.cols - 1
         }
@@ -105,7 +147,8 @@ export function attachKeyboard(
     // while editing (other shortcuts handled above)
     if (e.key === 'Enter') {
       // macOS: Control+Option+Enter inserts a newline while editing (do not commit)
-      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      const isMac =
+        typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
       if (isMac && e.ctrlKey && e.altKey && !e.metaKey) {
         // Ensure this cell is set to wrap text so newline is visible during edit and after commit
         const er = state.editor?.r ?? 0
@@ -135,13 +178,22 @@ export function attachKeyboard(
       const isMergeAnchor = !!merge && merge.r === r && merge.c === c
       if (isMergeAnchor) r = Math.min(ctx.sheet.rows - 1, merge!.r + merge!.rows)
       else r = r + 1
-      if (r >= ctx.sheet.rows) { r = 0; c = c + 1 }
-      if (c >= ctx.sheet.cols) { c = 0 }
+      if (r >= ctx.sheet.rows) {
+        r = 0
+        c = c + 1
+      }
+      if (c >= ctx.sheet.cols) {
+        c = 0
+      }
       // If landing inside a merged block, select the full block at its anchor
       const nextM = ctx.sheet.getMergeAt(r, c)
-      let ar = r, ac2 = c, r1 = r, c1 = c
+      let ar = r,
+        ac2 = c,
+        r1 = r,
+        c1 = c
       if (nextM) {
-        ar = nextM.r; ac2 = nextM.c
+        ar = nextM.r
+        ac2 = nextM.c
         r1 = nextM.r + nextM.rows - 1
         c1 = nextM.c + nextM.cols - 1
       }
@@ -153,11 +205,31 @@ export function attachKeyboard(
       e.preventDefault()
       return
     }
-    if (e.key === 'Escape') { ed.cancel(); e.preventDefault(); return }
-    if (e.key === 'Backspace') { ed.backspace(); e.preventDefault(); return }
-    if (e.key === 'Delete') { ed.del(); e.preventDefault(); return }
-    if (e.key === 'ArrowLeft') { ed.moveCaret(-1); e.preventDefault(); return }
-    if (e.key === 'ArrowRight') { ed.moveCaret(1); e.preventDefault(); return }
+    if (e.key === 'Escape') {
+      ed.cancel()
+      e.preventDefault()
+      return
+    }
+    if (e.key === 'Backspace') {
+      ed.backspace()
+      e.preventDefault()
+      return
+    }
+    if (e.key === 'Delete') {
+      ed.del()
+      e.preventDefault()
+      return
+    }
+    if (e.key === 'ArrowLeft') {
+      ed.moveCaret(-1)
+      e.preventDefault()
+      return
+    }
+    if (e.key === 'ArrowRight') {
+      ed.moveCaret(1)
+      e.preventDefault()
+      return
+    }
     if (!imeHasFocus && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Only handle direct text insertion when IME host is not focused
       ed.insertText(e.key)

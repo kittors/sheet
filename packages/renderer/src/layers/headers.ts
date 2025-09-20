@@ -19,7 +19,8 @@ export class HeadersLayer implements Layer {
       rc
     ctx.save()
     // Set a stable font for headers to avoid leaking state from other layers
-    ctx.font = 'normal 12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+    ctx.font =
+      'normal 12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
     // Column/Row header backgrounds (avoid overlapping scrollbar tracks)
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
@@ -164,26 +165,36 @@ export class HeadersLayer implements Layer {
       // Column header internal separators
       ctx.save()
       const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-      ctx.beginPath(); ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap2), originY); ctx.clip()
+      ctx.beginPath()
+      ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap2), originY)
+      ctx.clip()
       const baseCW = cumWidth(visible.colStart)
       ctx.strokeStyle = rc.headerStyle.selectedGridColor
       ctx.lineWidth = 1
       for (let c = c0; c < c1; c++) {
         const xMid = originX - visible.offsetX + (cumWidth(c + 1) - baseCW)
-        ctx.beginPath(); ctx.moveTo(Math.floor(xMid) + 0.5, 0); ctx.lineTo(Math.floor(xMid) + 0.5, originY); ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(Math.floor(xMid) + 0.5, 0)
+        ctx.lineTo(Math.floor(xMid) + 0.5, originY)
+        ctx.stroke()
       }
       ctx.restore()
 
       // Row header internal separators
       ctx.save()
       const hGap2 = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
-      ctx.beginPath(); ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap2)); ctx.clip()
+      ctx.beginPath()
+      ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap2))
+      ctx.clip()
       const baseCH = cumHeight(visible.rowStart)
       ctx.strokeStyle = rc.headerStyle.selectedGridColor
       ctx.lineWidth = 1
       for (let r = r0; r < r1; r++) {
         const yMid = originY - visible.offsetY + (cumHeight(r + 1) - baseCH)
-        ctx.beginPath(); ctx.moveTo(0, Math.floor(yMid) + 0.5); ctx.lineTo(originX, Math.floor(yMid) + 0.5); ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(0, Math.floor(yMid) + 0.5)
+        ctx.lineTo(originX, Math.floor(yMid) + 0.5)
+        ctx.stroke()
       }
       ctx.restore()
     }

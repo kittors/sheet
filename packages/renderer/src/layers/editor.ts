@@ -12,7 +12,12 @@ export class EditorLayer implements Layer {
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.beginPath()
-    ctx.rect(rc.originX, rc.originY, Math.max(0, rc.viewport.width - rc.originX - vGap), Math.max(0, rc.viewport.height - rc.originY - hGap))
+    ctx.rect(
+      rc.originX,
+      rc.originY,
+      Math.max(0, rc.viewport.width - rc.originX - vGap),
+      Math.max(0, rc.viewport.height - rc.originY - hGap),
+    )
     ctx.clip()
 
     const { sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
@@ -70,12 +75,15 @@ export class EditorLayer implements Layer {
     // font from style if provided
     if (style?.font) {
       const size = style.font.size ?? 14
-      const family = style.font.family ?? 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+      const family =
+        style.font.family ??
+        'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
       const weight = style.font.bold ? 'bold' : 'normal'
       const italic = style.font.italic ? 'italic ' : ''
       ctx.font = `${italic}${weight} ${size}px ${family}`
     } else {
-      ctx.font = 'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+      ctx.font =
+        'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
     }
     const paddingX = 4
     const tx = x + paddingX
@@ -97,14 +105,18 @@ export class EditorLayer implements Layer {
       const am = sheet.getMergeAt(r, c)
       if (am && am.r === r && am.c === c) {
         aw = 0
-        for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
+        for (let cc = am.c; cc < am.c + am.cols; cc++)
+          aw += sheet.colWidths.get(cc) ?? defaultColWidth
       }
       let curX = x + aw
-      let scanC = (am && am.r === r && am.c === c) ? (am.c + am.cols) : (c + 1)
+      let scanC = am && am.r === r && am.c === c ? am.c + am.cols : c + 1
       while (scanC < sheet.cols) {
         const editingHere = !!rc.editor && rc.editor.r === r && rc.editor.c === scanC
         // Only stop at another editing cell; fixed content should be occluded by overlay
-        if (editingHere) { editorRightLimitX = Math.min(editorRightLimitX, curX); break }
+        if (editingHere) {
+          editorRightLimitX = Math.min(editorRightLimitX, curX)
+          break
+        }
         const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
         curX += w2
         scanC++
@@ -151,7 +163,9 @@ export class EditorLayer implements Layer {
         const run = textToDraw.slice(seg.start, seg.end)
         // draw selection highlight for selAll or partial range
         const selStart = rc.editor?.selAll ? 0 : (rc.editor?.selStart ?? rc.editor?.caret ?? 0)
-        const selEnd = rc.editor?.selAll ? textToDraw.length : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
+        const selEnd = rc.editor?.selAll
+          ? textToDraw.length
+          : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
         const s = Math.min(selStart, selEnd)
         const e = Math.max(selStart, selEnd)
         const lineS = Math.max(seg.start, s)
@@ -160,13 +174,23 @@ export class EditorLayer implements Layer {
           const headW = ctx.measureText(textToDraw.slice(seg.start, lineS)).width
           const selW = ctx.measureText(textToDraw.slice(lineS, lineE)).width
           ctx.fillStyle = 'rgba(59,130,246,0.35)'
-          ctx.fillRect(Math.floor(tx + headW), Math.floor(cursorY2), Math.max(0, Math.floor(selW)), Math.max(0, lineH))
+          ctx.fillRect(
+            Math.floor(tx + headW),
+            Math.floor(cursorY2),
+            Math.max(0, Math.floor(selW)),
+            Math.max(0, lineH),
+          )
           // restore text color for drawing
           ctx.fillStyle = textColor
         } else if (ed.selAll) {
           const segW = ctx.measureText(run).width
           ctx.fillStyle = 'rgba(59,130,246,0.35)'
-          ctx.fillRect(Math.floor(tx), Math.floor(cursorY2), Math.max(0, Math.floor(segW)), Math.max(0, lineH))
+          ctx.fillRect(
+            Math.floor(tx),
+            Math.floor(cursorY2),
+            Math.max(0, Math.floor(segW)),
+            Math.max(0, lineH),
+          )
           // restore text color for drawing
           ctx.fillStyle = textColor
         }
@@ -177,20 +201,32 @@ export class EditorLayer implements Layer {
       const ty = y + h / 2
       // selection highlight for single line
       const selStart = rc.editor?.selAll ? 0 : (rc.editor?.selStart ?? rc.editor?.caret ?? 0)
-      const selEnd = rc.editor?.selAll ? textToDraw.length : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
+      const selEnd = rc.editor?.selAll
+        ? textToDraw.length
+        : (rc.editor?.selEnd ?? rc.editor?.caret ?? 0)
       const s = Math.min(selStart, selEnd)
       const e = Math.max(selStart, selEnd)
       if (e > s) {
         const headW = ctx.measureText(textToDraw.slice(0, s)).width
         const selW = ctx.measureText(textToDraw.slice(s, e)).width
         ctx.fillStyle = 'rgba(59,130,246,0.35)'
-        ctx.fillRect(Math.floor(tx + headW), Math.floor(ty - lineH / 2), Math.max(0, Math.floor(selW)), Math.max(0, lineH))
+        ctx.fillRect(
+          Math.floor(tx + headW),
+          Math.floor(ty - lineH / 2),
+          Math.max(0, Math.floor(selW)),
+          Math.max(0, lineH),
+        )
         // restore text color for drawing
         ctx.fillStyle = textColor
       } else if (ed.selAll) {
         const segW = ctx.measureText(textToDraw).width
         ctx.fillStyle = 'rgba(59,130,246,0.35)'
-        ctx.fillRect(Math.floor(tx), Math.floor(ty - lineH / 2), Math.max(0, Math.floor(segW)), Math.max(0, lineH))
+        ctx.fillRect(
+          Math.floor(tx),
+          Math.floor(ty - lineH / 2),
+          Math.max(0, Math.floor(segW)),
+          Math.max(0, lineH),
+        )
         // restore text color for drawing
         ctx.fillStyle = textColor
       }
@@ -200,7 +236,7 @@ export class EditorLayer implements Layer {
 
     // When wrapping, compute caret line based on available width
     let caretX = tx
-    let caretY = wrap ? (y + 3) : (y + h / 2)
+    let caretY = wrap ? y + 3 : y + h / 2
     if (wrap) {
       const maxW = Math.max(0, w - 8)
       const lines = wrapTextIndices(textToDraw, maxW, style?.font, 14)
@@ -208,7 +244,13 @@ export class EditorLayer implements Layer {
       const lineH2 = Math.max(12, Math.round(size2 * 1.25))
       // find the first line whose end is >= caret index
       let lineIndex = 0
-      for (let li = 0; li < lines.length; li++) { if (ed.caret <= lines[li].end) { lineIndex = li; break } lineIndex = li }
+      for (let li = 0; li < lines.length; li++) {
+        if (ed.caret <= lines[li].end) {
+          lineIndex = li
+          break
+        }
+        lineIndex = li
+      }
       const seg = lines[Math.min(lineIndex, Math.max(0, lines.length - 1))]
       const head = textToDraw.slice(seg.start, Math.min(seg.end, ed.caret))
       caretX = Math.floor(tx + ctx.measureText(head).width) + 0.5
@@ -221,7 +263,14 @@ export class EditorLayer implements Layer {
     }
 
     // Draw caret (may overflow horizontally)
-    if (ed.caretVisible && !(rc.editor?.selStart != null && rc.editor?.selEnd != null && rc.editor.selStart !== rc.editor.selEnd)) {
+    if (
+      ed.caretVisible &&
+      !(
+        rc.editor?.selStart != null &&
+        rc.editor?.selEnd != null &&
+        rc.editor.selStart !== rc.editor.selEnd
+      )
+    ) {
       const caretHeight = 16
       // clamp caret to editorRightLimitX in single-line mode to avoid drawing into protected region
       if (!wrap) caretX = Math.min(caretX, Math.floor(editorRightLimitX) - 1 + 0.5)

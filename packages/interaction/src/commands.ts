@@ -1,6 +1,10 @@
 import type { Context, State, InteractionHandle } from './types'
 
-export function createCommands(ctx: Context, state: State, deps: { schedule: () => void }): Omit<InteractionHandle, 'destroy' | 'hitTest'> {
+export function createCommands(
+  ctx: Context,
+  state: State,
+  deps: { schedule: () => void },
+): Omit<InteractionHandle, 'destroy' | 'hitTest'> {
   function forEachSelected(cb: (r: number, c: number) => void) {
     const sel = state.selection
     if (!sel) return
@@ -68,8 +72,10 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
     const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
     // collect merges that intersect selection
     const intersects = (m: { r: number; c: number; rows: number; cols: number }) => {
-      const mr0 = m.r, mr1 = m.r + m.rows - 1
-      const mc0 = m.c, mc1 = m.c + m.cols - 1
+      const mr0 = m.r,
+        mr1 = m.r + m.rows - 1
+      const mc0 = m.c,
+        mc1 = m.c + m.cols - 1
       return !(r1 < mr0 || mr1 < r0 || c1 < mc0 || mc1 < c0)
     }
     const targets = ctx.sheet.merges.filter(intersects)
@@ -94,8 +100,12 @@ export function createCommands(ctx: Context, state: State, deps: { schedule: () 
   }
 
   // queries required by InteractionHandle (created here for typing symmetry)
-  function getSelection() { return state.selection }
-  function getScroll() { return { ...state.scroll } }
+  function getSelection() {
+    return state.selection
+  }
+  function getScroll() {
+    return { ...state.scroll }
+  }
 
   return {
     applyTextColor,

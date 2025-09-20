@@ -11,7 +11,7 @@ export default defineConfig({
       reporter: ['text', 'html'],
       all: true,
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['**/__tests__/**', '**/*.d.ts']
+      exclude: ['**/__tests__/**', '**/*.d.ts'],
     },
   },
   resolve: {

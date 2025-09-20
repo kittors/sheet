@@ -9,7 +9,12 @@ import { FunctionSquare } from 'lucide-vue-next'
 // Emits:
 // - update:modelValue on input typing
 // - submit when user presses Enter in the input
-defineProps<{ modelValue: string; disabled?: boolean; placeholder?: string; selectionText?: string }>()
+defineProps<{
+  modelValue: string
+  disabled?: boolean
+  placeholder?: string
+  selectionText?: string
+}>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void
   (e: 'submit'): void
@@ -20,13 +25,18 @@ const emit = defineEmits<{
 function onInput(e: Event) {
   emit('update:modelValue', (e.target as HTMLInputElement).value)
 }
-function onEnter() { emit('submit') }
+function onEnter() {
+  emit('submit')
+}
 </script>
 
 <template>
   <div class="control-container">
     <div class="toolbar-wrap">
-      <SheetToolbar @merge-cells="() => emit('merge-cells')" @unmerge-cells="() => emit('unmerge-cells')" />
+      <SheetToolbar
+        @merge-cells="() => emit('merge-cells')"
+        @unmerge-cells="() => emit('unmerge-cells')"
+      />
     </div>
     <div class="controls-row">
       <div class="range-card" :title="selectionText || ''">
@@ -48,13 +58,21 @@ function onEnter() { emit('submit') }
       </div>
     </div>
   </div>
-  
 </template>
 
 <style scoped>
-.control-container { padding: 10px; background: #f9fafb; }
-.toolbar-wrap { margin-bottom: 8px; }
-.controls-row { display: flex; align-items: center; gap: 10px; }
+.control-container {
+  padding: 10px;
+  background: #f9fafb;
+}
+.toolbar-wrap {
+  margin-bottom: 8px;
+}
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .range-card {
   min-width: 120px;
   max-width: 220px;
@@ -66,7 +84,13 @@ function onEnter() { emit('submit') }
   border-radius: 8px;
   background: #fff;
 }
-.range-text { font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.range-text {
+  font-size: 13px;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .formula-card {
   flex: 1;
   height: 36px;
@@ -78,8 +102,29 @@ function onEnter() { emit('submit') }
   border-radius: 8px;
   background: #fff;
 }
-.formula-left { width: 36px; display: inline-flex; align-items: center; justify-content: center; color: #4b5563; }
-.vsep { width: 1px; height: 18px; background: #e5e7eb; }
-.formula-input { flex: 1; height: 26px; padding: 4px 8px; border: 0; background: transparent; outline: none; color: #111827; }
-.formula-card:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(147,197,253,0.25); }
+.formula-left {
+  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+}
+.vsep {
+  width: 1px;
+  height: 18px;
+  background: #e5e7eb;
+}
+.formula-input {
+  flex: 1;
+  height: 26px;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: #111827;
+}
+.formula-card:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.25);
+}
 </style>

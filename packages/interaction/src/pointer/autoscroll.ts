@@ -6,7 +6,17 @@ import { expandSelectionByMerges as expandSel } from '../merge-util'
 export function createAutoScroll(
   ctx: Context,
   state: State,
-  deps: { schedule: () => void; config?: { edgeMargin?: number; maxV?: number; ease?: number; stopThreshold?: number; dtClampMin?: number; dtClampMax?: number } }
+  deps: {
+    schedule: () => void
+    config?: {
+      edgeMargin?: number
+      maxV?: number
+      ease?: number
+      stopThreshold?: number
+      dtClampMin?: number
+      dtClampMax?: number
+    }
+  },
 ) {
   const edgeMargin = deps.config?.edgeMargin ?? 48
   const maxV = deps.config?.maxV ?? 24
@@ -15,7 +25,10 @@ export function createAutoScroll(
   const dtClampMin = deps.config?.dtClampMin ?? 0.5
   const dtClampMax = deps.config?.dtClampMax ?? 2
   function stopAutoScroll() {
-    if (state.autoRaf) { cancelAnimationFrame(state.autoRaf); state.autoRaf = 0 }
+    if (state.autoRaf) {
+      cancelAnimationFrame(state.autoRaf)
+      state.autoRaf = 0
+    }
     state.autoVX = 0
     state.autoVY = 0
     state.autoTargetVX = 0
@@ -27,19 +40,27 @@ export function createAutoScroll(
     if (state.autoRaf) return
     const step = () => {
       state.autoRaf = 0
-      if (state.dragMode === 'none') { stopAutoScroll(); return }
+      if (state.dragMode === 'none') {
+        stopAutoScroll()
+        return
+      }
       // ease velocities toward targets (smooth start/stop)
       state.autoVX += (state.autoTargetVX - state.autoVX) * ease
       state.autoVY += (state.autoTargetVY - state.autoVY) * ease
       if (Math.abs(state.autoVX) < stopThreshold) state.autoVX = 0
       if (Math.abs(state.autoVY) < stopThreshold) state.autoVY = 0
-      if (state.autoVX === 0 && state.autoVY === 0) { stopAutoScroll(); return }
+      if (state.autoVX === 0 && state.autoVY === 0) {
+        stopAutoScroll()
+        return
+      }
 
       const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
       const maxX = Math.max(0, contentWidth - widthAvail)
       const maxY = Math.max(0, contentHeight - heightAvail)
       const now = performance.now()
-      const dt = state.autoTs ? Math.max(dtClampMin, Math.min(dtClampMax, (now - state.autoTs) / 16.67)) : 1
+      const dt = state.autoTs
+        ? Math.max(dtClampMin, Math.min(dtClampMax, (now - state.autoTs) / 16.67))
+        : 1
       state.autoTs = now
       state.scroll.x = Math.max(0, Math.min(maxX, state.scroll.x + state.autoVX * dt))
       state.scroll.y = Math.max(0, Math.min(maxY, state.scroll.y + state.autoVY * dt))
@@ -50,7 +71,10 @@ export function createAutoScroll(
       const contentRight = sb?.vTrack ? sb.vTrack.x : ctx.canvas.clientWidth
       const contentTop = ctx.metrics.headerRowHeight
       const contentBottom = sb?.hTrack ? sb.hTrack.y : ctx.canvas.clientHeight
-      const clampX = Math.max(contentLeft, Math.min(state.lastClientX - rect.left, contentRight - 1))
+      const clampX = Math.max(
+        contentLeft,
+        Math.min(state.lastClientX - rect.left, contentRight - 1),
+      )
       const clampY = Math.max(contentTop, Math.min(state.lastClientY - rect.top, contentBottom - 1))
       const clientX = rect.left + clampX
       const clientY = rect.top + clampY
@@ -88,13 +112,14 @@ export function createAutoScroll(
     const topBound = ctx.metrics.headerRowHeight
     const margin = edgeMargin // px soft zone near edges
     const curve = (r: number) => r * r // ease-in
-    let targetVX = 0, targetVY = 0
+    let targetVX = 0,
+      targetVY = 0
     if (state.dragMode === 'select' || state.dragMode === 'colheader') {
       if (x > rightBound - 1) {
         const r = Math.min(1, (x - (rightBound - margin)) / margin)
         targetVX = maxV * curve(Math.max(0, r))
       } else if (x < leftBound + 1) {
-        const r = Math.min(1, ((leftBound + margin) - x) / margin)
+        const r = Math.min(1, (leftBound + margin - x) / margin)
         targetVX = -maxV * curve(Math.max(0, r))
       }
     }
@@ -103,7 +128,7 @@ export function createAutoScroll(
         const r = Math.min(1, (y - (bottomBound - margin)) / margin)
         targetVY = maxV * curve(Math.max(0, r))
       } else if (y < topBound + 1) {
-        const r = Math.min(1, ((topBound + margin) - y) / margin)
+        const r = Math.min(1, (topBound + margin - y) / margin)
         targetVY = -maxV * curve(Math.max(0, r))
       }
     }

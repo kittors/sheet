@@ -10,18 +10,26 @@ export class ContentLayer implements Layer {
     ctx.save()
     // Clip to content area (exclude headers and scrollbars)
     ctx.beginPath()
-    ctx.rect(originX, originY, Math.max(0, rc.viewport.width - originX - vGap), Math.max(0, rc.viewport.height - originY - hGap))
+    ctx.rect(
+      originX,
+      originY,
+      Math.max(0, rc.viewport.width - originX - vGap),
+      Math.max(0, rc.viewport.height - originY - hGap),
+    )
     ctx.clip()
     ctx.fillStyle = '#111827'
     ctx.textBaseline = 'middle'
-    ctx.font = 'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+    ctx.font =
+      'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
 
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
       let x = originX - visible.offsetX
       // If this row has an active editor, pre-compute its overflow span in pixel space
-      let editSpanStartX = -1, editSpanEndX = -1, editAnchorC = -1
+      let editSpanStartX = -1,
+        editSpanEndX = -1,
+        editAnchorC = -1
       if (rc.editor && rc.editor.r === r) {
         editAnchorC = rc.editor.c
         // compute anchor start X
@@ -33,19 +41,24 @@ export class ContentLayer implements Layer {
         const am = sheet.getMergeAt(r, editAnchorC)
         if (am && am.r === r && am.c === editAnchorC) {
           aw = 0
-          for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
+          for (let cc = am.c; cc < am.c + am.cols; cc++)
+            aw += sheet.colWidths.get(cc) ?? defaultColWidth
         }
         // scan to find first blocker (non-empty or actively editing cell)
         const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
         let rightLimit = rc.viewport.width - vGap2
         let curX = ax + aw
-        let scanC = (am && am.r === r && am.c === editAnchorC) ? (am.c + am.cols) : (editAnchorC + 1)
-        const rowEditing = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
+        let scanC = am && am.r === r && am.c === editAnchorC ? am.c + am.cols : editAnchorC + 1
+        const rowEditing =
+          !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
         while (scanC < sheet.cols) {
           const editingHere = rowEditing && rc.editor!.c === scanC
           const vHere = sheet.getValueAt(r, scanC)
           const hasValHere = vHere != null && String(vHere) !== ''
-          if (editingHere || hasValHere) { rightLimit = Math.min(rightLimit, curX); break }
+          if (editingHere || hasValHere) {
+            rightLimit = Math.min(rightLimit, curX)
+            break
+          }
           const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
           curX += w2
           scanC++
@@ -69,10 +82,12 @@ export class ContentLayer implements Layer {
         if (m) {
           // Sum widths across merged columns
           drawW = 0
-          for (let cc = m.c; cc < m.c + m.cols; cc++) drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+          for (let cc = m.c; cc < m.c + m.cols; cc++)
+            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
           // Sum heights across merged rows
           drawH = 0
-          for (let rr = m.r; rr < m.r + m.rows; rr++) drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+          for (let rr = m.r; rr < m.r + m.rows; rr++)
+            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
         }
 
         const cell = sheet.getCell(r, c)
@@ -85,7 +100,12 @@ export class ContentLayer implements Layer {
         // Background fill (covers merged span if any)
         if (style?.fill?.backgroundColor) {
           ctx.fillStyle = style.fill.backgroundColor
-          ctx.fillRect(Math.floor(x) + 1, Math.floor(y) + 1, Math.max(0, Math.floor(drawW) - 2), Math.max(0, Math.floor(drawH) - 2))
+          ctx.fillRect(
+            Math.floor(x) + 1,
+            Math.floor(y) + 1,
+            Math.max(0, Math.floor(drawW) - 2),
+            Math.max(0, Math.floor(drawH) - 2),
+          )
         }
 
         // Do not draw text for the editing anchor here; editor layer is responsible for it
@@ -93,7 +113,9 @@ export class ContentLayer implements Layer {
           // font
           if (style?.font) {
             const size = style.font.size ?? 14
-            const family = style.font.family ?? 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+            const family =
+              style.font.family ??
+              'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
             const weight = style.font.bold ? 'bold' : 'normal'
             const italic = style.font.italic ? 'italic ' : ''
             ctx.font = `${italic}${weight} ${size}px ${family}`
@@ -104,7 +126,9 @@ export class ContentLayer implements Layer {
           const valign = style?.alignment?.vertical ?? 'middle'
           const wrap = style?.alignment?.wrapText ?? false
           // While editing, force overflow rendering so hidden text is visible.
-          const overflow: 'overflow' | 'clip' | 'ellipsis' = isEditingAnchor ? 'overflow' : (style?.alignment?.overflow ?? 'overflow')
+          const overflow: 'overflow' | 'clip' | 'ellipsis' = isEditingAnchor
+            ? 'overflow'
+            : (style?.alignment?.overflow ?? 'overflow')
 
           // Compute dynamic right stop for overflow so that any occupied or editing cell to the right is preserved.
           // Default to content area right edge (content layer already clipped to content area)
@@ -113,15 +137,22 @@ export class ContentLayer implements Layer {
           if (!wrap && overflow === 'overflow') {
             // Start scanning from the first column after current (or after current merge span)
             let curX = x + drawW
-            let scanC = (m && m.r === r && m.c === c) ? (m.c + m.cols) : (c + 1)
-            const rowEditing2 = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
+            let scanC = m && m.r === r && m.c === c ? m.c + m.cols : c + 1
+            const rowEditing2 =
+              !!rc.editor &&
+              rc.editor.r === r &&
+              rc.editor.selStart != null &&
+              rc.editor.selEnd != null
             while (scanC < sheet.cols) {
               // If the anchor of an actively editing cell is here, stop before this column
               const editingHere = rowEditing2 && rc.editor!.c === scanC
               // Treat any non-empty logical value at (r, scanC) as occupied (covers merges too via getValueAt)
               const vHere = sheet.getValueAt(r, scanC)
               const hasValHere = vHere != null && String(vHere) !== ''
-              if (editingHere || hasValHere) { overflowRightLimitX = Math.min(overflowRightLimitX, curX); break }
+              if (editingHere || hasValHere) {
+                overflowRightLimitX = Math.min(overflowRightLimitX, curX)
+                break
+              }
               // extend across this empty column and continue
               const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
               curX += w2
@@ -134,9 +165,16 @@ export class ContentLayer implements Layer {
           else if (halign === 'right') tx = x + drawW - 4
           // vertical
           let ty = y + drawH / 2
-          if (valign === 'top') { ctx.textBaseline = 'top'; ty = y + 3 }
-          else if (valign === 'bottom') { ctx.textBaseline = 'bottom'; ty = y + drawH - 3 }
-          else { ctx.textBaseline = 'middle'; ty = y + drawH / 2 }
+          if (valign === 'top') {
+            ctx.textBaseline = 'top'
+            ty = y + 3
+          } else if (valign === 'bottom') {
+            ctx.textBaseline = 'bottom'
+            ty = y + drawH - 3
+          } else {
+            ctx.textBaseline = 'middle'
+            ty = y + drawH / 2
+          }
           // text align maps
           if (halign === 'left') ctx.textAlign = 'left'
           else if (halign === 'right') ctx.textAlign = 'right'
@@ -168,23 +206,29 @@ export class ContentLayer implements Layer {
           } else {
             // single-line: apply overflow policy (Excel-like precise column-bound algorithm)
             const needsClipPolicy = overflow === 'clip' || overflow === 'ellipsis'
-            const viewportRight = rc.viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)
+            const viewportRight =
+              rc.viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)
             let clipW = Math.max(0, Math.floor(drawW))
             if (overflow === 'overflow' && halign === 'left') {
               // measure text and compute desired right edge based on pixel width
               const textW = ctx.measureText(txt).width
               const desiredRight = tx + textW + 2
-              const allowedRight = overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
+              const allowedRight =
+                overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
               const finalRight = Math.min(desiredRight, allowedRight)
               clipW = Math.max(0, Math.floor(finalRight - x))
             }
             const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
             // Never clip the editing anchor itself; it should render fully (overflow paints outside via content layer)
-            const doClipPolicy = (!isEditingAnchor) && (needsClipPolicy || hasOverflowStop)
+            const doClipPolicy = !isEditingAnchor && (needsClipPolicy || hasOverflowStop)
             // Additionally, if actively editing on this row and this cell is not the anchor,
             // avoid drawing inside the editor's overflow span [editSpanStartX, editSpanEndX)
-            const isRowEditing = !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
-            const avoidEditorSpan = (isRowEditing && c !== editAnchorC && editSpanStartX >= 0)
+            const isRowEditing =
+              !!rc.editor &&
+              rc.editor.r === r &&
+              rc.editor.selStart != null &&
+              rc.editor.selEnd != null
+            const avoidEditorSpan = isRowEditing && c !== editAnchorC && editSpanStartX >= 0
             let didCustomClip = false
             if (avoidEditorSpan) {
               const cellLeft = x
@@ -193,24 +237,33 @@ export class ContentLayer implements Layer {
               const ovRight = Math.min(cellRight, editSpanEndX)
               if (ovRight > ovLeft) {
                 // Build a clip path consisting of the cell box minus the overlap [ovLeft, ovRight)
-                ctx.save(); ctx.beginPath()
+                ctx.save()
+                ctx.beginPath()
                 // left segment
                 const leftW = Math.max(0, ovLeft - cellLeft)
-                if (leftW > 1) ctx.rect(cellLeft + 1, y + 1, Math.max(0, leftW - 2), Math.max(0, drawH - 2))
+                if (leftW > 1)
+                  ctx.rect(cellLeft + 1, y + 1, Math.max(0, leftW - 2), Math.max(0, drawH - 2))
                 // right segment
                 const rightW = Math.max(0, cellRight - ovRight)
-                if (rightW > 1) ctx.rect(ovRight + 1, y + 1, Math.max(0, rightW - 2), Math.max(0, drawH - 2))
+                if (rightW > 1)
+                  ctx.rect(ovRight + 1, y + 1, Math.max(0, rightW - 2), Math.max(0, drawH - 2))
                 ctx.clip()
                 didCustomClip = true
               }
             }
-            if (!didCustomClip && doClipPolicy) { ctx.save(); ctx.beginPath(); ctx.rect(x + 1, y + 1, Math.max(0, clipW - 2), Math.max(0, drawH - 2)); ctx.clip() }
+            if (!didCustomClip && doClipPolicy) {
+              ctx.save()
+              ctx.beginPath()
+              ctx.rect(x + 1, y + 1, Math.max(0, clipW - 2), Math.max(0, drawH - 2))
+              ctx.clip()
+            }
             let out = txt
             if (overflow === 'ellipsis' && maxW > 0) {
               const w0 = ctx.measureText(out).width
               if (w0 > maxW) {
                 const ell = '...'
-                let lo = 0, hi = out.length
+                let lo = 0,
+                  hi = out.length
                 while (lo < hi) {
                   const mid = (lo + hi) >>> 1
                   const w = ctx.measureText(out.slice(0, mid) + ell).width
