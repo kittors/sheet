@@ -2,10 +2,11 @@
 .ctx-overlay { position: fixed; inset: 0; z-index: 2000; outline: none; pointer-events: none }
 
 /* Main menu container */
-.ctx-menu { position: fixed; min-width: 140px; max-width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 6px; color: #111827; font-size: 13px; overflow: hidden; pointer-events: auto }
+.ctx-menu { position: fixed; min-width: 140px; max-width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 6px; color: #111827; font-size: 13px; overflow: visible; pointer-events: auto }
 
 /* Unordered list for items */
-.ctx-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto }
+/* Allow submenus to overflow outside the main list. Scrolling is handled by the menu container if needed. */
+.ctx-list { list-style: none; margin: 0; padding: 0; max-height: none; overflow: visible }
 
 /* Separator line before an item */
 .ctx-sep { height: 1px; background: #e5e7eb; margin: 6px 6px }
@@ -25,8 +26,9 @@
 
 /* Submenu container; position relative to the row item */
 .ctx-row { position: relative }
-.ctx-submenu { position: absolute; top: 0; min-width: 140px; max-width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 6px; color: #111827; font-size: 13px; max-height: 320px; overflow-y: auto; overflow: hidden; pointer-events: auto }
-.ctx-submenu.right { left: calc(100% + 4px) }
-.ctx-submenu.left { right: calc(100% + 4px) }
+.ctx-submenu { position: fixed; top: 0; left: 0; min-width: 140px; max-width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 6px; color: #111827; font-size: 13px; max-height: min(320px, calc(100vh - 8px)); overflow-y: auto; overflow-x: hidden; pointer-events: auto }
+/* left/right classes no longer used for positioning but keep for backward compatibility */
+.ctx-submenu.right { }
+.ctx-submenu.left { }
 
 .ctx-item:focus-visible { outline: 2px solid #cfe1ff; outline-offset: 2px }

@@ -12,7 +12,11 @@ export interface MenuItem {
   children?: MenuItem[]
   disabled?: boolean | ((ctx: OpenContext) => boolean)
   hidden?: boolean | ((ctx: OpenContext) => boolean)
+  // When true and item has no own content, renders a full-width separator row.
+  // Legacy spelling kept for backward compat.
   seperator?: boolean
+  // When true, draws a separator line before this item.
+  separatorBefore?: boolean
   shortcut?: string
   customRender?: Component | ((item: MenuItem) => VNode)
   keepOpen?: boolean

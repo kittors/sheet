@@ -19,6 +19,8 @@ export function useContextMenu() {
   }
 
   function isDisabled(item: MenuItem): boolean {
+    // Separators are not interactive by definition
+    if ((item as any).seperator) return true
     const d = item.disabled
     return typeof d === 'function' ? d(ctx) : !!d
   }
