@@ -18,7 +18,27 @@ export function createCommands(
   }
 
   function applyTextColor(color: string) {
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    const selFullyContainsMerge = (m: { r: number; c: number; rows: number; cols: number }) => {
+      const mr0 = m.r,
+        mr1 = m.r + m.rows - 1
+      const mc0 = m.c,
+        mc1 = m.c + m.cols - 1
+      return mr0 >= r0 && mr1 <= r1 && mc0 >= c0 && mc1 <= c1
+    }
+    const canApplyAt = (r: number, c: number) => {
+      const m = ctx.sheet.getMergeAt(r, c)
+      if (!m) return true
+      if (!(m.r === r && m.c === c)) return false
+      return selFullyContainsMerge(m)
+    }
     forEachSelected((r, c) => {
+      if (!canApplyAt(r, c)) return
       const base = ctx.sheet.getStyleAt(r, c)
       const next = {
         font: { ...(base?.font ?? {}), color },
@@ -33,7 +53,27 @@ export function createCommands(
   }
 
   function applyFillColor(backgroundColor: string) {
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    const selFullyContainsMerge = (m: { r: number; c: number; rows: number; cols: number }) => {
+      const mr0 = m.r,
+        mr1 = m.r + m.rows - 1
+      const mc0 = m.c,
+        mc1 = m.c + m.cols - 1
+      return mr0 >= r0 && mr1 <= r1 && mc0 >= c0 && mc1 <= c1
+    }
+    const canApplyAt = (r: number, c: number) => {
+      const m = ctx.sheet.getMergeAt(r, c)
+      if (!m) return true
+      if (!(m.r === r && m.c === c)) return false
+      return selFullyContainsMerge(m)
+    }
     forEachSelected((r, c) => {
+      if (!canApplyAt(r, c)) return
       const base = ctx.sheet.getStyleAt(r, c)
       const next = {
         font: base?.font,
@@ -64,9 +104,70 @@ export function createCommands(
     const width = Math.max(1, Math.floor(args.width ?? 1))
     const style = args.style ?? 'solid'
 
+    // Selection shape flags
+    const isSingleCol = c0 === c1
+    const isSingleRow = r0 === r1
+
+    // Apply a given side onto a merge anchor if (r,c) lies within that merge and the
+    // requested side coincides with the merge's external boundary.
+    const applyMergeSideIfNeeded = (
+      r: number,
+      c: number,
+      side: 'top' | 'bottom' | 'left' | 'right',
+      spec: { color?: string; width?: number; style?: import('@sheet/core').BorderStyle },
+    ) => {
+      const m = ctx.sheet.getMergeAt(r, c)
+      if (!m) return
+      const isAnchor = m.r === r && m.c === c
+      // If selection fully contains the merge, normal path will handle at anchor; skip here
+      if (isAnchor && (m.r >= r0 && m.r + m.rows - 1 <= r1 && m.c >= c0 && m.c + m.cols - 1 <= c1)) return
+      // Compute whether this selected cell side is also a merge boundary
+      let match = false
+      if (side === 'left') match = c === m.c
+      else if (side === 'right') match = c === m.c + m.cols - 1
+      else if (side === 'top') match = r === m.r
+      else if (side === 'bottom') match = r === m.r + m.rows - 1
+      if (!match) return
+      // Additional restraint: for pure column selection, only propagate vertical sides;
+      // for pure row selection, only propagate horizontal sides. For general rectangle, allow both.
+      if (isSingleCol && (side === 'top' || side === 'bottom')) return
+      if (isSingleRow && (side === 'left' || side === 'right')) return
+      // Write onto merge anchor, preserving other sides
+      const base = ctx.sheet.getStyleAt(m.r, m.c)
+      const nb = {
+        top: base?.border?.top,
+        bottom: base?.border?.bottom,
+        left: base?.border?.left,
+        right: base?.border?.right,
+      }
+      nb[side] = { color, width, style, ...spec }
+      const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: nb }
+      const id = ctx.sheet.defineStyle(next as any)
+      ctx.sheet.setCellStyle(m.r, m.c, id)
+    }
+
+    // Helper: true if selection fully contains the given merge range
+    const selFullyContainsMerge = (m: { r: number; c: number; rows: number; cols: number }) => {
+      const mr0 = m.r,
+        mr1 = m.r + m.rows - 1
+      const mc0 = m.c,
+        mc1 = m.c + m.cols - 1
+      return mr0 >= r0 && mr1 <= r1 && mc0 >= c0 && mc1 <= c1
+    }
+    // Guard: skip applying to covered cells; and skip anchors unless the whole merge is selected
+    const canApplyAt = (r: number, c: number): boolean => {
+      const m = ctx.sheet.getMergeAt(r, c)
+      if (!m) return true
+      // covered cell (not anchor)
+      if (!(m.r === r && m.c === c)) return false
+      // anchor: only apply when selection fully contains the merge
+      return selFullyContainsMerge(m)
+    }
+
     if (args.mode === 'none') {
       // Explicitly suppress all four sides so neighbors won't re-draw the shared edge
       forEachSelected((r, c) => {
+        if (!canApplyAt(r, c)) return
         const base = ctx.sheet.getStyleAt(r, c)
         const next = {
           font: base?.font,
@@ -88,6 +189,14 @@ export function createCommands(
 
     if (args.mode === 'all') {
       forEachSelected((r, c) => {
+        if (!canApplyAt(r, c)) {
+          // Covered by a merge: propagate only sides that coincide with merge outer boundary
+          applyMergeSideIfNeeded(r, c, 'left', {})
+          applyMergeSideIfNeeded(r, c, 'right', {})
+          applyMergeSideIfNeeded(r, c, 'top', {})
+          applyMergeSideIfNeeded(r, c, 'bottom', {})
+          return
+        }
         const base = ctx.sheet.getStyleAt(r, c)
         const next = {
           font: base?.font,
@@ -110,6 +219,14 @@ export function createCommands(
     if (args.mode === 'outside') {
       for (let r = r0; r <= r1; r++) {
         for (let c = c0; c <= c1; c++) {
+          if (!canApplyAt(r, c)) {
+            // Covered by a merge: only propagate the sides that are requested by 'outside'
+            if (r === r0) applyMergeSideIfNeeded(r, c, 'top', {})
+            if (r === r1) applyMergeSideIfNeeded(r, c, 'bottom', {})
+            if (c === c0) applyMergeSideIfNeeded(r, c, 'left', {})
+            if (c === c1) applyMergeSideIfNeeded(r, c, 'right', {})
+            continue
+          }
           const base = ctx.sheet.getStyleAt(r, c)
           const top = r === r0 ? { color, width, style } : base?.border?.top
           const bottom = r === r1 ? { color, width, style } : base?.border?.bottom
@@ -131,6 +248,13 @@ export function createCommands(
     const left = sides.left ? { color, width, style } : undefined
     const right = sides.right ? { color, width, style } : undefined
     forEachSelected((r, c) => {
+      if (!canApplyAt(r, c)) {
+        if (sides.top) applyMergeSideIfNeeded(r, c, 'top', {})
+        if (sides.bottom) applyMergeSideIfNeeded(r, c, 'bottom', {})
+        if (sides.left) applyMergeSideIfNeeded(r, c, 'left', {})
+        if (sides.right) applyMergeSideIfNeeded(r, c, 'right', {})
+        return
+      }
       const base = ctx.sheet.getStyleAt(r, c)
       const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: { top, bottom, left, right } }
       const id = ctx.sheet.defineStyle(next as any)
