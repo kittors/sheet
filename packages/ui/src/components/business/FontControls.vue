@@ -125,6 +125,11 @@ function onBorderSelect(p: { label: string; value: string }) {
   const v = p.value as 'none' | 'all' | 'outside' | 'thick'
   emit('apply-border', { mode: v, color: '#374151' })
 }
+
+function onBorderMainClick() {
+  const v = String(borderStyle.value) as 'none' | 'all' | 'outside' | 'thick'
+  emit('apply-border', { mode: v, color: '#374151' })
+}
 </script>
 
 <template>
@@ -156,6 +161,8 @@ function onBorderSelect(p: { label: string; value: string }) {
         :menu-items="borderMenu"
         label-position="none"
         aria-label="单元格边框"
+        split
+        @click="onBorderMainClick"
         @select="onBorderSelect"
       />
       <ToolItem
@@ -164,6 +171,8 @@ function onBorderSelect(p: { label: string; value: string }) {
         label-position="none"
         aria-label="填充单元格颜色"
         :auto-icon="false"
+        split
+        @click="emit('apply-fill', fillColor)"
       >
         <IconWithSwatch :color="fillColor">
           <PaintBucket :size="18" />

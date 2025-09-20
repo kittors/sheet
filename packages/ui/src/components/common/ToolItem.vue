@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, useSlots } from 'vue'
-import { ChevronDown } from 'lucide-vue-next'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { Component } from 'vue'
 // Generic Tool Item for toolbar with optional dropdown menu
 const props = withDefaults(
@@ -14,6 +14,8 @@ const props = withDefaults(
     modelValue?: string
     autoIcon?: boolean // when true and menuItems present, use selected item's icon as main icon
     alignMenu?: 'left' | 'right'
+    // Split mode: main button triggers click; caret toggles menu
+    split?: boolean
   }>(),
   {
     label: '',
@@ -24,6 +26,7 @@ const props = withDefaults(
     modelValue: '',
     autoIcon: true,
     alignMenu: 'left',
+    split: false,
   },
 )
 const emit = defineEmits<{
@@ -57,10 +60,20 @@ const activeIcon = computed<Component | null>(() =>
 function onButtonClick(ev: MouseEvent) {
   if (props.disabled) return
   if (wantsMenu.value) {
-    open.value = !open.value
+    if (props.split) {
+      // In split mode, main button behaves as a plain action
+      emit('click', ev)
+    } else {
+      open.value = !open.value
+    }
   } else {
     emit('click', ev)
   }
+}
+
+function onCaretClick(ev: MouseEvent) {
+  if (props.disabled) return
+  open.value = !open.value
 }
 
 function onSelect(item: { label: string; value: string }) {
@@ -83,7 +96,51 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 
 <template>
   <div ref="root" class="tool-item-wrap" :class="{ 'has-menu': hasMenu }">
+    <!-- Split mode: main action button + separate caret button -->
+    <template v-if="props.split">
+      <div class="tool-split">
+        <button
+        type="button"
+        class="tool-item"
+        :class="[
+          props.label
+            ? props.labelPosition === 'right'
+              ? 'pos-right'
+              : props.labelPosition === 'none'
+                ? 'pos-none'
+                : 'pos-bottom'
+            : props.labelPosition === 'right'
+              ? 'pos-right'
+              : props.labelPosition === 'none'
+                ? 'pos-none'
+                : 'pos-bottom',
+          { disabled: props.disabled },
+        ]"
+        :aria-label="ariaLabel || label"
+        @click="onButtonClick"
+      >
+        <span class="icon">
+          <component :is="activeIcon" v-if="activeIcon" :size="18" />
+          <slot v-else />
+        </span>
+        <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
+        </button>
+        <button
+        v-if="wantsMenu"
+        type="button"
+        class="caret-btn"
+        aria-haspopup="menu"
+        :aria-expanded="open"
+        @click.stop="onCaretClick"
+      >
+        <component :is="open ? ChevronUp : ChevronDown" class="caret" :size="14" />
+      </button>
+      </div>
+    </template>
+
+    <!-- Non-split mode: single button includes caret -->
     <button
+      v-else
       type="button"
       class="tool-item"
       :class="[
@@ -101,7 +158,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
         { disabled: props.disabled },
       ]"
       :aria-label="ariaLabel || label"
-      :aria-expanded="wantsMenu ? open : undefined"
+      :aria-expanded="!props.split && wantsMenu ? open : undefined"
       aria-haspopup="menu"
       @click="onButtonClick"
     >
@@ -110,7 +167,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
         <slot v-else />
       </span>
       <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
-      <ChevronDown v-if="wantsMenu" class="caret" :size="14" />
+      <component v-if="wantsMenu" :is="open ? ChevronUp : ChevronDown" class="caret" :size="14" />
     </button>
     <Transition name="ui-fade-scale">
       <div v-if="open && wantsMenu" class="ti-menu" :class="['align-' + alignMenu]">
@@ -138,7 +195,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 <style scoped>
 .tool-item-wrap {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px; /* small gap between main and caret when split */
 }
 .tool-item {
   border: 0;
@@ -199,9 +258,48 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
   margin-left: 4px;
   opacity: 0.7;
 }
+.caret-btn {
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 .tool-item-wrap.has-menu > .tool-item.pos-none {
   width: auto;
   padding: 4px 6px;
+}
+
+/* Split group: join main and caret as a single control with unified hover */
+.tool-split {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  overflow: hidden; /* clip children corners */
+}
+.tool-split .caret { margin-left: 0; }
+.tool-split:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: #e5e7eb;
+}
+.tool-split .tool-item,
+.tool-split .caret-btn {
+  background: transparent;
+  border-radius: 0; /* corners handled by container */
+}
+.tool-split .caret-btn {
+  border-left: 1px solid transparent;
+  padding: 0 4px; /* bring caret closer to icon */
+}
+.tool-split:hover .caret-btn {
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+.tool-split .tool-item:hover,
+.tool-split .caret-btn:hover {
+  background: transparent; /* container handles hover bg */
 }
 
 /* menu */

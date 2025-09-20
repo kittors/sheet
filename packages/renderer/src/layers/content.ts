@@ -376,13 +376,19 @@ export class ContentLayer implements Layer {
         x += baseW
       }
 
-      // PASS 3: borders (on top)
-      x = originX - visible.offsetX
+      y += baseH
+    }
+
+    // GLOBAL PASS: draw custom cell borders on top of everything to avoid being covered by later backgrounds
+    let yB = originY - visible.offsetY
+    for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+      const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
+      let xB = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
         const baseW = sheet.colWidths.get(c) ?? defaultColWidth
         const m = sheet.getMergeAt(r, c)
         if (m && !(m.r === r && m.c === c)) {
-          x += baseW
+          xB += baseW
           continue
         }
         let drawW = baseW
@@ -398,8 +404,8 @@ export class ContentLayer implements Layer {
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
         if (style?.border) {
-          const bx = Math.floor(x) + 0.5
-          const by = Math.floor(y) + 0.5
+          const bx = Math.floor(xB) + 0.5
+          const by = Math.floor(yB) + 0.5
           const bw = Math.floor(drawW)
           const bh = Math.floor(drawH)
           const drawSide = (
@@ -439,9 +445,9 @@ export class ContentLayer implements Layer {
           if (style.border.left) drawSide('left', style.border.left)
           if (style.border.right) drawSide('right', style.border.right)
         }
-        x += baseW
+        xB += baseW
       }
-      y += baseH
+      yB += baseH
     }
 
     ctx.restore()
