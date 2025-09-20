@@ -1,29 +1,47 @@
 <script setup lang="ts">
-import { withDefaults, defineProps } from 'vue'
+import { withDefaults, defineProps, defineOptions } from 'vue'
 
-const props = withDefaults(
-  defineProps<{
-    color: string
-    // Icon render size hint (purely visual; icon itself controls its own size)
-    size?: number
-    // Swatch dimensions in px
-    swatchWidth?: number
-    swatchHeight?: number
-    radius?: number
-    // Gap below the icon in px (swatch sits slightly below the icon box)
-    offsetY?: number
-    // Fine-tune horizontal offset in px (rarely needed)
-    offsetX?: number
-  }>(),
-  {
-    size: 18,
-    swatchWidth: 12,
-    swatchHeight: 5,
-    radius: 4,
-    offsetY: 3,
-    offsetX: -2,
-  },
-)
+/**
+ * IconWithSwatch
+ * Small color swatch rendered under an icon (keeps the icon's original color).
+ *
+ * Usage:
+ *  <IconWithSwatch :color="fillColor">
+ *    <PaintBucket :size="18" />
+ *  </IconWithSwatch>
+ *
+ * Notes:
+ *  - This component does not tint the icon; it only shows a rounded swatch bar beneath it.
+ *  - Use `offsetY`/`offsetX` for pixel-perfect alignment with different icon glyphs.
+ */
+
+export type IconWithSwatchProps = {
+  /** Hex color (e.g. "#3b82f6") applied to the swatch bar */
+  color: string
+  /** Visual box size for the icon container (icon can still define its own size) */
+  size?: number
+  /** Swatch width in px */
+  swatchWidth?: number
+  /** Swatch height in px */
+  swatchHeight?: number
+  /** Swatch border radius in px */
+  radius?: number
+  /** Vertical offset in px below the icon box (positive pushes swatch down) */
+  offsetY?: number
+  /** Horizontal fine-tuning in px (positive moves swatch right) */
+  offsetX?: number
+}
+
+defineOptions({ name: 'IconWithSwatch' })
+
+const props = withDefaults(defineProps<IconWithSwatchProps>(), {
+  size: 18,
+  swatchWidth: 12,
+  swatchHeight: 5,
+  radius: 4,
+  offsetY: 3,
+  offsetX: -2,
+})
 </script>
 
 <template>

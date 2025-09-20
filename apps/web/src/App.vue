@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
+import '@sheet/ui/styles/theme.css'
 import { SheetCanvas, SheetControlLayout, ContextMenu } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
 import { createWorkbookWithSheet, applyCells, applyMerges, createSheetApi } from '@sheet/api'
@@ -275,6 +276,7 @@ function onOpenContextMenu(e: MouseEvent) {
 </template>
 
 <style>
+@import '@sheet/ui/styles/theme.css';
 html,
 body,
 #app {

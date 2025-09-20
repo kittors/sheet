@@ -19,8 +19,8 @@ import Dropdown from '../common/Dropdown.vue'
 import ToolGroup from '../common/ToolGroup.vue'
 import ToolItem from '../common/ToolItem.vue'
 import IconWithSwatch from '../common/IconWithSwatch.vue'
-import ColorGridMenu from '../common/ColorGridMenu.vue'
-import ColorPickerModal from '../common/ColorPickerModal.vue'
+import ColorGridMenu from '../business/color/ColorGridMenu.vue'
+import ColorPickerModal from '../business/color/ColorPickerModal.vue'
 
 // purely UI controls block (no functionality wired)
 const fontOptions = [
@@ -80,9 +80,6 @@ const tempFill = ref<string>('#4b5563')
 const fillMenu = fillPresets.map((c) => ({ label: c, value: c, icon: PaintBucket }))
 function setFill(c: string) {
   fillColor.value = c
-}
-function openFillPicker() {
-  fillPicker.value?.click()
 }
 function onFillPicked(e: Event) {
   fillColor.value = (e.target as HTMLInputElement).value

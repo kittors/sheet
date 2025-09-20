@@ -110,14 +110,16 @@ function computePlacement(index: number) {
         >
           <ContextMenuItem :item="item" :has-children="api.hasChildren(item)" />
         </button>
-        <div
-          v-if="api.isActive(props.level, index) && api.hasChildren(item)"
-          class="ctx-submenu"
-          :style="{ top: (offsetTopMap[index] || 0) + 'px', left: (leftMap[index] || 0) + 'px' }"
-          :ref="(el) => setSubmenuRef(index, el as any)"
-        >
-          <ContextMenuList :level="props.level + 1" :items="item.children || []" />
-        </div>
+        <Transition name="ui-fade-scale-sub">
+          <div
+            v-if="api.isActive(props.level, index) && api.hasChildren(item)"
+            class="ctx-submenu"
+            :style="{ top: (offsetTopMap[index] || 0) + 'px', left: (leftMap[index] || 0) + 'px' }"
+            :ref="(el) => setSubmenuRef(index, el as any)"
+          >
+            <ContextMenuList :level="props.level + 1" :items="item.children || []" />
+          </div>
+        </Transition>
       </template>
     </li>
   </ul>

@@ -112,24 +112,26 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
       <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
       <ChevronDown v-if="wantsMenu" class="caret" :size="14" />
     </button>
-    <div v-if="open && wantsMenu" class="ti-menu" :class="['align-' + alignMenu]">
-      <template v-if="$slots.menu">
-        <slot name="menu" :close="closeMenu" />
-      </template>
-      <template v-else>
-        <button
-          v-for="mi in props.menuItems"
-          :key="mi.value"
-          type="button"
-          class="ti-item"
-          :class="{ active: mi.value === selected }"
-          @click="onSelect(mi)"
-        >
-          <component :is="mi.icon" :size="16" />
-          <span class="txt">{{ mi.label }}</span>
-        </button>
-      </template>
-    </div>
+    <Transition name="ui-fade-scale">
+      <div v-if="open && wantsMenu" class="ti-menu" :class="['align-' + alignMenu]">
+        <template v-if="$slots.menu">
+          <slot name="menu" :close="closeMenu" />
+        </template>
+        <template v-else>
+          <button
+            v-for="mi in props.menuItems"
+            :key="mi.value"
+            type="button"
+            class="ti-item"
+            :class="{ active: mi.value === selected }"
+            @click="onSelect(mi)"
+          >
+            <component :is="mi.icon" :size="16" />
+            <span class="txt">{{ mi.label }}</span>
+          </button>
+        </template>
+      </div>
+    </Transition>
   </div>
 </template>
 

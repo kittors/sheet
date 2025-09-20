@@ -167,22 +167,24 @@ watch(isOpen, async (v) => {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="isOpen"
-      ref="rootEl"
-      class="ctx-overlay"
-      :class="customClass"
-      tabindex="0"
-      @contextmenu.prevent
-      @mousemove="onMouseMove"
-    >
+    <Transition name="ui-fade-scale">
       <div
-        ref="mainMenuEl"
-        class="ctx-menu"
-        :style="{ left: position.x + 'px', top: position.y + 'px' }"
+        v-if="isOpen"
+        ref="rootEl"
+        class="ctx-overlay"
+        :class="customClass"
+        tabindex="0"
+        @contextmenu.prevent
+        @mousemove="onMouseMove"
       >
-        <ContextMenuList :level="0" :items="visibleTree" />
+        <div
+          ref="mainMenuEl"
+          class="ctx-menu"
+          :style="{ left: position.x + 'px', top: position.y + 'px' }"
+        >
+          <ContextMenuList :level="0" :items="visibleTree" />
+        </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>

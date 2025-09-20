@@ -1,0 +1,62 @@
+/* Basic fade+scale pop animation (used by dropdowns, modals, context menus) */
+.ui-fade-scale-enter-from,
+.ui-fade-scale-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+}
+.ui-fade-scale-enter-active {
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+.ui-fade-scale-leave-active {
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
+}
+
+/* Slightly faster submenu pop */
+.ui-fade-scale-sub-enter-from,
+.ui-fade-scale-sub-leave-to {
+  opacity: 0;
+  transform: translateX(4px) scale(0.98);
+}
+.ui-fade-scale-sub-enter-active {
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease;
+}
+.ui-fade-scale-sub-leave-active {
+  transition:
+    opacity 90ms ease,
+    transform 90ms ease;
+}
+
+/* More pronounced modal pop (slower, larger movement) */
+.ui-modal-pop-enter-from,
+.ui-modal-pop-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+}
+.ui-modal-pop-enter-active {
+  transition:
+    opacity 200ms cubic-bezier(0.2, 0, 0, 1),
+    transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.ui-modal-pop-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+/* Mask fade for modals */
+.ui-fade-mask-enter-from,
+.ui-fade-mask-leave-to {
+  opacity: 0;
+}
+.ui-fade-mask-enter-active {
+  transition: opacity 180ms ease;
+}
+.ui-fade-mask-leave-active {
+  transition: opacity 140ms ease;
+}
