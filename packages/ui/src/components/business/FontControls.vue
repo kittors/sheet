@@ -18,6 +18,9 @@ import {
 import Dropdown from '../common/Dropdown.vue'
 import ToolGroup from '../common/ToolGroup.vue'
 import ToolItem from '../common/ToolItem.vue'
+import IconWithSwatch from '../common/IconWithSwatch.vue'
+import ColorGridMenu from '../common/ColorGridMenu.vue'
+import ColorPickerModal from '../common/ColorPickerModal.vue'
 
 // purely UI controls block (no functionality wired)
 const fontOptions = [
@@ -35,7 +38,7 @@ const sizeOptions = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28].map((n) => ({
 const font = ref<string | number>('SongTi')
 const size = ref<string | number>(11)
 
-// Fill color state and presets (5 cols x 4 rows)
+// Fill color state and presets (5 cols x 5 rows)
 const fillColor = ref<string>('#4b5563')
 const fillPresets = [
   // Row 1 - neutral
@@ -62,8 +65,19 @@ const fillPresets = [
   '#86efac',
   '#22c55e',
   '#16a34a',
+  // Row 5 - blue
+  '#dbeafe',
+  '#bfdbfe',
+  '#93c5fd',
+  '#3b82f6',
+  '#1d4ed8',
 ]
+// Build custom menu logic (grid + more colors)
 const fillPicker = ref<HTMLInputElement | null>(null)
+const showFillDialog = ref(false)
+const tempFill = ref<string>('#4b5563')
+// Provide non-empty menu-items so ToolItem treats it like the border tool (same icon/caret spacing)
+const fillMenu = fillPresets.map((c) => ({ label: c, value: c, icon: PaintBucket }))
 function setFill(c: string) {
   fillColor.value = c
 }
@@ -72,6 +86,22 @@ function openFillPicker() {
 }
 function onFillPicked(e: Event) {
   fillColor.value = (e.target as HTMLInputElement).value
+}
+function onSelectColor(c: string, close: () => void) {
+  setFill(c)
+  close()
+}
+function onMoreColors(close: () => void) {
+  tempFill.value = fillColor.value
+  showFillDialog.value = true
+  close()
+}
+function onDialogConfirm(c: string) {
+  setFill(c)
+  showFillDialog.value = false
+}
+function onDialogCancel() {
+  showFillDialog.value = false
 }
 
 // Cell border menu state
@@ -114,34 +144,24 @@ const borderMenu = [
         label-position="none"
         aria-label="单元格边框"
       />
-      <ToolItem label-position="none" aria-label="填充单元格颜色" :auto-icon="false">
-        <PaintBucket :size="18" :color="fillColor" />
+      <ToolItem
+        v-model="fillColor"
+        :menu-items="fillMenu"
+        label-position="none"
+        aria-label="填充单元格颜色"
+        :auto-icon="false"
+      >
+        <IconWithSwatch :color="fillColor">
+          <PaintBucket :size="18" />
+        </IconWithSwatch>
         <template #menu="{ close }">
-          <div class="color-grid">
-            <button
-              v-for="c in fillPresets"
-              :key="c"
-              type="button"
-              class="swatch"
-              :class="{ selected: c.toLowerCase() === String(fillColor).toLowerCase() }"
-              :style="{ background: c }"
-              :aria-label="c"
-              @click="
-                setFill(c)
-                close()
-              "
-            />
-          </div>
-          <button
-            type="button"
-            class="other-color-btn"
-            @click="
-              openFillPicker()
-              close()
-            "
-          >
-            其他颜色
-          </button>
+          <ColorGridMenu
+            :colors="fillPresets"
+            :value="fillColor"
+            :columns="5"
+            @select="(c) => onSelectColor(c, close)"
+            @more="() => onMoreColors(close)"
+          />
           <input ref="fillPicker" type="color" class="color-input-hidden" @input="onFillPicked" />
         </template>
       </ToolItem>
@@ -149,43 +169,20 @@ const borderMenu = [
       <ToolItem label-position="none" aria-label="清除"><Eraser :size="18" /></ToolItem>
     </ToolGroup>
   </ToolGroup>
+  <ColorPickerModal
+    v-model:visible="showFillDialog"
+    v-model:color="tempFill"
+    :movable="true"
+    mask-color="rgba(0,0,0,0.25)"
+    title="选择填充颜色"
+    @confirm="onDialogConfirm"
+    @cancel="onDialogCancel"
+  />
 </template>
 
 <style scoped>
 .mr-0 {
   margin-right: 0;
-}
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 24px);
-  grid-auto-rows: 24px;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-.swatch {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.swatch.selected {
-  outline: 2px solid #3b82f6;
-  outline-offset: 0;
-}
-.other-color-btn {
-  display: inline-flex;
-  align-items: center;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.other-color-btn:hover {
-  background: #f1f5ff;
 }
 .color-input-hidden {
   position: absolute;
