@@ -136,14 +136,81 @@ export class SelectionLayer implements Layer {
         ctx.fill()
       }
     }
+    // Draw selection border. By default draw all 4 sides. When actively editing the
+    // single selected cell and its text overflows to the right, we intentionally do
+    // NOT draw the right edge so the overflow text can visually cross that boundary
+    // (common spreadsheet behavior). Other sides remain visible.
     ctx.strokeStyle = '#3b82f6'
     ctx.lineWidth = 2
-    ctx.strokeRect(
-      Math.floor(left) + 0.5,
-      Math.floor(top) + 0.5,
-      Math.floor(w) - 1,
-      Math.floor(h) - 1,
-    )
+    const L = Math.floor(left) + 0.5
+    const T = Math.floor(top) + 0.5
+    const W = Math.floor(w) - 1
+    const H = Math.floor(h) - 1
+
+    let skipRightEdge = false
+    const ed = rc.editor
+    const isActiveEditing = !!ed && ed.selStart != null && ed.selEnd != null
+    if (isActiveEditing && isSingleCell && ed!.r === r0 && ed!.c === c0) {
+      const style = rc.sheet.getStyleAt(r0, c0)
+      const wrap = !!style?.alignment?.wrapText
+      const halign = style?.alignment?.horizontal ?? 'left'
+      if (!wrap && halign === 'left') {
+        // Only consider hiding the right edge when the editor is allowed to extend beyond
+        // its own cell (no non-empty left neighbor).
+        let allowExtend = true
+        if (c0 - 1 >= 0) {
+          const leftVal = rc.sheet.getValueAt(r0, c0 - 1)
+          const hasLeft = leftVal != null && String(leftVal) !== ''
+          if (hasLeft) allowExtend = false
+        }
+        if (allowExtend) {
+          // Measure editor text width with the same font to detect real overflow beyond right border
+          const txt = ed!.text ?? ''
+          if (txt) {
+            ctx.save()
+            if (style?.font) {
+              const size = style.font.size ?? 14
+              const family =
+                style.font.family ??
+                'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+              const weight = style.font.bold ? 'bold' : 'normal'
+              const italic = style.font.italic ? 'italic ' : ''
+              ctx.font = `${italic}${weight} ${size}px ${family}`
+            } else {
+              ctx.font =
+                'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+            }
+            const textW = ctx.measureText(txt).width
+            ctx.restore()
+            const innerW = Math.max(0, W + 1 - 8) // 4px padding on both sides
+            if (textW > innerW) skipRightEdge = true
+          }
+        }
+      }
+    }
+
+    // Top
+    ctx.beginPath()
+    ctx.moveTo(L, T)
+    ctx.lineTo(L + W, T)
+    ctx.stroke()
+    // Bottom
+    ctx.beginPath()
+    ctx.moveTo(L, T + H)
+    ctx.lineTo(L + W, T + H)
+    ctx.stroke()
+    // Left
+    ctx.beginPath()
+    ctx.moveTo(L, T)
+    ctx.lineTo(L, T + H)
+    ctx.stroke()
+    // Right (optional)
+    if (!skipRightEdge) {
+      ctx.beginPath()
+      ctx.moveTo(L + W, T)
+      ctx.lineTo(L + W, T + H)
+      ctx.stroke()
+    }
     ctx.restore()
   }
 }

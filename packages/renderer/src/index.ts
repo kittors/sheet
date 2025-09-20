@@ -72,9 +72,12 @@ export class CanvasRenderer {
       new BackgroundLayer(),
       // Draw content backgrounds first, then internal grid (inside ContentLayer), then text and borders
       new ContentLayer(),
-      new SelectionLayer(),
-      // Editor should be above content/selection but below headers
+      // Keep editor visuals (text, caret, edit background) above content,
+      // but ALWAYS draw the selection outline on top so it is never obscured while editing.
+      // This fixes cases where the active editor background covered the selection border
+      // (e.g. A8 with overflowing text and double-click edit).
       new EditorLayer(),
+      new SelectionLayer(),
       new HeadersLayer(),
       new GuidesLayer(),
       new ScrollbarLayer(),

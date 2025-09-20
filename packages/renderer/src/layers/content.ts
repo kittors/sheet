@@ -25,12 +25,16 @@ export class ContentLayer implements Layer {
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
-      // If this row has an active editor, pre-compute its overflow span in pixel space
+      // If this row has an active editor, pre-compute anchor box and its overflow span in pixel space
       let editSpanStartX = -1,
         editSpanEndX = -1,
-        editAnchorC = -1
+        editAnchorC = -1,
+        editAnchorLeftX = -1,
+        editAnchorRightX = -1
       let x = originX - visible.offsetX
-      if (rc.editor && rc.editor.r === r) {
+      const isActiveEditingRow =
+        !!rc.editor && rc.editor.selStart != null && rc.editor.selEnd != null && rc.editor.r === r
+      if (isActiveEditingRow) {
         editAnchorC = rc.editor.c
         // compute anchor start X
         let ax = originX
@@ -50,7 +54,7 @@ export class ContentLayer implements Layer {
         let curX = ax + aw
         let scanC = am && am.r === r && am.c === editAnchorC ? am.c + am.cols : editAnchorC + 1
         const rowEditing =
-          !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
+          isActiveEditingRow
         while (scanC < sheet.cols) {
           const editingHere = rowEditing && rc.editor!.c === scanC
           const vHere = sheet.getValueAt(r, scanC)
@@ -65,6 +69,8 @@ export class ContentLayer implements Layer {
         }
         editSpanStartX = ax
         editSpanEndX = rightLimit
+        editAnchorLeftX = ax
+        editAnchorRightX = ax + aw
       }
 
       // PASS 1: backgrounds only (to avoid covering overflow text from previous cells)
@@ -195,7 +201,8 @@ export class ContentLayer implements Layer {
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
         const raw = cell?.value != null ? String(cell.value) : ''
-        const isEditingAnchor = !!rc.editor && rc.editor.r === r && rc.editor.c === c
+        const isActiveEditing = !!rc.editor && rc.editor.selStart != null && rc.editor.selEnd != null
+        const isEditingAnchor = isActiveEditing && rc.editor.r === r && rc.editor.c === c
         const txt = isEditingAnchor ? (rc.editor!.text ?? '') : raw
 
         // Do not draw text for the editing anchor here; editor layer is responsible for it
@@ -220,30 +227,24 @@ export class ContentLayer implements Layer {
             ? 'overflow'
             : (style?.alignment?.overflow ?? 'overflow')
 
-          // Compute dynamic right stop for overflow so that any occupied or editing cell to the right is preserved.
-          // Default to content area right edge (content layer already clipped to content area)
+          // Compute dynamic right stop for overflow so that any occupied cell to the right is preserved.
+          // When the row is in editing mode, do NOT treat the anchor cell itself as a blocker for
+          // overflow coming from cells to its left; only exclude the anchor cell area.
           const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
           let overflowRightLimitX = rc.viewport.width - vGap2
+          let rowEditing2 = isActiveEditing
           if (!wrap && overflow === 'overflow') {
             // Start scanning from the first column after current (or after current merge span)
             let curX = x + drawW
             let scanC = m && m.r === r && m.c === c ? m.c + m.cols : c + 1
-            const rowEditing2 =
-              !!rc.editor &&
-              rc.editor.r === r &&
-              rc.editor.selStart != null &&
-              rc.editor.selEnd != null
             while (scanC < sheet.cols) {
-              // If the anchor of an actively editing cell is here, stop before this column
-              const editingHere = rowEditing2 && rc.editor!.c === scanC
-              // Treat any non-empty logical value at (r, scanC) as occupied (covers merges too via getValueAt)
+              const isAnchorHere = rowEditing2 && rc.editor!.c === scanC
               const vHere = sheet.getValueAt(r, scanC)
               const hasValHere = vHere != null && String(vHere) !== ''
-              if (editingHere || hasValHere) {
+              if ((hasValHere || isAnchorHere) && !isAnchorHere) {
                 overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                 break
               }
-              // extend across this empty column and continue
               const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
               curX += w2
               scanC++
@@ -303,20 +304,23 @@ export class ContentLayer implements Layer {
               // measure text and compute desired right edge based on pixel width
               const textW = ctx.measureText(txt).width
               const desiredRight = tx + textW + 2
+              // Default allowed region extends to the next blocker (occupied cell),
+              // but if this row is in editing mode we exclude only the anchor cell area,
+              // still allowing overflow to continue after the anchor.
               const allowedRight =
                 overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
-              const finalRight = Math.min(desiredRight, allowedRight)
+              // Base clip (no holes)
+              let finalRight = Math.min(desiredRight, allowedRight)
               clipW = Math.max(0, Math.floor(finalRight - x))
             }
-          const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
-          // Never clip the editing anchor itself; it should render fully (overflow paints outside via content layer)
-          // Additionally, avoid creating a zero/near-zero clip that would hide text entirely (observed when
-          // a blocker sits immediately at the right edge). Fallback to no-clip in that case.
-          const interiorClipW = Math.max(0, Math.floor(clipW) - 2)
-          const doClipPolicy =
-            !isEditingAnchor && (needsClipPolicy || hasOverflowStop) && interiorClipW > 2
+            const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
+            // Never clip the editing anchor itself; it should render fully (handled by editor layer)
+            const interiorClipW = Math.max(0, Math.floor(clipW) - 2)
+            const doClipPolicy =
+              !isEditingAnchor && (needsClipPolicy || hasOverflowStop) && interiorClipW > 2
             // Additionally, if actively editing on this row and this cell is not the anchor,
-            // avoid drawing inside the editor's overflow span [editSpanStartX, editSpanEndX)
+            // avoid drawing inside the anchor cell box only. For cells to the left of the
+            // anchor, allow overflow to continue after the anchor by creating a two-segment clip.
             const isRowEditing =
               !!rc.editor &&
               rc.editor.r === r &&
@@ -324,25 +328,40 @@ export class ContentLayer implements Layer {
               rc.editor.selEnd != null
             const avoidEditorSpan = isRowEditing && c !== editAnchorC && editSpanStartX >= 0
             let didCustomClip = false
-            if (avoidEditorSpan) {
+            if (avoidEditorSpan && editAnchorLeftX >= 0 && editAnchorRightX >= 0) {
               const cellLeft = x
               const cellRight = x + drawW
-              const ovLeft = Math.max(cellLeft, editSpanStartX)
-              const ovRight = Math.min(cellRight, editSpanEndX)
-              if (ovRight > ovLeft) {
-                // Build a clip path consisting of the cell box minus the overlap [ovLeft, ovRight)
+              // Case 1: cell lies wholly to the left of the anchor -> carve a hole for the anchor box
+              if (cellRight <= editAnchorLeftX) {
                 ctx.save()
                 ctx.beginPath()
-                // left segment
-                const leftW = Math.max(0, ovLeft - cellLeft)
-                if (leftW > 1)
-                  ctx.rect(cellLeft + 1, y + 1, Math.max(0, leftW - 2), Math.max(0, drawH - 2))
-                // right segment
-                const rightW = Math.max(0, cellRight - ovRight)
-                if (rightW > 1)
-                  ctx.rect(ovRight + 1, y + 1, Math.max(0, rightW - 2), Math.max(0, drawH - 2))
+                // segment before anchor
+                const seg1W = Math.max(0, editAnchorLeftX - cellLeft - 2)
+                if (seg1W > 0) ctx.rect(cellLeft + 1, y + 1, seg1W, Math.max(0, drawH - 2))
+                // segment after anchor up to the next blocker (editSpanEndX)
+                const afterStart = Math.max(editAnchorRightX + 1, cellLeft + 1)
+                const afterEnd = Math.max(afterStart, Math.floor(editSpanEndX) - 1)
+                const seg2W = Math.max(0, afterEnd - afterStart)
+                if (seg2W > 0)
+                  ctx.rect(afterStart, y + 1, seg2W, Math.max(0, drawH - 2))
                 ctx.clip()
                 didCustomClip = true
+              } else {
+                // Case 2: generic: subtract only the overlap with anchor box if any
+                const ovLeft = Math.max(cellLeft, editAnchorLeftX)
+                const ovRight = Math.min(cellRight, editAnchorRightX)
+                if (ovRight > ovLeft) {
+                  ctx.save()
+                  ctx.beginPath()
+                  const leftW = Math.max(0, ovLeft - cellLeft)
+                  if (leftW > 1)
+                    ctx.rect(cellLeft + 1, y + 1, Math.max(0, leftW - 2), Math.max(0, drawH - 2))
+                  const rightW = Math.max(0, cellRight - ovRight)
+                  if (rightW > 1)
+                    ctx.rect(ovRight + 1, y + 1, Math.max(0, rightW - 2), Math.max(0, drawH - 2))
+                  ctx.clip()
+                  didCustomClip = true
+                }
               }
             }
             if (!didCustomClip && doClipPolicy) {
