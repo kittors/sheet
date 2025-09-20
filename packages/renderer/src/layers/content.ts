@@ -1,4 +1,5 @@
 import type { Layer, RenderContext } from '../types/context'
+import { snapCoord, snappedRect, strokeCrispRect } from '@sheet/shared-utils'
 import { wrapTextIndices } from '@sheet/api'
 
 export class ContentLayer implements Layer {
@@ -398,6 +399,84 @@ export class ContentLayer implements Layer {
       y += baseH
     }
 
+    // Draw selection interior fill BELOW custom cell borders to avoid darkening/thickening perception
+    if (rc.selection) {
+      const { sheet, originX, originY } = rc
+      const { r0: sr0, c0: sc0, r1: sr1, c1: sc1 } = rc.selection
+      const r0 = Math.max(0, Math.min(sr0, sr1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sr0, sr1))
+      const c0 = Math.max(0, Math.min(sc0, sc1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sc0, sc1))
+      const isSingleCell = r0 === r1 && c0 === c1
+      if (!isSingleCell) {
+        // cumulative helpers
+        const cumWidth = (i: number): number => {
+          let base = i * defaultColWidth
+          if (sheet.colWidths.size)
+            for (const [c, w] of sheet.colWidths) if (c < i) base += w - defaultColWidth
+          return base
+        }
+        const cumHeight = (i: number): number => {
+          let base = i * defaultRowHeight
+          if (sheet.rowHeights.size)
+            for (const [r, h] of sheet.rowHeights) if (r < i) base += h - defaultRowHeight
+          return base
+        }
+        const x0 = originX + cumWidth(c0) - rc.scroll.x
+        const x1 = originX + cumWidth(c1 + 1) - rc.scroll.x
+        const y0 = originY + cumHeight(r0) - rc.scroll.y
+        const y1 = originY + cumHeight(r1 + 1) - rc.scroll.y
+        const selL = Math.floor(x0) + 1
+        const selT = Math.floor(y0) + 1
+        const selW = Math.max(0, Math.floor(x1 - x0) - 2)
+        const selH = Math.max(0, Math.floor(y1 - y0) - 2)
+
+        // Anchor hole
+        let ar = rc.selectionAnchor?.r ?? r0
+        let ac = rc.selectionAnchor?.c ?? c0
+        // If anchor outside selection, fallback to top-left
+        if (ar < r0 || ar > r1 || ac < c0 || ac > c1) {
+          ar = r0
+          ac = c0
+        }
+        const mAtAnchor = sheet.getMergeAt(ar, ac)
+        if (mAtAnchor) {
+          ar = mAtAnchor.r
+          ac = mAtAnchor.c
+        }
+        const xA0 = originX + cumWidth(ac) - rc.scroll.x
+        let xA1 = originX + cumWidth(ac + 1) - rc.scroll.x
+        const yA0 = originY + cumHeight(ar) - rc.scroll.y
+        let yA1 = originY + cumHeight(ar + 1) - rc.scroll.y
+        const mA = sheet.getMergeAt(ar, ac)
+        if (mA) {
+          xA1 = originX + cumWidth(ac + mA.cols) - rc.scroll.x
+          yA1 = originY + cumHeight(ar + mA.rows) - rc.scroll.y
+        }
+        const aL = Math.floor(xA0)
+        const aT = Math.floor(yA0)
+        const aR = Math.floor(xA1)
+        const aB = Math.floor(yA1)
+        const holeL = Math.max(selL, aL + 1)
+        const holeT = Math.max(selT, aT + 1)
+        const holeR = Math.min(selL + selW, aR - 1)
+        const holeB = Math.min(selT + selH, aB - 1)
+
+        ctx.save()
+        // Content area is already clipped above
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'
+        ctx.beginPath()
+        ctx.rect(selL, selT, Math.max(0, selW), Math.max(0, selH))
+        if (holeR > holeL && holeB > holeT) {
+          ctx.rect(holeL, holeT, Math.max(0, holeR - holeL), Math.max(0, holeB - holeT))
+          ctx.fill('evenodd')
+        } else {
+          ctx.fill()
+        }
+        ctx.restore()
+      }
+    }
+
     // GLOBAL PASS: draw custom cell borders on top of everything to avoid being covered by later backgrounds
     let yB = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
@@ -423,46 +502,146 @@ export class ContentLayer implements Layer {
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
         if (style?.border) {
-          const bx = Math.floor(xB) + 0.5
-          const by = Math.floor(yB) + 0.5
-          const bw = Math.floor(drawW)
-          const bh = Math.floor(drawH)
-          const drawSide = (
-            side: 'top' | 'bottom' | 'left' | 'right',
-            cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number } | undefined,
-          ) => {
-            if (!cfg) return
-            const color = cfg.color ?? '#111827'
-            const width = Math.max(1, Math.floor(cfg.width ?? 1))
-            const styleKind = cfg.style ?? 'solid'
-            ctx.save()
-            ctx.strokeStyle = color
-            ctx.lineWidth = width
-            if (styleKind === 'dashed') ctx.setLineDash([4 * width, 2 * width])
-            else if (styleKind === 'dotted') ctx.setLineDash([width, width])
-            ctx.beginPath()
-            if (side === 'top') {
-              ctx.moveTo(bx, by)
-              ctx.lineTo(bx + bw, by)
-            } else if (side === 'bottom') {
-              const yy = by + bh
-              ctx.moveTo(bx, yy)
-              ctx.lineTo(bx + bw, yy)
-            } else if (side === 'left') {
-              ctx.moveTo(bx, by)
-              ctx.lineTo(bx, by + bh)
-            } else if (side === 'right') {
-              const xx = bx + bw
-              ctx.moveTo(xx, by)
-              ctx.lineTo(xx, by + bh)
-            }
-            ctx.stroke()
-            ctx.restore()
+          const left = xB
+          const top = yB
+          const right = xB + drawW
+          const bottom = yB + drawH
+
+          const bTop = style.border.top
+          const bBottom = style.border.bottom
+          const bLeft = style.border.left
+          const bRight = style.border.right
+
+          const prio = (cfg?: { width?: number; style?: 'solid' | 'dashed' | 'dotted' | 'none' }) => {
+            if (!cfg) return [-1, -1] as const
+            const lw = Math.max(1, Math.floor(cfg.width ?? 1))
+            const sw = cfg.style === 'solid' ? 2 : cfg.style === 'dashed' ? 1 : cfg.style === 'dotted' ? 0 : -1
+            return [lw, sw] as const
           }
-          if (style.border.top) drawSide('top', style.border.top)
-          if (style.border.bottom) drawSide('bottom', style.border.bottom)
-          if (style.border.left) drawSide('left', style.border.left)
-          if (style.border.right) drawSide('right', style.border.right)
+
+          const isAnchorVisible = (rr: number, cc: number) => {
+            const a = sheet.getMergeAt(rr, cc)
+            const ar = a ? a.r : rr
+            const ac = a ? a.c : cc
+            return (
+              ar >= visible.rowStart && ar <= visible.rowEnd && ac >= visible.colStart && ac <= visible.colEnd
+            )
+          }
+
+          const shouldDraw = (
+            side: 'top' | 'bottom' | 'left' | 'right',
+            cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted' | 'none'; width?: number } | undefined,
+          ) => {
+            if (!cfg) return false
+            if (cfg.style === 'none') return false
+            // Determine neighbor and opposite side
+            let nr = r,
+              nc = c,
+              opp: 'top' | 'bottom' | 'left' | 'right' = 'top'
+            let owner = false // whether this cell owns the boundary in tie
+            if (side === 'left') {
+              nc = (m ? m.c : c) - 1
+              opp = 'right'
+              owner = false // owner is the cell on the left (we are right cell), so not owner
+            } else if (side === 'right') {
+              nc = (m ? m.c + m.cols : c + 1)
+              opp = 'left'
+              owner = true // owner is the left cell (us)
+            } else if (side === 'top') {
+              nr = (m ? m.r : r) - 1
+              opp = 'bottom'
+              owner = false // owner is the top cell (neighbor), we are bottom cell
+            } else if (side === 'bottom') {
+              nr = (m ? m.r + m.rows : r + 1)
+              opp = 'top'
+              owner = true // owner is the top cell (us)
+            }
+            // Bounds check
+            if (nr < 0 || nc < 0 || nr >= sheet.rows || nc >= sheet.cols) return true
+            const neighborStyle = sheet.getStyleAt(nr, nc)
+            const nCfg = neighborStyle?.border?.[opp]
+            // If neighbor explicitly suppresses ('none'), respect it only if it is more recent
+            // than our current cell style. This models user-intent order: later ops win.
+            if (nCfg && nCfg.style === 'none') {
+              const selfStyleId = style?.id ?? 0
+              const neighborStyleId = neighborStyle?.id ?? 0
+              if (neighborStyleId >= selfStyleId) return false
+              // else, our style is more recent; allow drawing
+            }
+            if (!nCfg) return true
+            // If neighbor anchor not visible, we must draw (otherwise nobody will paint it this frame)
+            if (!isAnchorVisible(nr, nc)) return true
+            // Compare priority
+            const [lw, sw] = prio(cfg)
+            const [lw2, sw2] = prio(nCfg)
+            if (lw > lw2) return true
+            if (lw < lw2) return false
+            if (sw > sw2) return true
+            if (sw < sw2) return false
+            // Equal strength: only the canonical owner draws
+            return owner
+          }
+
+          // Fast path: identical four sides (common case)
+          const eq = (
+            a?: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number },
+            b?: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number },
+          ) => {
+            if (!a || !b) return false
+            return (
+              (a.color ?? '#111827') === (b.color ?? '#111827') &&
+              Math.max(1, Math.floor(a.width ?? 1)) === Math.max(1, Math.floor(b.width ?? 1)) &&
+              (a.style ?? 'solid') === (b.style ?? 'solid')
+            )
+          }
+
+          if (true) {
+            // Per-side draw with crisp alignment; dedupe against neighbor to prevent double-thick internal lines
+            const drawSide = (
+              side: 'top' | 'bottom' | 'left' | 'right',
+              cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted' | 'none'; width?: number } | undefined,
+            ) => {
+              if (!cfg) return
+              if (!shouldDraw(side, cfg)) return
+              if (cfg.style === 'none') return
+              const color = cfg.color ?? '#111827'
+              const lw = Math.max(1, Math.floor(cfg.width ?? 1))
+              const styleKind = cfg.style ?? 'solid'
+              ctx.save()
+              ctx.strokeStyle = color
+              ctx.lineWidth = lw
+              ctx.lineCap = 'butt'
+              ctx.lineJoin = 'miter'
+              if (styleKind === 'dashed') ctx.setLineDash([4 * lw, 2 * lw])
+              else if (styleKind === 'dotted') ctx.setLineDash([lw, lw])
+              ctx.beginPath()
+              if (side === 'top') {
+                const y = snapCoord(top, lw)
+                ctx.moveTo(Math.floor(left), y)
+                ctx.lineTo(Math.floor(right), y)
+              } else if (side === 'bottom') {
+                const y = snapCoord(bottom, lw)
+                ctx.moveTo(Math.floor(left), y)
+                ctx.lineTo(Math.floor(right), y)
+              } else if (side === 'left') {
+                const x = snapCoord(left, lw)
+                ctx.moveTo(x, Math.floor(top))
+                ctx.lineTo(x, Math.floor(bottom))
+              } else if (side === 'right') {
+                const x = snapCoord(right, lw)
+                ctx.moveTo(x, Math.floor(top))
+                ctx.lineTo(x, Math.floor(bottom))
+              }
+              ctx.stroke()
+              ctx.restore()
+            }
+            if (bTop) drawSide('top', bTop)
+            if (bBottom) drawSide('bottom', bBottom)
+            if (bLeft) drawSide('left', bLeft)
+            if (bRight) drawSide('right', bRight)
+          } else {
+            // Unreachable branch (kept for diff clarity)
+          }
         }
         xB += baseW
       }

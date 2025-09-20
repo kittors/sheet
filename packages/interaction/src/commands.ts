@@ -65,9 +65,20 @@ export function createCommands(
     const style = args.style ?? 'solid'
 
     if (args.mode === 'none') {
+      // Explicitly suppress all four sides so neighbors won't re-draw the shared edge
       forEachSelected((r, c) => {
         const base = ctx.sheet.getStyleAt(r, c)
-        const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: {} }
+        const next = {
+          font: base?.font,
+          fill: base?.fill,
+          alignment: base?.alignment,
+          border: {
+            top: { style: 'none' as const, width: 0 },
+            bottom: { style: 'none' as const, width: 0 },
+            left: { style: 'none' as const, width: 0 },
+            right: { style: 'none' as const, width: 0 },
+          },
+        }
         const id = ctx.sheet.defineStyle(next as any)
         ctx.sheet.setCellStyle(r, c, id)
       })

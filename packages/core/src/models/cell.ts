@@ -7,7 +7,8 @@ export interface Font {
   underline?: boolean
 }
 
-export type BorderStyle = 'solid' | 'dashed' | 'dotted'
+// Border style; 'none' is an explicit suppression that wins over neighbor borders on shared edges
+export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'none'
 
 export interface BorderSide {
   color?: string
