@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
+import ScrollArea from './ScrollArea.vue'
 
 export interface Option {
   label: string
@@ -66,16 +67,18 @@ function displayLabel() {
       <ChevronDown :size="16" />
     </button>
     <div v-if="open" class="menu">
-      <button
-        v-for="opt in options"
-        :key="String(opt.value)"
-        class="item"
-        :class="{ active: opt.value === modelValue }"
-        :aria-selected="opt.value === modelValue"
-        @click="onSelect(opt)"
-      >
-        {{ opt.label }}
-      </button>
+      <ScrollArea :max-height="220" scrollbar="vertical">
+        <button
+          v-for="opt in options"
+          :key="String(opt.value)"
+          class="item"
+          :class="{ active: opt.value === modelValue }"
+          :aria-selected="opt.value === modelValue"
+          @click="onSelect(opt)"
+        >
+          {{ opt.label }}
+        </button>
+      </ScrollArea>
     </div>
   </div>
 </template>

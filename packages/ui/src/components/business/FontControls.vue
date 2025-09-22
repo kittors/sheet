@@ -37,6 +37,10 @@ const emit = defineEmits<{
   (e: 'toggle-strikethrough', enabled: boolean): void
 }>()
 
+// limits for font size
+const MIN_SIZE = 6
+const MAX_SIZE = 72
+
 // purely UI controls block (no functionality wired)
 const fontOptions = [
   { label: '宋体', value: 'SongTi' },
@@ -59,9 +63,6 @@ const props = defineProps<{
   strikethrough?: boolean
 }>()
 
-// limits for font size
-const MIN_SIZE = 6
-const MAX_SIZE = 72
 const normSize = (v: unknown): number => {
   const n = Number(v)
   if (!Number.isFinite(n)) return 14
