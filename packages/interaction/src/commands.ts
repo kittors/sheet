@@ -17,6 +17,45 @@ export function createCommands(
     }
   }
 
+  function applyFont(patch: Partial<import('@sheet/core').Font>) {
+    // normalize size limits globally (UI also clamps, but keep invariant here)
+    const clamp = (n: number) => Math.min(72, Math.max(6, Math.round(n)))
+    const normalized: Partial<import('@sheet/core').Font> = { ...patch }
+    if (normalized.size != null) normalized.size = clamp(Number(normalized.size))
+    const sel = state.selection
+    if (!sel) return
+    const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+    const r1 = Math.min(ctx.sheet.rows - 1, Math.max(sel.r0, sel.r1))
+    const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+    const c1 = Math.min(ctx.sheet.cols - 1, Math.max(sel.c0, sel.c1))
+    const selFullyContainsMerge = (m: { r: number; c: number; rows: number; cols: number }) => {
+      const mr0 = m.r,
+        mr1 = m.r + m.rows - 1
+      const mc0 = m.c,
+        mc1 = m.c + m.cols - 1
+      return mr0 >= r0 && mr1 <= r1 && mc0 >= c0 && mc1 <= c1
+    }
+    const canApplyAt = (r: number, c: number) => {
+      const m = ctx.sheet.getMergeAt(r, c)
+      if (!m) return true
+      if (!(m.r === r && m.c === c)) return false
+      return selFullyContainsMerge(m)
+    }
+    forEachSelected((r, c) => {
+      if (!canApplyAt(r, c)) return
+      const base = ctx.sheet.getStyleAt(r, c)
+      const next = {
+        font: { ...(base?.font ?? {}), ...normalized },
+        fill: base?.fill,
+        border: base?.border,
+        alignment: base?.alignment,
+      }
+      const id = ctx.sheet.defineStyle(next as any)
+      ctx.sheet.setCellStyle(r, c, id)
+    })
+    deps.schedule()
+  }
+
   function applyTextColor(color: string) {
     const sel = state.selection
     if (!sel) return
@@ -345,6 +384,7 @@ export function createCommands(
     applyTextColor,
     applyFillColor,
     applyBorder,
+    applyFont,
     setValueInSelection,
     setColumnWidth,
     setRowHeight,

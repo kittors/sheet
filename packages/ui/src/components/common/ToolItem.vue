@@ -9,6 +9,8 @@ const props = withDefaults(
     labelPosition?: 'bottom' | 'right' | 'none'
     ariaLabel?: string
     disabled?: boolean
+    // Visual toggle state for simple buttons (e.g., bold/italic)
+    active?: boolean
     // Dropdown menu support
     menuItems?: Array<{ label: string; value: string; icon: Component }>
     modelValue?: string
@@ -22,6 +24,7 @@ const props = withDefaults(
     ariaLabel: '',
     labelPosition: 'bottom',
     disabled: false,
+    active: false,
     menuItems: () => [],
     modelValue: '',
     autoIcon: true,
@@ -95,7 +98,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 </script>
 
 <template>
-  <div ref="root" class="tool-item-wrap" :class="{ 'has-menu': hasMenu }">
+  <div ref="root" class="tool-item-wrap" :class="{ 'has-menu': hasMenu, 'is-active': props.active }">
     <!-- Split mode: main action button + separate caret button -->
     <template v-if="props.split">
       <div class="tool-split">
@@ -208,6 +211,14 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 }
 .tool-item:hover {
   background: rgba(0, 0, 0, 0.06);
+}
+.tool-item-wrap.is-active .tool-item {
+  background: #e8f1ff;
+  color: #1d4ed8;
+}
+.tool-item-wrap.is-active .tool-split {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: #e5e7eb;
 }
 .tool-item.disabled {
   opacity: 0.5;

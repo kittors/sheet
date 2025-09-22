@@ -9,7 +9,7 @@ import { createPointerHandlers } from './pointer'
 import { createCommands } from './commands'
 import { attachKeyboard } from './keyboard'
 import { posToCell } from './hit'
-import { caretIndexFromPoint, fontStringFromStyle } from '@sheet/api'
+import { caretIndexFromPoint } from '@sheet/api'
 
 export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   const ctx: Context = {
@@ -45,7 +45,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   let lastScrollY = state.scroll.y
   // Optional native scroll host (smooth momentum). Default to the canvas parent if it looks like one
   const scrollHost: HTMLElement | null =
-    (args as any).scrollHost ?? (args.canvas.parentElement as HTMLElement | null)
+    args.scrollHost ?? (args.canvas.parentElement as HTMLElement | null)
   const usingNativeScroll = !!scrollHost && scrollHost.classList.contains('sheet-scroll-host')
   let isSyncingScrollHost = false
   function syncScrollHostFromState() {
@@ -57,9 +57,11 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       isSyncingScrollHost = true
       scrollHost.scrollLeft = x
       scrollHost.scrollTop = y
-      setTimeout(() => {
+      // Release the re-entrancy guard in a microtask so rAF-driven updates
+      // (auto-scroll) can reflect immediately on the next frame.
+      Promise.resolve().then(() => {
         isSyncingScrollHost = false
-      }, 0)
+      })
     }
   }
 
@@ -195,7 +197,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   } else {
     // Use a non-passive wheel listener so we can call preventDefault to block page scroll
     // while the pointer is over the canvas. The handler keeps work minimal and defers updates to RAF.
-    ctx.canvas.addEventListener('wheel', onWheel as any, { passive: false })
+    ctx.canvas.addEventListener('wheel', onWheel, { passive: false })
   }
   ctx.canvas.addEventListener('dblclick', onDblClick)
 
@@ -310,7 +312,15 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const wrap = !!style?.alignment?.wrapText
     let caret = 0
     if (text) {
-      const wr: any = ctx.renderer as any
+      // Some renderers (e.g. WorkerRenderer) expose an async caretIndexFromPoint API we can use.
+      // Narrow the shape without using `any`.
+      type CaretFromPoint = (
+        text: string,
+        relX: number,
+        relY: number,
+        opts: Parameters<typeof caretIndexFromPoint>[3],
+      ) => Promise<number>
+      const wr = ctx.renderer as unknown as { caretIndexFromPoint?: CaretFromPoint }
       if (wrap) {
         const maxW = Math.max(0, w - 8)
         const sizePx = style?.font?.size ?? 14

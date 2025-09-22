@@ -5,6 +5,8 @@ export interface Font {
   bold?: boolean
   italic?: boolean
   underline?: boolean
+  // Whether to draw a horizontal strike through the text (deletion mark)
+  strikethrough?: boolean
 }
 
 // Border style; 'none' is an explicit suppression that wins over neighbor borders on shared edges

@@ -9,11 +9,18 @@ import { FunctionSquare } from 'lucide-vue-next'
 // Emits:
 // - update:modelValue on input typing
 // - submit when user presses Enter in the input
-defineProps<{
+const props = defineProps<{
   modelValue: string
   disabled?: boolean
   placeholder?: string
   selectionText?: string
+  // Toolbar echo of active cell style
+  fontFamily?: string | number
+  fontSize?: string | number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void
@@ -22,6 +29,12 @@ const emit = defineEmits<{
   (e: 'unmerge-cells'): void
   (e: 'apply-fill', color: string): void
   (e: 'apply-border', payload: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }): void
+  (e: 'apply-font-family', family: string): void
+  (e: 'apply-font-size', size: number): void
+  (e: 'toggle-bold', enabled: boolean): void
+  (e: 'toggle-italic', enabled: boolean): void
+  (e: 'toggle-underline', enabled: boolean): void
+  (e: 'toggle-strikethrough', enabled: boolean): void
 }>()
 
 function onInput(e: Event) {
@@ -36,10 +49,22 @@ function onEnter() {
   <div class="control-container">
     <div class="toolbar-wrap">
       <SheetToolbar
+        :font-family="props.fontFamily"
+        :font-size="props.fontSize"
+        :bold="props.bold"
+        :italic="props.italic"
+        :underline="props.underline"
+        :strikethrough="props.strikethrough"
         @merge-cells="() => emit('merge-cells')"
         @unmerge-cells="() => emit('unmerge-cells')"
         @apply-fill="(c) => emit('apply-fill', c)"
         @apply-border="(p) => emit('apply-border', p)"
+        @apply-font-family="(f) => emit('apply-font-family', f)"
+        @apply-font-size="(s) => emit('apply-font-size', s)"
+        @toggle-bold="(v) => emit('toggle-bold', v)"
+        @toggle-italic="(v) => emit('toggle-italic', v)"
+        @toggle-underline="(v) => emit('toggle-underline', v)"
+        @toggle-strikethrough="(v) => emit('toggle-strikethrough', v)"
       />
     </div>
     <div class="controls-row">

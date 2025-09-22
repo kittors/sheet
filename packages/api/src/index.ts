@@ -28,6 +28,10 @@ export interface SheetApi {
   unmergeSelection(): void
   applyFontSize(size: number): void
   applyFontFamily(family: string): void
+  applyFontBold(enabled: boolean): void
+  applyFontItalic(enabled: boolean): void
+  applyFontUnderline(enabled: boolean): void
+  applyFontStrikethrough(enabled: boolean): void
   applyHorizontalAlign(al: 'left' | 'center' | 'right'): void
   applyVerticalAlign(al: 'top' | 'middle' | 'bottom'): void
   // Events (rAF-polled subscriptions)
@@ -132,26 +136,52 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
       interaction?.unmergeSelection()
     },
     applyFontSize(size) {
-      const styleId = sheet.defineStyle({ font: { size } })
-      const sel = interaction?.getSelection?.()
-      if (!sel) return
-      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
-      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
-      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
-      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++)
-        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      const clamp = (n: number) => Math.min(72, Math.max(6, Math.round(n)))
+      const s = clamp(size)
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ size: s })
+      else {
+        const sel = interaction?.getSelection?.()
+        if (!sel) return
+        const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+        const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+        const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+        const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+        const styleId = sheet.defineStyle({ font: { size: s } })
+        for (let r = r0; r <= r1; r++)
+          for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      }
     },
     applyFontFamily(family) {
-      const styleId = sheet.defineStyle({ font: { family } })
-      const sel = interaction?.getSelection?.()
-      if (!sel) return
-      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
-      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
-      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
-      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-      for (let r = r0; r <= r1; r++)
-        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ family })
+      else {
+        const sel = interaction?.getSelection?.()
+        if (!sel) return
+        const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+        const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+        const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+        const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+        const styleId = sheet.defineStyle({ font: { family } })
+        for (let r = r0; r <= r1; r++)
+          for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      }
+    },
+    applyFontBold(enabled) {
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ bold: enabled })
+    },
+    applyFontItalic(enabled) {
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ italic: enabled })
+    },
+    applyFontUnderline(enabled) {
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ underline: enabled })
+    },
+    applyFontStrikethrough(enabled) {
+      const h = (interaction as any)
+      if (h && typeof h.applyFont === 'function') h.applyFont({ strikethrough: enabled })
     },
     applyHorizontalAlign(al) {
       const styleId = sheet.defineStyle({ alignment: { horizontal: al } })

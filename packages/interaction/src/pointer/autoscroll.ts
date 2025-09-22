@@ -65,6 +65,15 @@ export function createAutoScroll(
       state.scroll.x = Math.max(0, Math.min(maxX, state.scroll.x + state.autoVX * dt))
       state.scroll.y = Math.max(0, Math.min(maxY, state.scroll.y + state.autoVY * dt))
 
+      // Immediate lightweight repaint to reflect scrollbar/thumb movement during drag.
+      // Keeps UI responsive even if a full frame was cancelled or coalesced.
+      try {
+        ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+      } catch (e) {
+        // ignore transient render errors while coalescing frames
+        void e
+      }
+
       const rect = ctx.canvas.getBoundingClientRect()
       const sb = ctx.renderer.getScrollbars?.()
       const contentLeft = ctx.metrics.headerColWidth
@@ -97,6 +106,17 @@ export function createAutoScroll(
         const startRow = state.selection ? Math.min(state.selection.r0, state.selection.r1) : 0
         state.selection = { r0: startRow, r1: endRow, c0: 0, c1: ctx.sheet.cols - 1 }
       }
+
+      // Keep renderer selection in sync for immediate paint
+      ctx.renderer.setSelection?.(state.selection, state.selectAnchor)
+      // Immediate full repaint so grid, selection, headers and scrollbars all move together
+      try {
+        ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y)
+      } catch (e) {
+        // ignore transient render errors while coalescing frames
+        void e
+      }
+      // Also queue the standard scheduled render for coalescing with other updates in this frame
 
       deps.schedule()
       state.autoRaf = requestAnimationFrame(step)

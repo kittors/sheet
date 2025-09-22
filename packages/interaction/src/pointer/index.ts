@@ -84,7 +84,7 @@ export function createPointerHandlers(
     }
     // If clicking inside the active editor cell, move caret instead of committing
     if (state.editor) {
-      if (await (textSel as any).tryBeginFromPointer(e)) return
+      if (await textSel.tryBeginFromPointer(e)) return
       deps.finishEdit?.('commit')
     }
     const rect = ctx.canvas.getBoundingClientRect()
@@ -146,7 +146,7 @@ export function createPointerHandlers(
 
   async function onPointerMove(e: PointerEvent) {
     // Text selection while editing
-    if (await (textSel as any).handleMove(e)) return
+    if (await textSel.handleMove(e)) return
     const rect = ctx.canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
@@ -213,8 +213,13 @@ export function createPointerHandlers(
     })
     ctx.renderer.setGuides?.(undefined)
     deps.schedule()
-    stopAutoScroll()
-    state.textSelectAnchor = undefined
+    // When dragging a selection, leaving the canvas bounds should NOT stop auto-scroll.
+    // We keep auto-scroll active so the view can continue to pan while the pointer is outside.
+    // Only stop auto-scroll if no drag is in progress.
+    if (state.dragMode === 'none') {
+      stopAutoScroll()
+      state.textSelectAnchor = undefined
+    }
   }
 
   return { onPointerDown, onPointerMove, onPointerUp, onPointerLeave }

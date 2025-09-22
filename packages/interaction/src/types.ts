@@ -96,6 +96,8 @@ export interface InteractionHandle {
   unmergeSelection(): void
   getFirstSelectedCell(): { r: number; c: number } | null
   getValueAt(r: number, c: number): string
+  // font style operations
+  applyFont(patch: Partial<import('@sheet/core').Font>): void
   // queries
   getSelection(): Selection | undefined
   getScroll(): { x: number; y: number }

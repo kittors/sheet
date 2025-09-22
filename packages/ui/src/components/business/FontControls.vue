@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   Bold,
   Italic,
@@ -29,6 +29,12 @@ const emit = defineEmits<{
     mode: 'none' | 'all' | 'outside' | 'thick'
     color?: string
   }): void
+  (e: 'apply-font-family', family: string): void
+  (e: 'apply-font-size', size: number): void
+  (e: 'toggle-bold', enabled: boolean): void
+  (e: 'toggle-italic', enabled: boolean): void
+  (e: 'toggle-underline', enabled: boolean): void
+  (e: 'toggle-strikethrough', enabled: boolean): void
 }>()
 
 // purely UI controls block (no functionality wired)
@@ -38,14 +44,55 @@ const fontOptions = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Inter', value: 'Inter' },
 ]
-const sizeOptions = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28].map((n) => ({
-  label: String(n),
-  value: n,
-}))
+// Provide full range [6..72] so current value is always in options; avoids placeholder flicker
+const sizeOptions = Array.from({ length: MAX_SIZE - MIN_SIZE + 1 }, (_, i) => MIN_SIZE + i).map(
+  (n) => ({ label: String(n), value: n }),
+)
 
-// defaults: 字体默认宋体，字号默认 11
-const font = ref<string | number>('SongTi')
-const size = ref<string | number>(11)
+// Controlled props from parent (toolbar echo of active cell)
+const props = defineProps<{
+  fontFamily?: string | number
+  fontSize?: string | number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}>()
+
+// limits for font size
+const MIN_SIZE = 6
+const MAX_SIZE = 72
+const normSize = (v: unknown): number => {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return 14
+  return Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)))
+}
+
+// local states (two-way in this control, but driven by props when provided)
+const font = ref<string | number>(props.fontFamily ?? 'SongTi')
+const size = ref<number>(normSize(props.fontSize))
+const bold = ref(!!props.bold)
+const italic = ref(!!props.italic)
+const underline = ref(!!props.underline)
+const strike = ref(!!props.strikethrough)
+
+// keep in sync when parent updates
+watch(
+  () => [props.fontFamily, props.fontSize, props.bold, props.italic, props.underline, props.strikethrough],
+  ([ff, fs, b, i, u, s]) => {
+    if (ff !== undefined) font.value = ff
+    if (fs !== undefined) size.value = normSize(fs)
+    if (b !== undefined) bold.value = !!b
+    if (i !== undefined) italic.value = !!i
+    if (u !== undefined) underline.value = !!u
+    if (s !== undefined) strike.value = !!s
+  },
+)
+function emitFont() {
+  if (typeof font.value === 'string') emit('apply-font-family', font.value)
+  size.value = normSize(size.value)
+  emit('apply-font-size', size.value)
+}
 
 // Fill color state and presets (5 cols x 5 rows)
 const fillColor = ref<string>('#4b5563')
@@ -143,19 +190,39 @@ function onBorderMainClick() {
           placeholder="字体"
           :width="160"
           join="left"
+          @update:model-value="emitFont()"
         />
-        <Dropdown v-model="size" :options="sizeOptions" placeholder="11" :width="72" join="right" />
+        <Dropdown
+          v-model="size"
+          :options="sizeOptions"
+          placeholder="14"
+          :width="72"
+          join="right"
+          @update:model-value="(v:any) => { size = normSize(v); emitFont() }"
+        />
       </ToolGroup>
       <ToolGroup :gap="6">
-        <ToolItem label-position="none" aria-label="字号加"><AArrowUp :size="18" /></ToolItem>
-        <ToolItem label-position="none" aria-label="字号减"><AArrowDown :size="18" /></ToolItem>
+        <ToolItem label-position="none" aria-label="字号加" @click="() => { size = normSize((Number(size) || 14) + 1); emitFont() }"
+          ><AArrowUp :size="18"
+        /></ToolItem>
+        <ToolItem label-position="none" aria-label="字号减" @click="() => { size = normSize((Number(size) || 14) - 1); emitFont() }"
+          ><AArrowDown :size="18"
+        /></ToolItem>
       </ToolGroup>
     </ToolGroup>
     <ToolGroup :gap="6">
-      <ToolItem label-position="none" aria-label="加粗"><Bold :size="18" /></ToolItem>
-      <ToolItem label-position="none" aria-label="斜体"><Italic :size="18" /></ToolItem>
-      <ToolItem label-position="none" aria-label="下划线"><Underline :size="18" /></ToolItem>
-      <ToolItem label-position="none" aria-label="删除线"><Strikethrough :size="18" /></ToolItem>
+      <ToolItem :active="bold" label-position="none" aria-label="加粗" @click="() => { bold = !bold; emit('toggle-bold', bold) }"
+        ><Bold :size="18"
+      /></ToolItem>
+      <ToolItem :active="italic" label-position="none" aria-label="斜体" @click="() => { italic = !italic; emit('toggle-italic', italic) }"
+        ><Italic :size="18"
+      /></ToolItem>
+      <ToolItem :active="underline" label-position="none" aria-label="下划线" @click="() => { underline = !underline; emit('toggle-underline', underline) }"
+        ><Underline :size="18"
+      /></ToolItem>
+      <ToolItem :active="strike" label-position="none" aria-label="删除线" @click="() => { strike = !strike; emit('toggle-strikethrough', strike) }"
+        ><Strikethrough :size="18"
+      /></ToolItem>
       <ToolItem
         v-model="borderStyle"
         :menu-items="borderMenu"

@@ -13,6 +13,13 @@ let offSel: (() => void) | null = null
 const hasSelection = ref(false)
 const selectionLabel = ref('')
 const formula = ref('')
+// Toolbar echo states (reflect active cell style)
+const tbFontFamily = ref<string | number>('SongTi')
+const tbFontSize = ref<string | number>(14)
+const tbBold = ref(false)
+const tbItalic = ref(false)
+const tbUnderline = ref(false)
+const tbStrike = ref(false)
 
 // Configure grid size and initial cell contents here (app layer)
 const rows = ref(1000)
@@ -99,10 +106,26 @@ function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer;
     const active = api!.getActiveCell()
     if (!active) {
       formula.value = ''
+      // reset toolbar to defaults when no active cell
+      tbFontFamily.value = 'SongTi'
+      tbFontSize.value = 14
+      tbBold.value = false
+      tbItalic.value = false
+      tbUnderline.value = false
+      tbStrike.value = false
       return
     }
     const v = api!.getCellValue(active.r, active.c)
     formula.value = v == null ? '' : String(v)
+    // echo style to toolbar
+    const st = api!.getCellStyle(active.r, active.c)
+    // Echo effective style with sensible defaults when not set on the cell
+    tbFontFamily.value = st?.font?.family ?? 'SongTi'
+    tbFontSize.value = st?.font?.size ?? 14
+    tbBold.value = !!st?.font?.bold
+    tbItalic.value = !!st?.font?.italic
+    tbUnderline.value = !!st?.font?.underline
+    tbStrike.value = !!st?.font?.strikethrough
   })
 }
 
@@ -121,6 +144,32 @@ const onApplyBorder = (p: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: 
   else if (p.mode === 'outside') api.applyBorder({ mode: 'outside', width: 1, style: 'solid', color: p.color })
   else if (p.mode === 'all') api.applyBorder({ mode: 'all', width: 1, style: 'solid', color: p.color })
   else api.applyBorder({ mode: 'none' })
+}
+
+// Font controls handlers
+const onApplyFontFamily = (family: string) => {
+  api?.applyFontFamily(family)
+  tbFontFamily.value = family
+}
+const onApplyFontSize = (size: number) => {
+  api?.applyFontSize(size)
+  tbFontSize.value = size
+}
+const onToggleBold = (v: boolean) => {
+  api?.applyFontBold(v)
+  tbBold.value = v
+}
+const onToggleItalic = (v: boolean) => {
+  api?.applyFontItalic(v)
+  tbItalic.value = v
+}
+const onToggleUnderline = (v: boolean) => {
+  api?.applyFontUnderline(v)
+  tbUnderline.value = v
+}
+const onToggleStrikethrough = (v: boolean) => {
+  api?.applyFontStrikethrough(v)
+  tbStrike.value = v
 }
 
 function colName(n: number) {
@@ -267,11 +316,23 @@ function onOpenContextMenu(e: MouseEvent) {
       v-model="formula"
       :selection-text="selectionLabel"
       :disabled="!hasSelection"
+      :font-family="tbFontFamily"
+      :font-size="tbFontSize"
+      :bold="tbBold"
+      :italic="tbItalic"
+      :underline="tbUnderline"
+      :strikethrough="tbStrike"
       @submit="applyFormula"
       @merge-cells="onMergeCells"
       @unmerge-cells="onUnmergeCells"
       @apply-fill="onApplyFill"
       @apply-border="onApplyBorder"
+      @apply-font-family="onApplyFontFamily"
+      @apply-font-size="onApplyFontSize"
+      @toggle-bold="onToggleBold"
+      @toggle-italic="onToggleItalic"
+      @toggle-underline="onToggleUnderline"
+      @toggle-strikethrough="onToggleStrikethrough"
     />
     <div style="flex: 1; min-height: 0" @contextmenu="onOpenContextMenu">
       <SheetCanvas

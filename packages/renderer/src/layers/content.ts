@@ -1,6 +1,6 @@
 import type { Layer, RenderContext } from '../types/context'
 import { snapCoord, snappedRect, strokeCrispRect } from '@sheet/shared-utils'
-import { wrapTextIndices } from '@sheet/api'
+import { wrapTextIndices, fontStringFromStyle } from '@sheet/api'
 
 export class ContentLayer implements Layer {
   name = 'content'
@@ -220,6 +220,147 @@ export class ContentLayer implements Layer {
       }
       ctx.restore()
 
+      // PASS 1.7: overflow text from offscreen left anchors
+      // If a cell immediately to the left of the visible region in this row contains text
+      // and has overflow policy 'overflow' with left alignment, render its text spilling into
+      // the viewport across empty neighbors. Fixes disappearance of long text (e.g. A8) when
+      // horizontally scrolled such that the source cell is offscreen.
+      {
+        // Viewport content bounds (exclude scrollbars)
+        const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+        const viewportLeft = originX
+        const viewportRight = rc.viewport.width - vGap2
+        // Only needed if there are columns hidden to the left
+        if (visible.colStart > 0) {
+          // Helper to compute cumulative width up to column index i
+          const cumWidth = (i: number): number => {
+            let base = i * defaultColWidth
+            if (sheet.colWidths.size)
+              for (const [ci, w] of sheet.colWidths) if (ci < i) base += w - defaultColWidth
+            return base
+          }
+          // Find the rightmost non-empty anchor cell to the left that could overflow
+          let anchorC = -1
+          let anchorMerge: ReturnType<typeof sheet.getMergeAt> | null = null
+          // Scan left from the first visible column - 1
+          for (let scanC = visible.colStart - 1; scanC >= 0; ) {
+            const m = sheet.getMergeAt(r, scanC)
+            // Jump to top-left of the merge to avoid re-processing interior cells
+            const topLeftC = m && m.r === r ? m.c : scanC
+            const v = sheet.getValueAt(r, topLeftC)
+            const hasVal = v != null && (typeof v !== 'string' || v.length > 0)
+            if (hasVal) {
+              anchorC = topLeftC
+              anchorMerge = m && m.r === r ? m : null
+              break
+            }
+            // Move left: if inside a merge, skip the whole span at once
+            if (m && m.r === r) scanC = m.c - 1
+            else scanC -= 1
+          }
+
+          if (anchorC >= 0) {
+            const cell = sheet.getCell(r, anchorC)
+            const style = sheet.getStyle(cell?.styleId)
+            const raw = cell?.value != null ? String(cell.value) : ''
+            const wrap = style?.alignment?.wrapText ?? false
+            const halign = style?.alignment?.horizontal ?? 'left'
+            const overflow = style?.alignment?.overflow ?? 'overflow'
+            // Only paint overflow for single-line, left-aligned, overflow policy
+            if (!wrap && overflow === 'overflow' && halign === 'left' && raw) {
+              // Compute anchor geometry in pixel space
+              const anchorLeftX = originX + cumWidth(anchorC) - rc.scroll.x
+              let anchorW = sheet.colWidths.get(anchorC) ?? defaultColWidth
+              if (anchorMerge) {
+                anchorW = 0
+                for (let cc = anchorMerge.c; cc < anchorMerge.c + anchorMerge.cols; cc++)
+                  anchorW += sheet.colWidths.get(cc) ?? defaultColWidth
+              }
+              const anchorRightX = anchorLeftX + anchorW
+              // Determine right limit for overflow: stop at the first non-empty/editing cell
+              let overflowRightLimitX = viewportRight
+              let curX = anchorRightX
+              let scanC = anchorMerge ? anchorMerge.c + anchorMerge.cols : anchorC + 1
+              const isRowEditing =
+                !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
+              while (scanC < sheet.cols) {
+                const isAnchorHere = isRowEditing && rc.editor!.c === scanC
+                const vHere = sheet.getValueAt(r, scanC)
+                const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
+                if ((hasValHere || isAnchorHere) && !isAnchorHere) {
+                  overflowRightLimitX = Math.min(overflowRightLimitX, curX)
+                  break
+                }
+                const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
+                curX += w2
+                if (curX >= viewportRight) break
+                scanC++
+              }
+
+              // Setup text style to measure/draw accurately
+              if (style?.font) {
+                const size = style.font.size ?? 14
+                const family =
+                  style.font.family ??
+                  'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                const weight = style.font.bold ? 'bold' : 'normal'
+                const italic = style.font.italic ? 'italic ' : ''
+                ctx.font = `${italic}${weight} ${size}px ${family}`
+              } else {
+                ctx.font =
+                  'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+              }
+              ctx.fillStyle = style?.font?.color ?? '#111827'
+              ctx.textAlign = 'left'
+              // vertical alignment
+              const valign = style?.alignment?.vertical ?? 'middle'
+              let ty = y + baseH / 2
+              if (valign === 'top') {
+                ctx.textBaseline = 'top'
+                ty = y + 3
+              } else if (valign === 'bottom') {
+                ctx.textBaseline = 'bottom'
+                ty = y + baseH - 3
+              } else {
+                ctx.textBaseline = 'middle'
+              }
+
+              const tx = anchorLeftX + 4
+              const textW = this.measureTextCached(ctx, raw)
+              const desiredRight = tx + textW + 2
+              const allowedRight =
+                overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
+              const finalRight = Math.min(desiredRight, allowedRight)
+
+              // Clip region: viewport minus optional editor anchor box
+              let didCustomClip = false
+              const avoidEditorSpan = isRowEditing && editSpanStartX >= 0
+              if (avoidEditorSpan && editAnchorLeftX >= 0 && editAnchorRightX >= 0) {
+                const beforeW = Math.max(0, Math.floor(editAnchorLeftX) - (Math.floor(viewportLeft) + 1))
+                const afterStart = Math.max(editAnchorRightX + 1, viewportLeft + 1)
+                const afterW = Math.max(0, Math.floor(finalRight) - Math.floor(afterStart))
+                ctx.save()
+                ctx.beginPath()
+                if (beforeW > 0) ctx.rect(viewportLeft + 1, y + 1, beforeW, Math.max(0, baseH - 2))
+                if (afterW > 0) ctx.rect(Math.floor(afterStart), y + 1, afterW, Math.max(0, baseH - 2))
+                ctx.clip()
+                didCustomClip = true
+              }
+              if (!didCustomClip) {
+                ctx.save()
+                ctx.beginPath()
+                const clipLeft = Math.floor(viewportLeft) + 1
+                const clipW = Math.max(0, Math.floor(finalRight) - clipLeft)
+                ctx.rect(clipLeft, y + 1, clipW, Math.max(0, baseH - 2))
+                ctx.clip()
+              }
+              ctx.fillText(raw, tx, ty)
+              ctx.restore()
+            }
+          }
+        }
+      }
+
       // PASS 2: text
         x = originX - visible.offsetX
         for (let c = visible.colStart; c <= visible.colEnd; c++) {
@@ -248,16 +389,8 @@ export class ContentLayer implements Layer {
 
           // Do not draw text for the editing anchor here; editor layer is responsible for it
           if (txt && !isEditingAnchor) {
-            // font
-            if (style?.font) {
-              const size = style.font.size ?? 14
-              const family =
-                style.font.family ??
-                'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
-              const weight = style.font.bold ? 'bold' : 'normal'
-              const italic = style.font.italic ? 'italic ' : ''
-              ctx.font = `${italic}${weight} ${size}px ${family}`
-            }
+          // Always set font and color per cell to avoid bleeding styles into neighbors
+          ctx.font = fontStringFromStyle(style?.font, 14)
           ctx.fillStyle = style?.font?.color ?? '#111827'
           // alignment & flow
           const halign = style?.alignment?.horizontal ?? 'left'
@@ -361,6 +494,31 @@ export class ContentLayer implements Layer {
               if (halign === 'center') lx = x + drawW / 2
               else if (halign === 'right') lx = x + drawW - 4
               ctx.fillText(run, lx, cursorY)
+              // Decorations: underline/strikethrough per line
+              if (style?.font?.underline || style?.font?.strikethrough) {
+                const wRun = this.measureTextCached(ctx, run)
+                const uY = cursorY + Math.max(1, Math.round(sizePx * 0.85))
+                const sY = cursorY + Math.max(1, Math.round(sizePx * 0.45))
+                ctx.save()
+                ctx.beginPath()
+                ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
+                ctx.clip()
+                ctx.strokeStyle = style?.font?.color ?? '#111827'
+                ctx.lineWidth = 1
+                if (style?.font?.underline) {
+                  ctx.beginPath()
+                  ctx.moveTo(lx, uY)
+                  ctx.lineTo(lx + wRun, uY)
+                  ctx.stroke()
+                }
+                if (style?.font?.strikethrough) {
+                  ctx.beginPath()
+                  ctx.moveTo(lx, sY)
+                  ctx.lineTo(lx + wRun, sY)
+                  ctx.stroke()
+                }
+                ctx.restore()
+              }
               cursorY += lineH
             }
             ctx.restore()
@@ -394,7 +552,10 @@ export class ContentLayer implements Layer {
               rc.editor.r === r &&
               rc.editor.selStart != null &&
               rc.editor.selEnd != null
-            const avoidEditorSpan = isRowEditing && c !== editAnchorC && editSpanStartX >= 0
+            // Only carve a custom two-segment clip for overflow policy.
+            // For 'clip' or 'ellipsis', keep the normal per-cell clip so text does not escape its box.
+            const avoidEditorSpan =
+              overflow === 'overflow' && isRowEditing && c !== editAnchorC && editSpanStartX >= 0
             let didCustomClip = false
             if (avoidEditorSpan && editAnchorLeftX >= 0 && editAnchorRightX >= 0) {
               const cellLeft = x
@@ -437,6 +598,16 @@ export class ContentLayer implements Layer {
               ctx.beginPath()
               ctx.rect(x + 1, y + 1, interiorClipW, Math.max(0, drawH - 2))
               ctx.clip()
+            } else if (!didCustomClip && !doClipPolicy) {
+              // Ensure we always clip vertically to the cell height to prevent vertical overflow,
+              // while not restricting horizontal overflow (allow until viewport right).
+              ctx.save()
+              ctx.beginPath()
+              const vGap3 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+              const vpRight = rc.viewport.width - vGap3
+              const wideW = Math.max(0, Math.floor(vpRight - (x + 1)))
+              ctx.rect(x + 1, y + 1, wideW, Math.max(0, drawH - 2))
+              ctx.clip()
             }
             let out = txt
             if (overflow === 'ellipsis' && maxW > 0) {
@@ -447,7 +618,52 @@ export class ContentLayer implements Layer {
               }
             }
             ctx.fillText(out, tx, ty)
-            if (didCustomClip || (!didCustomClip && doClipPolicy)) ctx.restore()
+            // Decorations for single-line
+            if (style?.font?.underline || style?.font?.strikethrough) {
+              // approximate text width of what we drew
+              const drawnW = this.measureTextCached(ctx, out)
+              const sizePx2 = style?.font?.size ?? 14
+              // compute baseline-relative Y for decorations
+              let uY = ty + Math.max(1, Math.round(sizePx2 * 0.1))
+              let sY = ty - Math.max(1, Math.round(sizePx2 * 0.35))
+              // adjust for non-alphabetic baselines
+              if ((ctx.textBaseline as any) === 'top') {
+                uY = ty + Math.max(1, Math.round(sizePx2 * 0.85))
+                sY = ty + Math.max(1, Math.round(sizePx2 * 0.45))
+              } else if ((ctx.textBaseline as any) === 'bottom') {
+                uY = ty - Math.max(1, Math.round(sizePx2 * 0.05))
+                sY = ty - Math.max(1, Math.round(sizePx2 * 0.55))
+              }
+              ctx.save()
+              // keep same clip as text
+              if (didCustomClip || (!didCustomClip && doClipPolicy)) {
+                // already clipped
+              } else {
+                ctx.beginPath()
+                ctx.rect(x + 1, y + 1, interiorClipW, Math.max(0, drawH - 2))
+                ctx.clip()
+              }
+              ctx.strokeStyle = style?.font?.color ?? '#111827'
+              ctx.lineWidth = 1
+              // Compute start X for line matching text alignment
+              let lineL = tx
+              if (halign === 'center') lineL = tx - drawnW / 2
+              else if (halign === 'right') lineL = tx - drawnW
+              if (style?.font?.underline) {
+                ctx.beginPath()
+                ctx.moveTo(lineL, uY)
+                ctx.lineTo(lineL + drawnW, uY)
+                ctx.stroke()
+              }
+              if (style?.font?.strikethrough) {
+                ctx.beginPath()
+                ctx.moveTo(lineL, sY)
+                ctx.lineTo(lineL + drawnW, sY)
+                ctx.stroke()
+              }
+              ctx.restore()
+            }
+            ctx.restore()
           }
           } // end precise path
         }

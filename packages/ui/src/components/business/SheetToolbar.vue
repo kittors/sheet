@@ -3,12 +3,28 @@ import { Paintbrush, ClipboardPaste, Copy, Combine, Split } from 'lucide-vue-nex
 import ToolItem from '../common/ToolItem.vue'
 import ToolGroup from '../common/ToolGroup.vue'
 import FontControls from './FontControls.vue'
+// Props drive toolbar echo from active cell style
+const props = defineProps<{
+  fontFamily?: string | number
+  fontSize?: string | number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}>()
+
 // Emits: merge/unmerge and styling commands upward to layout/app
 const emit = defineEmits<{
   (e: 'merge-cells'): void
   (e: 'unmerge-cells'): void
   (e: 'apply-fill', color: string): void
   (e: 'apply-border', payload: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }): void
+  (e: 'apply-font-family', family: string): void
+  (e: 'apply-font-size', size: number): void
+  (e: 'toggle-bold', enabled: boolean): void
+  (e: 'toggle-italic', enabled: boolean): void
+  (e: 'toggle-underline', enabled: boolean): void
+  (e: 'toggle-strikethrough', enabled: boolean): void
 }>()
 </script>
 
@@ -34,7 +50,22 @@ const emit = defineEmits<{
     <div class="vsep"></div>
 
     <!-- 字体控制块：上下 group（上：两个下拉紧贴；下：四个样式icon） -->
-    <FontControls @apply-fill="(c) => emit('apply-fill', c)" @apply-border="(p) => emit('apply-border', p)" />
+    <FontControls
+      :font-family="props.fontFamily"
+      :font-size="props.fontSize"
+      :bold="props.bold"
+      :italic="props.italic"
+      :underline="props.underline"
+      :strikethrough="props.strikethrough"
+      @apply-fill="(c) => emit('apply-fill', c)"
+      @apply-border="(p) => emit('apply-border', p)"
+      @apply-font-family="(f) => emit('apply-font-family', f)"
+      @apply-font-size="(s) => emit('apply-font-size', s)"
+      @toggle-bold="(v) => emit('toggle-bold', v)"
+      @toggle-italic="(v) => emit('toggle-italic', v)"
+      @toggle-underline="(v) => emit('toggle-underline', v)"
+      @toggle-strikethrough="(v) => emit('toggle-strikethrough', v)"
+    />
 
     <!-- 合并/取消合并 -->
     <div class="vsep"></div>
