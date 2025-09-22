@@ -114,20 +114,23 @@ export function createAutoScroll(
     const curve = (r: number) => r * r // ease-in
     let targetVX = 0,
       targetVY = 0
+    // Trigger auto-scroll when the pointer is within a soft margin INSIDE the content area,
+    // not only when it crosses into the scrollbar tracks. The previous +/-1px thresholds
+    // required the pointer to be virtually on top of the scrollbar, which felt unresponsive.
     if (state.dragMode === 'select' || state.dragMode === 'colheader') {
-      if (x > rightBound - 1) {
+      if (x > rightBound - margin) {
         const r = Math.min(1, (x - (rightBound - margin)) / margin)
         targetVX = maxV * curve(Math.max(0, r))
-      } else if (x < leftBound + 1) {
+      } else if (x < leftBound + margin) {
         const r = Math.min(1, (leftBound + margin - x) / margin)
         targetVX = -maxV * curve(Math.max(0, r))
       }
     }
     if (state.dragMode === 'select' || state.dragMode === 'rowheader') {
-      if (y > bottomBound - 1) {
+      if (y > bottomBound - margin) {
         const r = Math.min(1, (y - (bottomBound - margin)) / margin)
         targetVY = maxV * curve(Math.max(0, r))
-      } else if (y < topBound + 1) {
+      } else if (y < topBound + margin) {
         const r = Math.min(1, (topBound + margin - y) / margin)
         targetVY = -maxV * curve(Math.max(0, r))
       }
