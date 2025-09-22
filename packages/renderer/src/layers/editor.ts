@@ -204,6 +204,27 @@ export class EditorLayer implements Layer {
           ctx.fillStyle = textColor
         }
         ctx.fillText(run, tx, cursorY2)
+        // Decorations: underline/strikethrough per wrapped line
+        if (style?.font?.underline || style?.font?.strikethrough) {
+          const sizePx = style?.font?.size ?? 14
+          const wRun = ctx.measureText(run).width
+          const uY = cursorY2 + Math.max(1, Math.round(sizePx * 0.85))
+          const sY = cursorY2 + Math.max(1, Math.round(sizePx * 0.45))
+          ctx.strokeStyle = style?.font?.color ?? '#111827'
+          ctx.lineWidth = 1
+          if (style?.font?.underline) {
+            ctx.beginPath()
+            ctx.moveTo(tx, uY)
+            ctx.lineTo(tx + wRun, uY)
+            ctx.stroke()
+          }
+          if (style?.font?.strikethrough) {
+            ctx.beginPath()
+            ctx.moveTo(tx, sY)
+            ctx.lineTo(tx + wRun, sY)
+            ctx.stroke()
+          }
+        }
         cursorY2 += lineH
       }
     } else {
@@ -240,6 +261,33 @@ export class EditorLayer implements Layer {
         ctx.fillStyle = textColor
       }
       ctx.fillText(textToDraw, tx, ty)
+      // Decorations for single-line while editing (use baseline-derived top like content layer)
+      if (style?.font?.underline || style?.font?.strikethrough) {
+        const drawnW = ctx.measureText(textToDraw).width
+        const sizePx2 = style?.font?.size ?? 14
+        let topY: number
+        const base = (ctx.textBaseline as any) || 'alphabetic'
+        if (base === 'top') topY = ty
+        else if (base === 'bottom') topY = ty - sizePx2
+        else if (base === 'middle') topY = ty - sizePx2 * 0.5
+        else topY = ty - sizePx2 * 0.85
+        const uY = topY + Math.max(1, Math.round(sizePx2 * 0.85))
+        const sY = topY + Math.max(1, Math.round(sizePx2 * 0.45))
+        ctx.strokeStyle = style?.font?.color ?? '#111827'
+        ctx.lineWidth = 1
+        if (style?.font?.underline) {
+          ctx.beginPath()
+          ctx.moveTo(tx, uY)
+          ctx.lineTo(tx + drawnW, uY)
+          ctx.stroke()
+        }
+        if (style?.font?.strikethrough) {
+          ctx.beginPath()
+          ctx.moveTo(tx, sY)
+          ctx.lineTo(tx + drawnW, sY)
+          ctx.stroke()
+        }
+      }
     }
     ctx.restore()
 
@@ -280,7 +328,7 @@ export class EditorLayer implements Layer {
         rc.editor.selStart !== rc.editor.selEnd
       )
     ) {
-      const caretHeight = 16
+      const caretHeight = lineH
       // Clamp caret within clip region
       if (!wrap) {
         // Recompute the same right bound used above

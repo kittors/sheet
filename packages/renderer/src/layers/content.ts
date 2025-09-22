@@ -287,7 +287,7 @@ export class ContentLayer implements Layer {
                 const isAnchorHere = isRowEditing && rc.editor!.c === scanC
                 const vHere = sheet.getValueAt(r, scanC)
                 const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
-                if ((hasValHere || isAnchorHere) && !isAnchorHere) {
+                if (hasValHere || isAnchorHere) {
                   overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                   break
                 }
@@ -332,29 +332,42 @@ export class ContentLayer implements Layer {
                 overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
               const finalRight = Math.min(desiredRight, allowedRight)
 
-              // Clip region: viewport minus optional editor anchor box
-              let didCustomClip = false
-              const avoidEditorSpan = isRowEditing && editSpanStartX >= 0
-              if (avoidEditorSpan && editAnchorLeftX >= 0 && editAnchorRightX >= 0) {
-                const beforeW = Math.max(0, Math.floor(editAnchorLeftX) - (Math.floor(viewportLeft) + 1))
-                const afterStart = Math.max(editAnchorRightX + 1, viewportLeft + 1)
-                const afterW = Math.max(0, Math.floor(finalRight) - Math.floor(afterStart))
-                ctx.save()
-                ctx.beginPath()
-                if (beforeW > 0) ctx.rect(viewportLeft + 1, y + 1, beforeW, Math.max(0, baseH - 2))
-                if (afterW > 0) ctx.rect(Math.floor(afterStart), y + 1, afterW, Math.max(0, baseH - 2))
-                ctx.clip()
-                didCustomClip = true
-              }
-              if (!didCustomClip) {
-                ctx.save()
-                ctx.beginPath()
-                const clipLeft = Math.floor(viewportLeft) + 1
-                const clipW = Math.max(0, Math.floor(finalRight) - clipLeft)
-                ctx.rect(clipLeft, y + 1, clipW, Math.max(0, baseH - 2))
-                ctx.clip()
-              }
+              // Clip region: viewport left to the computed finalRight (do not pass the editor anchor)
+              ctx.save()
+              ctx.beginPath()
+              const clipLeft = Math.floor(viewportLeft) + 1
+              const clipW = Math.max(0, Math.floor(finalRight) - clipLeft)
+              ctx.rect(clipLeft, y + 1, clipW, Math.max(0, baseH - 2))
+              ctx.clip()
+              // Draw the text and its decorations within the same clip region
               ctx.fillText(raw, tx, ty)
+              if (style?.font?.underline || style?.font?.strikethrough) {
+                const drawnW = this.measureTextCached(ctx, raw)
+                const sizePx2 = style?.font?.size ?? 14
+                // Derive a top-edge Y from current baseline (consistent with single-line path)
+                let topY: number
+                const base = (ctx.textBaseline as any) || 'alphabetic'
+                if (base === 'top') topY = ty
+                else if (base === 'bottom') topY = ty - sizePx2
+                else if (base === 'middle') topY = ty - sizePx2 * 0.5
+                else topY = ty - sizePx2 * 0.85
+                const uY = topY + Math.max(1, Math.round(sizePx2 * 0.85))
+                const sY = topY + Math.max(1, Math.round(sizePx2 * 0.45))
+                ctx.strokeStyle = style?.font?.color ?? '#111827'
+                ctx.lineWidth = 1
+                if (style?.font?.underline) {
+                  ctx.beginPath()
+                  ctx.moveTo(tx, uY)
+                  ctx.lineTo(tx + drawnW, uY)
+                  ctx.stroke()
+                }
+                if (style?.font?.strikethrough) {
+                  ctx.beginPath()
+                  ctx.moveTo(tx, sY)
+                  ctx.lineTo(tx + drawnW, sY)
+                  ctx.stroke()
+                }
+              }
               ctx.restore()
             }
           }
@@ -428,9 +441,7 @@ export class ContentLayer implements Layer {
             ? 'overflow'
             : (style?.alignment?.overflow ?? 'overflow')
 
-          // Compute dynamic right stop for overflow so that any occupied cell to the right is preserved.
-          // When the row is in editing mode, do NOT treat the anchor cell itself as a blocker for
-          // overflow coming from cells to its left; only exclude the anchor cell area.
+            // Compute dynamic right stop for overflow so that any occupied or editing cell to the right is preserved.
           const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
           const viewportRight = rc.viewport.width - vGap2
           let overflowRightLimitX = viewportRight
@@ -443,7 +454,7 @@ export class ContentLayer implements Layer {
               const isAnchorHere = rowEditing2 && rc.editor!.c === scanC
               const vHere = sheet.getValueAt(r, scanC)
               const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
-              if ((hasValHere || isAnchorHere) && !isAnchorHere) {
+              if (hasValHere || isAnchorHere) {
                 overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                 break
               }
@@ -554,45 +565,9 @@ export class ContentLayer implements Layer {
               rc.editor.selEnd != null
             // Only carve a custom two-segment clip for overflow policy.
             // For 'clip' or 'ellipsis', keep the normal per-cell clip so text does not escape its box.
-            const avoidEditorSpan =
-              overflow === 'overflow' && isRowEditing && c !== editAnchorC && editSpanStartX >= 0
+            // Treat the active editor cell as a hard blocker for overflow from the left.
+            // Do not carve holes to allow overflow to continue after the editor.
             let didCustomClip = false
-            if (avoidEditorSpan && editAnchorLeftX >= 0 && editAnchorRightX >= 0) {
-              const cellLeft = x
-              const cellRight = x + drawW
-              // Case 1: cell lies wholly to the left of the anchor -> carve a hole for the anchor box
-              if (cellRight <= editAnchorLeftX) {
-                ctx.save()
-                ctx.beginPath()
-                // segment before anchor
-                const seg1W = Math.max(0, editAnchorLeftX - cellLeft - 2)
-                if (seg1W > 0) ctx.rect(cellLeft + 1, y + 1, seg1W, Math.max(0, drawH - 2))
-                // segment after anchor up to the next blocker (editSpanEndX)
-                const afterStart = Math.max(editAnchorRightX + 1, cellLeft + 1)
-                const afterEnd = Math.max(afterStart, Math.floor(editSpanEndX) - 1)
-                const seg2W = Math.max(0, afterEnd - afterStart)
-                if (seg2W > 0)
-                  ctx.rect(afterStart, y + 1, seg2W, Math.max(0, drawH - 2))
-                ctx.clip()
-                didCustomClip = true
-              } else {
-                // Case 2: generic: subtract only the overlap with anchor box if any
-                const ovLeft = Math.max(cellLeft, editAnchorLeftX)
-                const ovRight = Math.min(cellRight, editAnchorRightX)
-                if (ovRight > ovLeft) {
-                  ctx.save()
-                  ctx.beginPath()
-                  const leftW = Math.max(0, ovLeft - cellLeft)
-                  if (leftW > 1)
-                    ctx.rect(cellLeft + 1, y + 1, Math.max(0, leftW - 2), Math.max(0, drawH - 2))
-                  const rightW = Math.max(0, cellRight - ovRight)
-                  if (rightW > 1)
-                    ctx.rect(ovRight + 1, y + 1, Math.max(0, rightW - 2), Math.max(0, drawH - 2))
-                  ctx.clip()
-                  didCustomClip = true
-                }
-              }
-            }
             if (!didCustomClip && doClipPolicy) {
               ctx.save()
               ctx.beginPath()
@@ -605,7 +580,10 @@ export class ContentLayer implements Layer {
               ctx.beginPath()
               const vGap3 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
               const vpRight = rc.viewport.width - vGap3
-              const wideW = Math.max(0, Math.floor(vpRight - (x + 1)))
+              // If overflow is active and we computed a right limit, respect it; otherwise go to viewport right
+              const rightX =
+                overflow === 'overflow' && halign === 'left' ? Math.min(vpRight, overflowRightLimitX) : vpRight
+              const wideW = Math.max(0, Math.floor(rightX - (x + 1)))
               ctx.rect(x + 1, y + 1, wideW, Math.max(0, drawH - 2))
               ctx.clip()
             }
@@ -623,26 +601,21 @@ export class ContentLayer implements Layer {
               // approximate text width of what we drew
               const drawnW = this.measureTextCached(ctx, out)
               const sizePx2 = style?.font?.size ?? 14
-              // compute baseline-relative Y for decorations
-              let uY = ty + Math.max(1, Math.round(sizePx2 * 0.1))
-              let sY = ty - Math.max(1, Math.round(sizePx2 * 0.35))
-              // adjust for non-alphabetic baselines
-              if ((ctx.textBaseline as any) === 'top') {
-                uY = ty + Math.max(1, Math.round(sizePx2 * 0.85))
-                sY = ty + Math.max(1, Math.round(sizePx2 * 0.45))
-              } else if ((ctx.textBaseline as any) === 'bottom') {
-                uY = ty - Math.max(1, Math.round(sizePx2 * 0.05))
-                sY = ty - Math.max(1, Math.round(sizePx2 * 0.55))
-              }
+              // Derive a top-edge Y from current baseline so we can use
+              // consistent top-relative offsets (matches the multiline path)
+              let topY: number
+              const base = (ctx.textBaseline as any) || 'alphabetic'
+              if (base === 'top') topY = ty
+              else if (base === 'bottom') topY = ty - sizePx2
+              else if (base === 'middle') topY = ty - sizePx2 * 0.5
+              else /* alphabetic and others */ topY = ty - sizePx2 * 0.85
+              const uY = topY + Math.max(1, Math.round(sizePx2 * 0.85))
+              const sY = topY + Math.max(1, Math.round(sizePx2 * 0.45))
               ctx.save()
-              // keep same clip as text
-              if (didCustomClip || (!didCustomClip && doClipPolicy)) {
-                // already clipped
-              } else {
-                ctx.beginPath()
-                ctx.rect(x + 1, y + 1, interiorClipW, Math.max(0, drawH - 2))
-                ctx.clip()
-              }
+              // Keep the same clip region as used for the text above.
+              // We already set a clip in all cases (custom/tight or wide-to-viewport),
+              // so do not re-clip here; otherwise decorations would be wrongly cut off
+              // at the cell boundary and disappear when only the overflow area is visible.
               ctx.strokeStyle = style?.font?.color ?? '#111827'
               ctx.lineWidth = 1
               // Compute start X for line matching text alignment
