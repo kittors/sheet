@@ -57,6 +57,92 @@ sheet.setValue(10, 0, 'Wrap: ' + longText)
 sheet.setCellStyle(10, 0, styleWrap)
 sheet.setRowHeight(10, 72)
 
+// ---------- Demo: Font styles (size/bold/italic/underline/strikethrough) ----------
+// Place a small showcase starting at row 12
+sheet.setValue(12, 0, '字体 Demo')
+const stBold = sheet.defineStyle({ font: { bold: true } })
+const stItalic = sheet.defineStyle({ font: { italic: true } })
+const stUnderline = sheet.defineStyle({ font: { underline: true } })
+const stStrike = sheet.defineStyle({ font: { strikethrough: true } })
+const st12 = sheet.defineStyle({ font: { size: 12 } })
+const st14 = sheet.defineStyle({ font: { size: 14 } })
+const st18 = sheet.defineStyle({ font: { size: 18 } })
+const st24 = sheet.defineStyle({ font: { size: 24 } })
+const stAll18 = sheet.defineStyle({ font: { size: 18, bold: true, italic: true, underline: true, strikethrough: true } })
+
+sheet.setValue(13, 0, '12px 正常')
+sheet.setCellStyle(13, 0, st12)
+sheet.setValue(13, 1, '14px 粗体')
+sheet.setCellStyle(13, 1, sheet.defineStyle({ font: { size: 14, bold: true } }))
+sheet.setValue(13, 2, '18px 斜体')
+sheet.setCellStyle(13, 2, sheet.defineStyle({ font: { size: 18, italic: true } }))
+sheet.setValue(13, 3, '24px 下划线')
+sheet.setCellStyle(13, 3, sheet.defineStyle({ font: { size: 24, underline: true } }))
+sheet.setValue(13, 4, '18px 删除线')
+sheet.setCellStyle(13, 4, sheet.defineStyle({ font: { size: 18, strikethrough: true } }))
+sheet.setValue(14, 0, '综合：粗斜下删 18px')
+sheet.setCellStyle(14, 0, stAll18)
+
+// ---------- Demo: Alignment (horizontal/vertical) ----------
+sheet.setValue(16, 0, '对齐 Demo')
+// Make 3 rows higher to see vertical alignment
+sheet.setRowHeight(17, 40)
+sheet.setRowHeight(18, 40)
+sheet.setRowHeight(19, 40)
+sheet.setValue(17, 1, '左上')
+sheet.setCellStyle(17, 1, sheet.defineStyle({ alignment: { horizontal: 'left', vertical: 'top' } }))
+sheet.setValue(18, 1, '水平居中/垂直中')
+sheet.setCellStyle(18, 1, sheet.defineStyle({ alignment: { horizontal: 'center', vertical: 'middle' } }))
+sheet.setValue(19, 1, '右下')
+sheet.setCellStyle(19, 1, sheet.defineStyle({ alignment: { horizontal: 'right', vertical: 'bottom' } }))
+
+// ---------- Demo: Merged cells ----------
+// Style existing merges and add a visible fill to emphasize
+const mergeTitle = sheet.defineStyle({ alignment: { horizontal: 'center', vertical: 'middle' }, font: { bold: true }, fill: { backgroundColor: '#f3f4f6' } })
+sheet.setValue(0, 0, '合并 A1:C2')
+sheet.setCellStyle(0, 0, mergeTitle)
+sheet.setValue(4, 0, 'A5:B5 合并')
+sheet.setCellStyle(4, 0, mergeTitle)
+sheet.setValue(0, 5, 'F1:F3 合并')
+sheet.setCellStyle(0, 5, mergeTitle)
+
+// ---------- Demo: Borders ----------
+// Helper to apply a border style to a rectangular region; interior sides dedupe in renderer
+function applyRegionBorder(r0: number, c0: number, r1: number, c1: number, cfg: { color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }) {
+  const color = cfg.color ?? '#111827'
+  const width = Math.max(1, Math.floor(cfg.width ?? 1))
+  const style = cfg.style ?? 'solid'
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const top = r === r0
+      const bottom = r === r1
+      const left = c === c0
+      const right = c === c1
+      const sides = cfg.outsideOnly
+        ? { top: top ? { color, width, style } : undefined, bottom: bottom ? { color, width, style } : undefined, left: left ? { color, width, style } : undefined, right: right ? { color, width, style } : undefined }
+        : { top: { color, width, style }, bottom: { color, width, style }, left: { color, width, style }, right: { color, width, style } }
+      const id = sheet.defineStyle({ border: sides })
+      sheet.setCellStyle(r, c, id)
+    }
+  }
+}
+
+// Area 1: 全部边框（细实线） C4:F7
+sheet.setValue(3, 2, '全部边框 (C4:F7)')
+applyRegionBorder(3, 2, 6, 5, { color: '#111827', width: 1, style: 'solid', outsideOnly: false })
+
+// Area 2: 外边框（粗实线） H4:K7
+sheet.setValue(3, 7, '外边框 (H4:K7)')
+applyRegionBorder(3, 7, 6, 10, { color: '#111827', width: 2, style: 'solid', outsideOnly: true })
+
+// Area 3: 虚线网格（蓝色） C9:F12
+sheet.setValue(8, 2, '虚线网格 (C9:F12)')
+applyRegionBorder(8, 2, 11, 5, { color: '#3b82f6', width: 1, style: 'dashed', outsideOnly: false })
+
+// Area 4: 点线网格（红色） H9:K12
+sheet.setValue(8, 7, '点线网格 (H9:K12)')
+applyRegionBorder(8, 7, 11, 10, { color: '#ef4444', width: 1, style: 'dotted', outsideOnly: false })
+
 // App-level size configuration: define a few custom column widths and row heights
 // Adjust or externalize as needed (e.g., from settings or persisted user prefs)
 const initialColWidths: Array<{ index: number; width: number }> = [
