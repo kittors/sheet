@@ -12,7 +12,7 @@ export interface ScrollState {
 }
 
 export interface RenderContext {
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement | OffscreenCanvas
   ctx: CanvasRenderingContext2D
   dpr: number
   viewport: Viewport
@@ -64,6 +64,15 @@ export interface RenderContext {
   headerLabels?: {
     col?: (index: number) => string
     row?: (index: number) => string
+  }
+  // Optional: precomputed merge boundary blockers for grid lines
+  gridBlockers?: {
+    v: Map<number, Set<number>> // row -> set of vertical boundaries b inside merges
+    h: Map<number, Set<number>> // col -> set of horizontal boundaries b inside merges
+  }
+  // performance hints: renderer may enable lightweight drawing while fast scrolling
+  perf?: {
+    fast: boolean
   }
   // optional in-place editor overlay
   editor?: {

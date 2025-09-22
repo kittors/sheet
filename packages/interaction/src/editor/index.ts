@@ -91,7 +91,8 @@ export function createEditor(
     updateImePosition()
   }
 
-  function updateImePosition() {
+  let imePosToken = 0
+  async function updateImePosition() {
     // ensure host exists
     const ta = ime.ensure()
     const ed = state.editor
@@ -111,7 +112,9 @@ export function createEditor(
       hideIme()
       return
     }
-    const geom = computeImeGeometry(ctx, state, src)
+    const myTok = ++imePosToken
+    const geom = await computeImeGeometry(ctx, state, src)
+    if (myTok !== imePosToken) return
     placeImeHost(ctx, ta, geom)
   }
 

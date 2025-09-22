@@ -1,9 +1,20 @@
 import type { Context } from './types'
 
+type CachedMetrics = ReturnType<Context['renderer']['getViewportMetrics']>
+
 export function computeAvailViewport(ctx: Context) {
   const { canvas, sheet, metrics } = ctx
+  // Fast path: trust renderer's cached metrics when available to avoid layout reads
+  const cached: CachedMetrics =
+    typeof ctx.renderer?.getViewportMetrics === 'function'
+      ? ctx.renderer.getViewportMetrics()
+      : null
+  if (cached) return cached
+
+  // Fallback path (e.g., before first render): compute from DOM sizes
   const viewW = canvas.clientWidth
   const viewH = canvas.clientHeight
+
   const baseW = Math.max(0, viewW - metrics.headerColWidth)
   const baseH = Math.max(0, viewH - metrics.headerRowHeight)
   const contentWidth =
@@ -36,5 +47,16 @@ export function computeAvailViewport(ctx: Context) {
     vScrollable = nextV
     hScrollable = nextHFlag
   }
-  return { widthAvail, heightAvail, contentWidth, contentHeight }
+  const maxScrollX = Math.max(0, contentWidth - widthAvail)
+  const maxScrollY = Math.max(0, contentHeight - heightAvail)
+  return {
+    widthAvail,
+    heightAvail,
+    contentWidth,
+    contentHeight,
+    maxScrollX,
+    maxScrollY,
+    viewportWidth: viewW,
+    viewportHeight: viewH,
+  }
 }

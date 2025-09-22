@@ -22,6 +22,17 @@ export interface HeaderLabels {
   row?: (index: number) => string
 }
 
+export interface ViewportMetrics {
+  widthAvail: number
+  heightAvail: number
+  contentWidth: number
+  contentHeight: number
+  maxScrollX: number
+  maxScrollY: number
+  viewportWidth: number
+  viewportHeight: number
+}
+
 export interface RendererOptions {
   defaultRowHeight?: number
   defaultColWidth?: number
@@ -32,10 +43,12 @@ export interface RendererOptions {
   scrollbarThumbMinSize?: number
   headerStyle?: Partial<HeaderStyle>
   headerLabels?: HeaderLabels
+  // Optional: override device pixel ratio (for OffscreenCanvas workers)
+  dpr?: number
 }
 
 export class CanvasRenderer {
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement | OffscreenCanvas
   ctx: CanvasRenderingContext2D
   dpr: number
   layers: Layer[]
@@ -62,14 +75,30 @@ export class CanvasRenderer {
     hThumb: { x: number; y: number; w: number; h: number } | null
   } = { vTrack: null, vThumb: null, hTrack: null, hThumb: null }
   scrollbarState = { vHover: false, hHover: false, vActive: false, hActive: false }
+  private viewportMetrics: ViewportMetrics | null = null
+  private lastRenderTs = 0
+  private lastRenderScrollX = 0
+  private lastRenderScrollY = 0
+  private logicalW = 1
+  private logicalH = 1
+  // Keep fast-scrolling sticky for a short window to avoid per-frame toggling
+  private fastUntilTs = 0
+  // Weak cache for merge boundary blockers keyed by visible range + merges signature (capped size)
+  private gridBlockersCache = new Map<string, { v: Map<number, Set<number>>; h: Map<number, Set<number>> }>()
 
-  constructor(canvas: HTMLCanvasElement, opts: RendererOptions = {}) {
+  constructor(canvas: HTMLCanvasElement | OffscreenCanvas, opts: RendererOptions = {}) {
     this.canvas = canvas
-    this.dpr = getDPR()
-    this.ctx = resizeCanvasForDPR(canvas, canvas.clientWidth, canvas.clientHeight, this.dpr)
+    this.dpr = opts.dpr ?? getDPR()
+    const initW = (canvas as any).clientWidth != null ? (canvas as any).clientWidth : (canvas as any).width || 1
+    const initH = (canvas as any).clientHeight != null ? (canvas as any).clientHeight : (canvas as any).height || 1
+    this.ctx = resizeCanvasForDPR(canvas as any, initW, initH, this.dpr)
+    this.logicalW = Math.max(1, Math.floor(initW))
+    this.logicalH = Math.max(1, Math.floor(initH))
     // Draw headers above content to avoid any overlap artifacts in top/right areas
     this.layers = [
       new BackgroundLayer(),
+      // Draw scrollbars early so they appear immediately on fast scroll; other layers clip away from tracks
+      new ScrollbarLayer(),
       // Draw content backgrounds first, then internal grid (inside ContentLayer), then text and borders
       new ContentLayer(),
       // Keep editor visuals (text, caret, edit background) above content,
@@ -80,12 +109,11 @@ export class CanvasRenderer {
       new SelectionLayer(),
       new HeadersLayer(),
       new GuidesLayer(),
-      new ScrollbarLayer(),
     ]
     this.opts = {
       defaultRowHeight: opts.defaultRowHeight ?? 24,
       defaultColWidth: opts.defaultColWidth ?? 100,
-      overscan: opts.overscan ?? 2,
+      overscan: opts.overscan ?? 1,
       headerRowHeight: opts.headerRowHeight ?? 28,
       headerColWidth: opts.headerColWidth ?? 48,
       scrollbarThickness: opts.scrollbarThickness ?? 12,
@@ -101,12 +129,18 @@ export class CanvasRenderer {
     this.headerLabels = opts.headerLabels
   }
 
-  resize(width: number, height: number) {
-    this.ctx = resizeCanvasForDPR(this.canvas, width, height, this.dpr)
+  getViewportMetrics(): ViewportMetrics | null {
+    return this.viewportMetrics
   }
 
-  render(sheet: Sheet, scrollX: number, scrollY: number) {
-    const viewport = { width: this.canvas.clientWidth, height: this.canvas.clientHeight }
+  resize(width: number, height: number) {
+    this.ctx = resizeCanvasForDPR(this.canvas as any, width, height, this.dpr)
+    this.logicalW = Math.max(1, Math.floor(width))
+    this.logicalH = Math.max(1, Math.floor(height))
+  }
+
+  render(sheet: Sheet, scrollX: number, scrollY: number, mode: 'full' | 'ui' = 'full') {
+    const viewport = { width: this.logicalW, height: this.logicalH }
     const originX = this.opts.headerColWidth!
     const originY = this.opts.headerRowHeight!
     const viewportContentWidth = Math.max(0, viewport.width - originX)
@@ -144,6 +178,17 @@ export class CanvasRenderer {
     const maxScrollY = Math.max(0, contentHeight - heightAvail)
     const sX = Math.max(0, Math.min(scrollX, maxScrollX))
     const sY = Math.max(0, Math.min(scrollY, maxScrollY))
+
+    this.viewportMetrics = {
+      widthAvail,
+      heightAvail,
+      contentWidth,
+      contentHeight,
+      maxScrollX,
+      maxScrollY,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+    }
     const visible = computeVisibleRange({
       scrollX: sX,
       scrollY: sY,
@@ -207,6 +252,73 @@ export class CanvasRenderer {
 
     this.lastScrollbars = { vTrack, vThumb, hTrack, hThumb }
 
+    // Perf hint: treat as fast-scrolling if renders are close together and scroll moved noticeably
+    const now = performance.now()
+    const dt = this.lastRenderTs ? now - this.lastRenderTs : 999
+    const dist = Math.abs(sX - this.lastRenderScrollX) + Math.abs(sY - this.lastRenderScrollY)
+    const fastCandidate = dt < 80 && dist > 4
+    if (fastCandidate) this.fastUntilTs = now + 120 // hold fast state for 120ms after last quick move
+    const fast = now < this.fastUntilTs
+    this.lastRenderTs = now
+    this.lastRenderScrollX = sX
+    this.lastRenderScrollY = sY
+
+    // Compute merge boundary blockers with a small cache
+    const blockersKey = (() => {
+      // signature: visible + merges checksum (cheap)
+      let sum = 0
+      for (let i = 0; i < sheet.merges.length; i++) {
+        const m = sheet.merges[i]
+        sum = (sum + m.r * 7 + m.c * 13 + m.rows * 17 + m.cols * 19) | 0
+      }
+      return `${visible.rowStart},${visible.rowEnd},${visible.colStart},${visible.colEnd}:${sheet.merges.length}:${sum}`
+    })()
+    let gridBlockers = this.gridBlockersCache.get(blockersKey)
+    if (!gridBlockers) {
+      const v = new Map<number, Set<number>>()
+      const h = new Map<number, Set<number>>()
+      for (const m of sheet.merges) {
+        if (m.rows === 1 && m.cols === 1) continue
+        // vertical boundaries inside merge
+        const vStart = Math.max(visible.rowStart, m.r)
+        const vEnd = Math.min(visible.rowEnd, m.r + m.rows - 1)
+        const bStart = Math.max(visible.colStart, m.c + 1)
+        const bEnd = Math.min(visible.colEnd + 1, m.c + m.cols - 1)
+        if (vStart <= vEnd && bStart <= bEnd) {
+          for (let r2 = vStart; r2 <= vEnd; r2++) {
+            let set = v.get(r2)
+            if (!set) {
+              set = new Set<number>()
+              v.set(r2, set)
+            }
+            for (let b = bStart; b <= bEnd; b++) set.add(b)
+          }
+        }
+        // horizontal boundaries inside merge
+        const hStart = Math.max(visible.colStart, m.c)
+        const hEnd = Math.min(visible.colEnd, m.c + m.cols - 1)
+        const rbStart = Math.max(visible.rowStart, m.r + 1)
+        const rbEnd = Math.min(visible.rowEnd + 1, m.r + m.rows - 1)
+        if (hStart <= hEnd && rbStart <= rbEnd) {
+          for (let c2 = hStart; c2 <= hEnd; c2++) {
+            let set = h.get(c2)
+            if (!set) {
+              set = new Set<number>()
+              h.set(c2, set)
+            }
+            for (let b = rbStart; b <= rbEnd; b++) set.add(b)
+          }
+        }
+      }
+      gridBlockers = { v, h }
+      // Cap cache size to avoid growth
+      if (this.gridBlockersCache.size >= 16) {
+        const first = this.gridBlockersCache.keys().next().value
+        if (first) this.gridBlockersCache.delete(first)
+      }
+      this.gridBlockersCache.set(blockersKey, gridBlockers)
+    }
+
     const rc: RenderContext = {
       canvas: this.canvas,
       ctx: this.ctx,
@@ -225,6 +337,7 @@ export class CanvasRenderer {
       contentHeight,
       viewportContentWidth: widthAvail,
       viewportContentHeight: heightAvail,
+      gridBlockers,
       scrollbar: {
         thickness,
         minThumbSize: minThumb,
@@ -237,10 +350,18 @@ export class CanvasRenderer {
       guides: this.guides,
       headerStyle: this.headerStyle,
       headerLabels: this.headerLabels,
+      perf: { fast },
       editor: this.editor,
     }
 
-    // Render layers in order
+    if (mode === 'ui') {
+      // UI-only: repaint headers and scrollbars quickly without touching heavy content
+      for (const l of this.layers) {
+        if (l.name === 'headers' || l.name === 'scrollbar') l.render(rc)
+      }
+      return
+    }
+    // Full render: all layers in order
     for (const l of this.layers) l.render(rc)
   }
 
@@ -287,3 +408,6 @@ export class CanvasRenderer {
     this.editor = editor
   }
 }
+
+// Worker proxy API
+export { createWorkerRenderer, WorkerRenderer } from './worker/proxy'

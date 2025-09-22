@@ -67,7 +67,7 @@ export function createImeHost(
       imePrev = ''
     })
 
-    ta.addEventListener('compositionupdate', (e) => {
+    ta.addEventListener('compositionupdate', async (e) => {
       const ed = state.editor
       if (!ed) return
       const t = (e as CompositionEvent).data ?? ''
@@ -89,7 +89,10 @@ export function createImeHost(
         }
         const padding = 8
         const maxW = Math.max(0, width - padding)
-        const lines = wrapTextIndices(ed.text, maxW, style?.font, 14)
+        const wr: any = ctx.renderer as any
+        const lines = (wr.wrapTextIndices
+          ? await wr.wrapTextIndices(ed.text, maxW, style?.font, 14)
+          : wrapTextIndices(ed.text, maxW, style?.font, 14)) as Array<{ start: number; end: number }>
         let lineIndex = 0
         for (let li = 0; li < lines.length; li++) {
           if (ed.caret <= lines[li].end) {

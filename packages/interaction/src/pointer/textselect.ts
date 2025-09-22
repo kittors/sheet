@@ -1,12 +1,12 @@
 import type { Context, State } from '../types'
-import { caretIndexFromPoint, fontStringFromStyle } from '@sheet/api'
+import { caretIndexFromPoint } from '@sheet/api'
 
 export function createTextSelectHandlers(
   ctx: Context,
   state: State,
   deps: { setSelectionRange?: (a: number, b: number) => void; schedule: () => void },
 ) {
-  function tryBeginFromPointer(e: PointerEvent): boolean {
+  async function tryBeginFromPointer(e: PointerEvent): Promise<boolean> {
     if (!state.editor) return false
     const ed = state.editor
     const rect = ctx.canvas.getBoundingClientRect()
@@ -38,47 +38,51 @@ export function createTextSelectHandlers(
     const wrap = !!style?.alignment?.wrapText
     const paddingX = 4
     const paddingY = 3
+    // Outside cell box: allow starting selection in the overflow area only for wrap=false by
+    // reusing single-line caret mapping later (here we keep conservative and require inside box)
+    // This avoids depending on renderer.ctx in the main thread.
     if (!inside && !wrap) {
-      const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-      ctx2.save()
-      ctx2.font = fontStringFromStyle(style?.font, 14)
-      const textW = ctx2.measureText(ed.text || '').width
-      ctx2.restore()
-      const tx = x0 + paddingX
-      const rightX = tx + textW + 2
-      if (clickY >= y0 && clickY <= y0 + h && clickX >= tx && clickX <= rightX) inside = true
+      // keep 'inside' as false; double-click path handles entering via overflow
     }
     if (!inside) return false
     const relX = Math.max(0, clickX - (x0 + paddingX))
     const relY = Math.max(0, clickY - (y0 + paddingY))
     let caret = ed.caret
     const text = ed.text || ''
+    const wr: any = ctx.renderer as any
     if (wrap) {
       const maxW = Math.max(0, w - 8)
       const sizePx = style?.font?.size ?? 14
       const lineH = Math.max(12, Math.round(sizePx * 1.25))
-      caret = caretIndexFromPoint(text, relX, relY, {
-        maxWidth: maxW,
-        font: style?.font,
-        defaultSize: 14,
-        lineHeight: lineH,
-      })
+      caret =
+        (wr.caretIndexFromPoint
+          ? await wr.caretIndexFromPoint(text, relX, relY, {
+              maxWidth: maxW,
+              font: style?.font,
+              defaultSize: 14,
+              lineHeight: lineH,
+            })
+          : caretIndexFromPoint(text, relX, relY, {
+              maxWidth: maxW,
+              font: style?.font,
+              defaultSize: 14,
+              lineHeight: lineH,
+            })) ?? 0
     } else {
-      const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-      ctx2.save()
-      ctx2.font = fontStringFromStyle(style?.font, 14)
-      let acc = 0
-      caret = 0
-      for (let i = 0; i < text.length; i++) {
-        const wch = ctx2.measureText(text[i]).width
-        if (acc + wch / 2 >= relX) {
-          caret = i
-          break
-        }
-        acc += wch
-        caret = i + 1
-      }
-      ctx2.restore()
+      caret =
+        (wr.caretIndexFromPoint
+          ? await wr.caretIndexFromPoint(text, relX, 0, {
+              maxWidth: 1e9,
+              font: style?.font,
+              defaultSize: 14,
+              lineHeight: (style?.font?.size ?? 14) * 1.25,
+            })
+          : caretIndexFromPoint(text, relX, 0, {
+              maxWidth: 1e9,
+              font: style?.font,
+              defaultSize: 14,
+              lineHeight: (style?.font?.size ?? 14) * 1.25,
+            })) ?? 0
     }
     state.textSelectAnchor = caret
     deps.setSelectionRange?.(caret, caret)
@@ -87,7 +91,7 @@ export function createTextSelectHandlers(
     return true
   }
 
-  function handleMove(e: PointerEvent): boolean {
+  async function handleMove(e: PointerEvent): Promise<boolean> {
     if (!(state.dragMode === 'textselect' && state.editor)) return false
     const ed = state.editor
     const rect = ctx.canvas.getBoundingClientRect()
@@ -129,21 +133,12 @@ export function createTextSelectHandlers(
         lineHeight: lineH,
       })
     } else {
-      const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-      ctx2.save()
-      ctx2.font = fontStringFromStyle(style?.font, 14)
-      let acc = 0
-      caret = 0
-      for (let i = 0; i < text.length; i++) {
-        const wch = ctx2.measureText(text[i]).width
-        if (acc + wch / 2 >= relX) {
-          caret = i
-          break
-        }
-        acc += wch
-        caret = i + 1
-      }
-      ctx2.restore()
+      caret = caretIndexFromPoint(text, relX, 0, {
+        maxWidth: 1e9,
+        font: style?.font,
+        defaultSize: 14,
+        lineHeight: (style?.font?.size ?? 14) * 1.25,
+      })
     }
     const anchor = state.textSelectAnchor != null ? state.textSelectAnchor : ed.caret
     deps.setSelectionRange?.(anchor, caret)

@@ -74,6 +74,13 @@ export class Sheet {
     return id
   }
 
+  /** Define a style with an explicit id (used when hydrating from snapshots). */
+  defineStyleWithId(style: Style): number {
+    this.styles.set(style.id, style)
+    if (style.id >= this.styleSeq) this.styleSeq = style.id + 1
+    return style.id
+  }
+
   getStyle(id?: number): Style | undefined {
     return id ? this.styles.get(id) : undefined
   }
@@ -210,5 +217,92 @@ export class Sheet {
     const rOverlap = aR1 <= bR2 && bR1 <= aR2
     const cOverlap = aC1 <= bC2 && bC1 <= aC2
     return rOverlap && cOverlap
+  }
+}
+
+// Serialized transport used by worker renderer
+export type SerializedSheet = {
+  name: string
+  rows: number
+  cols: number
+  rowHeights: Array<[number, number]>
+  colWidths: Array<[number, number]>
+  merges: MergeRange[]
+  // sparse cells with style references by id
+  cells: Array<{ r: number; c: number; value?: Cell['value']; styleId?: number }>
+  styles: Style[]
+}
+
+export type SheetOp =
+  | { type: 'setValue'; r: number; c: number; value: Cell['value'] }
+  | { type: 'setCellStyle'; r: number; c: number; styleId: number }
+  | { type: 'setRowHeight'; r: number; h: number }
+  | { type: 'setColWidth'; c: number; w: number }
+  | { type: 'addMerge'; r: number; c: number; rows: number; cols: number }
+  | { type: 'removeMergeAt'; r: number; c: number }
+  | { type: 'defineStyle'; style: Style }
+
+export function exportSheet(sheet: Sheet): SerializedSheet {
+  const cells: Array<{ r: number; c: number; value?: Cell['value']; styleId?: number }> = []
+  // best-effort sparse walk: iterate known merges, row/col size overrides, and scan visible bounds
+  // Since internal cells map is private, we rely on getCell hits by scanning within bounds
+  for (let r = 0; r < sheet.rows; r++) {
+    for (let c = 0; c < sheet.cols; c++) {
+      const cell = sheet.getCell(r, c)
+      if (!cell) continue
+      cells.push({ r, c, value: cell.value, styleId: cell.styleId })
+    }
+  }
+  const rowHeights = Array.from(sheet.rowHeights.entries())
+  const colWidths = Array.from(sheet.colWidths.entries())
+  const styles = Array.from((sheet as any).styles?.values?.() ?? []) as Style[]
+  return {
+    name: sheet.name,
+    rows: sheet.rows,
+    cols: sheet.cols,
+    rowHeights,
+    colWidths,
+    merges: sheet.merges.slice(),
+    cells,
+    styles,
+  }
+}
+
+export function importSheet(snap: SerializedSheet): Sheet {
+  const s = new Sheet(snap.name, snap.rows, snap.cols)
+  for (const st of snap.styles) s.defineStyleWithId(st)
+  for (const [r, h] of snap.rowHeights) s.setRowHeight(r, h)
+  for (const [c, w] of snap.colWidths) s.setColWidth(c, w)
+  for (const m of snap.merges) s.addMerge(m.r, m.c, m.rows, m.cols)
+  for (const cell of snap.cells) {
+    if (cell.value !== undefined) s.setValue(cell.r, cell.c, cell.value)
+    if (cell.styleId != null) s.setCellStyle(cell.r, cell.c, cell.styleId)
+  }
+  return s
+}
+
+export function applySheetOp(sheet: Sheet, op: SheetOp) {
+  switch (op.type) {
+    case 'setValue':
+      sheet.setValue(op.r, op.c, op.value)
+      break
+    case 'setCellStyle':
+      sheet.setCellStyle(op.r, op.c, op.styleId)
+      break
+    case 'setRowHeight':
+      sheet.setRowHeight(op.r, op.h)
+      break
+    case 'setColWidth':
+      sheet.setColWidth(op.c, op.w)
+      break
+    case 'addMerge':
+      sheet.addMerge(op.r, op.c, op.rows, op.cols)
+      break
+    case 'removeMergeAt':
+      sheet.removeMergeAt(op.r, op.c)
+      break
+    case 'defineStyle':
+      sheet.defineStyleWithId(op.style)
+      break
   }
 }

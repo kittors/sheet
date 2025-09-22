@@ -19,6 +19,10 @@ export interface AttachArgs {
   canvas: HTMLCanvasElement
   renderer: CanvasRenderer
   sheet: Sheet
+  // Optional: native scroll host element that will drive smooth scrolling via scrollTop/Left.
+  // When provided, wheel handling is disabled and we listen to 'scroll' on this host instead.
+  // In the current UI, this is simply the parent element of the canvas (a hidden scroll container).
+  scrollHost?: HTMLElement | null
 }
 
 export interface Context {

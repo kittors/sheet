@@ -4,8 +4,59 @@ import { wrapTextIndices } from '@sheet/api'
 
 export class ContentLayer implements Layer {
   name = 'content'
+  // Cache of measured text width by font+text to reduce expensive measureText calls
+  private textWidthCache = new Map<string, number>()
+  // Cache wrap results by font+text+maxW
+  private wrapCache = new Map<string, Array<{ start: number; end: number }>>()
+  // Cache ellipsis cutoff index by font+text+maxW
+  private ellipsisCache = new Map<string, number>()
+  private measureTextCached(ctx: CanvasRenderingContext2D, text: string): number {
+    const key = ctx.font + '|' + text
+    const cached = this.textWidthCache.get(key)
+    if (cached != null) return cached
+    const w = ctx.measureText(text).width
+    // Prevent unbounded growth in long sessions
+    if (this.textWidthCache.size > 5000) this.textWidthCache.clear()
+    this.textWidthCache.set(key, w)
+    return w
+  }
+  private wrapTextCached(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxW: number,
+    font?: any,
+  ): Array<{ start: number; end: number }> {
+    const key = ctx.font + '|' + text + '|' + maxW
+    const hit = this.wrapCache.get(key)
+    if (hit) return hit
+    const lines = wrapTextIndices(text, maxW, font, 14)
+    // Cap cache to avoid growth
+    if (this.wrapCache.size > 5000) this.wrapCache.clear()
+    this.wrapCache.set(key, lines)
+    return lines
+  }
+  private ellipsisCutCached(ctx: CanvasRenderingContext2D, text: string, maxW: number): number {
+    const key = ctx.font + '|' + text + '|' + maxW
+    const hit = this.ellipsisCache.get(key)
+    if (hit != null) return hit
+    let lo = 0,
+      hi = text.length
+    const ell = '...'
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      const w = this.measureTextCached(ctx, text.slice(0, mid) + ell)
+      if (w <= maxW) lo = mid + 1
+      else hi = mid
+    }
+    const n2 = Math.max(0, lo - 1)
+    if (this.ellipsisCache.size > 8000) this.ellipsisCache.clear()
+    this.ellipsisCache.set(key, n2)
+    return n2
+  }
   render(rc: RenderContext) {
     const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    // Lightweight drawing when fast-scrolling to keep input latency low
+    const fast = !!rc.perf?.fast
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.save()
@@ -51,7 +102,8 @@ export class ContentLayer implements Layer {
         }
         // scan to find first blocker (non-empty or actively editing cell)
         const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-        let rightLimit = rc.viewport.width - vGap2
+        const viewportRight = rc.viewport.width - vGap2
+        let rightLimit = viewportRight
         let curX = ax + aw
         let scanC = am && am.r === r && am.c === editAnchorC ? am.c + am.cols : editAnchorC + 1
         const rowEditing =
@@ -59,13 +111,16 @@ export class ContentLayer implements Layer {
         while (scanC < sheet.cols) {
           const editingHere = rowEditing && rc.editor!.c === scanC
           const vHere = sheet.getValueAt(r, scanC)
-          const hasValHere = vHere != null && String(vHere) !== ''
+          // Avoid string allocation; empty string is the only stringy "empty"
+          const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
           if (editingHere || hasValHere) {
             rightLimit = Math.min(rightLimit, curX)
             break
           }
           const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
           curX += w2
+          // No need to scan past viewport right; overflow won't render beyond it
+          if (curX >= viewportRight) break
           scanC++
         }
         editSpanStartX = ax
@@ -109,25 +164,10 @@ export class ContentLayer implements Layer {
       }
 
       // PASS 1.5: grid lines (drawn above backgrounds, below text)
-      // Helpers to test if a grid boundary sits inside a merge interior
-      const isVBoundaryBlockedAtRow = (b: number, row: number) => {
-        for (const m of sheet.merges) {
-          if (m.rows === 1 && m.cols === 1) continue
-          if (row < m.r || row > m.r + m.rows - 1) continue
-          if (b <= m.c || b >= m.c + m.cols) continue
-          return true
-        }
-        return false
-      }
-      const isHBoundaryBlockedAtCol = (b: number, col: number) => {
-        for (const m of sheet.merges) {
-          if (m.rows === 1 && m.cols === 1) continue
-          if (col < m.c || col > m.c + m.cols - 1) continue
-          if (b <= m.r || b >= m.r + m.rows) continue
-          return true
-        }
-        return false
-      }
+      const vBlockers = rc.gridBlockers?.v
+      const hBlockers = rc.gridBlockers?.h
+      const isVBoundaryBlockedAtRow = (b: number, row: number) => (!!vBlockers ? !!vBlockers.get(row)?.has(b) : false)
+      const isHBoundaryBlockedAtCol = (b: number, col: number) => (!!hBlockers ? !!hBlockers.get(col)?.has(b) : false)
       // vertical segments for this row band
       ctx.save()
       ctx.strokeStyle = rc.headerStyle.gridColor
@@ -181,47 +221,74 @@ export class ContentLayer implements Layer {
       ctx.restore()
 
       // PASS 2: text
-      x = originX - visible.offsetX
-      for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const baseW = sheet.colWidths.get(c) ?? defaultColWidth
-        const m = sheet.getMergeAt(r, c)
-        if (m && !(m.r === r && m.c === c)) {
-          x += baseW
-          continue
-        }
-        let drawW = baseW
-        let drawH = baseH
-        if (m) {
-          drawW = 0
-          for (let cc = m.c; cc < m.c + m.cols; cc++)
-            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
-          drawH = 0
-          for (let rr = m.r; rr < m.r + m.rows; rr++)
-            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
-        }
-        const cell = sheet.getCell(r, c)
-        const style = sheet.getStyle(cell?.styleId)
-        const raw = cell?.value != null ? String(cell.value) : ''
-        const isActiveEditing = !!rc.editor && rc.editor.selStart != null && rc.editor.selEnd != null
-        const isEditingAnchor = isActiveEditing && rc.editor.r === r && rc.editor.c === c
-        const txt = isEditingAnchor ? (rc.editor!.text ?? '') : raw
-
-        // Do not draw text for the editing anchor here; editor layer is responsible for it
-        if (txt && !isEditingAnchor) {
-          // font
-          if (style?.font) {
-            const size = style.font.size ?? 14
-            const family =
-              style.font.family ??
-              'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
-            const weight = style.font.bold ? 'bold' : 'normal'
-            const italic = style.font.italic ? 'italic ' : ''
-            ctx.font = `${italic}${weight} ${size}px ${family}`
+        x = originX - visible.offsetX
+        for (let c = visible.colStart; c <= visible.colEnd; c++) {
+          const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+          const m = sheet.getMergeAt(r, c)
+          if (m && !(m.r === r && m.c === c)) {
+            x += baseW
+            continue
           }
+          let drawW = baseW
+          let drawH = baseH
+          if (m) {
+            drawW = 0
+            for (let cc = m.c; cc < m.c + m.cols; cc++)
+              drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+            drawH = 0
+            for (let rr = m.r; rr < m.r + m.rows; rr++)
+              drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+          }
+          const cell = sheet.getCell(r, c)
+          const style = sheet.getStyle(cell?.styleId)
+          const raw = cell?.value != null ? String(cell.value) : ''
+          const isActiveEditing = !!rc.editor && rc.editor.selStart != null && rc.editor.selEnd != null
+          const isEditingAnchor = isActiveEditing && rc.editor.r === r && rc.editor.c === c
+          const txt = isEditingAnchor ? (rc.editor!.text ?? '') : raw
+
+          // Do not draw text for the editing anchor here; editor layer is responsible for it
+          if (txt && !isEditingAnchor) {
+            // font
+            if (style?.font) {
+              const size = style.font.size ?? 14
+              const family =
+                style.font.family ??
+                'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+              const weight = style.font.bold ? 'bold' : 'normal'
+              const italic = style.font.italic ? 'italic ' : ''
+              ctx.font = `${italic}${weight} ${size}px ${family}`
+            }
           ctx.fillStyle = style?.font?.color ?? '#111827'
           // alignment & flow
           const halign = style?.alignment?.horizontal ?? 'left'
           const valign = style?.alignment?.vertical ?? 'middle'
+          // Fast path disabled to ensure consistent visuals; rely on caches for performance
+          if (false) {
+            let tx = x + 4
+            if (halign === 'center') tx = x + drawW / 2
+            else if (halign === 'right') tx = x + drawW - 4
+            let ty = y + drawH / 2
+            if (valign === 'top') {
+              ctx.textBaseline = 'top'
+              ty = y + 3
+            } else if (valign === 'bottom') {
+              ctx.textBaseline = 'bottom'
+              ty = y + drawH - 3
+            } else {
+              ctx.textBaseline = 'middle'
+              ty = y + drawH / 2
+            }
+            if (halign === 'left') ctx.textAlign = 'left'
+            else if (halign === 'right') ctx.textAlign = 'right'
+            else ctx.textAlign = 'center'
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
+            ctx.clip()
+            ctx.fillText(txt, tx, ty)
+            ctx.restore()
+          }
+          {
           const wrap = style?.alignment?.wrapText ?? false
           // While editing, force overflow rendering so hidden text is visible.
           const overflow: 'overflow' | 'clip' | 'ellipsis' = isEditingAnchor
@@ -232,7 +299,8 @@ export class ContentLayer implements Layer {
           // When the row is in editing mode, do NOT treat the anchor cell itself as a blocker for
           // overflow coming from cells to its left; only exclude the anchor cell area.
           const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-          let overflowRightLimitX = rc.viewport.width - vGap2
+          const viewportRight = rc.viewport.width - vGap2
+          let overflowRightLimitX = viewportRight
           let rowEditing2 = isActiveEditing
           if (!wrap && overflow === 'overflow') {
             // Start scanning from the first column after current (or after current merge span)
@@ -241,13 +309,14 @@ export class ContentLayer implements Layer {
             while (scanC < sheet.cols) {
               const isAnchorHere = rowEditing2 && rc.editor!.c === scanC
               const vHere = sheet.getValueAt(r, scanC)
-              const hasValHere = vHere != null && String(vHere) !== ''
+              const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
               if ((hasValHere || isAnchorHere) && !isAnchorHere) {
                 overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                 break
               }
               const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
               curX += w2
+              if (curX >= viewportRight) break
               scanC++
             }
           }
@@ -283,7 +352,7 @@ export class ContentLayer implements Layer {
             ctx.clip()
             ctx.textBaseline = 'top'
             let cursorY = y + 3
-            const lines = wrapTextIndices(txt, maxW, style?.font, 14)
+            const lines = this.wrapTextCached(ctx, txt, maxW, style?.font)
             for (let li = 0; li < lines.length; li++) {
               if (cursorY > y + drawH - 3) break
               const seg = lines[li]
@@ -298,12 +367,10 @@ export class ContentLayer implements Layer {
           } else {
             // single-line: apply overflow policy (Excel-like precise column-bound algorithm)
             const needsClipPolicy = overflow === 'clip' || overflow === 'ellipsis'
-            const viewportRight =
-              rc.viewport.width - (rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0)
             let clipW = Math.max(0, Math.floor(drawW))
             if (overflow === 'overflow' && halign === 'left') {
               // measure text and compute desired right edge based on pixel width
-              const textW = ctx.measureText(txt).width
+              const textW = this.measureTextCached(ctx, txt)
               const desiredRight = tx + textW + 2
               // Default allowed region extends to the next blocker (occupied cell),
               // but if this row is in editing mode we exclude only the anchor cell area,
@@ -373,29 +440,20 @@ export class ContentLayer implements Layer {
             }
             let out = txt
             if (overflow === 'ellipsis' && maxW > 0) {
-              const w0 = ctx.measureText(out).width
+              const w0 = this.measureTextCached(ctx, out)
               if (w0 > maxW) {
-                const ell = '...'
-                let lo = 0,
-                  hi = out.length
-                while (lo < hi) {
-                  const mid = (lo + hi) >>> 1
-                  const w = ctx.measureText(out.slice(0, mid) + ell).width
-                  if (w <= maxW) lo = mid + 1
-                  else hi = mid
-                }
-                const n2 = Math.max(0, lo - 1)
-                out = out.slice(0, n2) + ell
+                const n2 = this.ellipsisCutCached(ctx, out, maxW)
+                out = out.slice(0, n2) + '...'
               }
             }
             ctx.fillText(out, tx, ty)
             if (didCustomClip || (!didCustomClip && doClipPolicy)) ctx.restore()
           }
+          } // end precise path
         }
 
         x += baseW
       }
-
       y += baseH
     }
 
@@ -477,9 +535,10 @@ export class ContentLayer implements Layer {
       }
     }
 
-    // GLOBAL PASS: draw custom cell borders on top of everything to avoid being covered by later backgrounds
-    let yB = originY - visible.offsetY
-    for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+    // GLOBAL PASS: draw custom cell borders on top of everything (always on to avoid flicker)
+    if (true) {
+      let yB = originY - visible.offsetY
+      for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
       let xB = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
@@ -645,9 +704,12 @@ export class ContentLayer implements Layer {
         }
         xB += baseW
       }
-      yB += baseH
+        yB += baseH
+      }
     }
 
     ctx.restore()
   }
+ 
+
 }

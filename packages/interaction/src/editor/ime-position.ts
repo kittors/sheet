@@ -1,9 +1,9 @@
 import type { Context, State } from '../types'
 import type { Style } from '@sheet/core'
-import { wrapTextIndices } from '@sheet/api'
+import { wrapTextIndices, measureText } from '@sheet/api'
 import { colLeftFor, rowTopFor } from '@sheet/shared-utils'
 
-export function computeImeGeometry(
+export async function computeImeGeometry(
   ctx: Context,
   state: State,
   src: { r: number; c: number; text: string; caret: number },
@@ -32,9 +32,12 @@ export function computeImeGeometry(
   const lineH = Math.max(12, Math.round(sizePx * 1.25))
   let caretX = x0 + paddingX
   let caretY = y0 + (wrap ? 3 : Math.floor(h / 2))
+  const wr: any = ctx.renderer as any
   if (wrap) {
     const maxW = Math.max(0, w - 8)
-    const lines = wrapTextIndices(src.text, maxW, style?.font, 14)
+    const lines = (wr.wrapTextIndices
+      ? await wr.wrapTextIndices(src.text, maxW, style?.font, 14)
+      : wrapTextIndices(src.text, maxW, style?.font, 14)) as Array<{ start: number; end: number }>
     let lineIndex = 0
     for (let li = 0; li < lines.length; li++) {
       if (src.caret <= lines[li].end) {
@@ -45,39 +48,13 @@ export function computeImeGeometry(
     }
     const seg = lines[Math.min(lineIndex, Math.max(0, lines.length - 1))]
     const head = src.text.slice(seg.start, Math.min(seg.end, src.caret))
-    const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-    ctx2.save()
-    if (style?.font) {
-      const family =
-        style.font.family ??
-        'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
-      const weight = style.font.bold ? 'bold' : 'normal'
-      const italic = style.font.italic ? 'italic ' : ''
-      ctx2.font = `${italic}${weight} ${sizePx}px ${family}`
-    } else {
-      ctx2.font = `normal ${sizePx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
-    }
-    const advance = ctx2.measureText(head).width
-    ctx2.restore()
+    const advance = wr.measureText ? await wr.measureText(head, style?.font, 14) : measureText(head, style?.font, 14)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + 3 + lineIndex * lineH)
     return { caretX, caretY, lineH, hostWidth: Math.max(16, Math.floor(maxW)), sizePx, style }
   } else {
-    const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-    ctx2.save()
-    if (style?.font) {
-      const family =
-        style.font.family ??
-        'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
-      const weight = style.font.bold ? 'bold' : 'normal'
-      const italic = style.font.italic ? 'italic ' : ''
-      ctx2.font = `${italic}${weight} ${sizePx}px ${family}`
-    } else {
-      ctx2.font = `normal ${sizePx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
-    }
     const head = src.text.substring(0, src.caret)
-    const advance = ctx2.measureText(head).width
-    ctx2.restore()
+    const advance = wr.measureText ? await wr.measureText(head, style?.font, 14) : measureText(head, style?.font, 14)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + (h - lineH) / 2)
     return { caretX, caretY, lineH, hostWidth: 480, sizePx, style }

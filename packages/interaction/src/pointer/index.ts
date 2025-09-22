@@ -74,7 +74,7 @@ export function createPointerHandlers(
     updateAutoScrollVelocity,
   })
 
-  function onPointerDown(e: PointerEvent) {
+  async function onPointerDown(e: PointerEvent) {
     // 仅处理左键；右键（contextmenu）不改变选择状态，也不开始拖拽
     if (e.button !== 0) return
     try {
@@ -84,7 +84,7 @@ export function createPointerHandlers(
     }
     // If clicking inside the active editor cell, move caret instead of committing
     if (state.editor) {
-      if (textSel.tryBeginFromPointer(e)) return
+      if (await (textSel as any).tryBeginFromPointer(e)) return
       deps.finishEdit?.('commit')
     }
     const rect = ctx.canvas.getBoundingClientRect()
@@ -144,9 +144,9 @@ export function createPointerHandlers(
     },
   )
 
-  function onPointerMove(e: PointerEvent) {
+  async function onPointerMove(e: PointerEvent) {
     // Text selection while editing
-    if (textSel.handleMove(e)) return
+    if (await (textSel as any).handleMove(e)) return
     const rect = ctx.canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top

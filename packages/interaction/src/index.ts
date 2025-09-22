@@ -26,7 +26,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   }
 
   const state = createState()
-  const { schedule: baseSchedule } = createRender(ctx, state)
+  const { schedule: baseSchedule, destroy: destroyRender } = createRender(ctx, state)
   // editor change listeners
   const editorListeners: Array<
     (e: {
@@ -43,6 +43,45 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   let lastProgScrollTs = 0
   let lastScrollX = state.scroll.x
   let lastScrollY = state.scroll.y
+  // Optional native scroll host (smooth momentum). Default to the canvas parent if it looks like one
+  const scrollHost: HTMLElement | null =
+    (args as any).scrollHost ?? (args.canvas.parentElement as HTMLElement | null)
+  const usingNativeScroll = !!scrollHost && scrollHost.classList.contains('sheet-scroll-host')
+  let isSyncingScrollHost = false
+  function syncScrollHostFromState() {
+    if (!usingNativeScroll || !scrollHost) return
+    if (isSyncingScrollHost) return
+    const x = Math.max(0, Math.floor(state.scroll.x))
+    const y = Math.max(0, Math.floor(state.scroll.y))
+    if (scrollHost.scrollLeft !== x || scrollHost.scrollTop !== y) {
+      isSyncingScrollHost = true
+      scrollHost.scrollLeft = x
+      scrollHost.scrollTop = y
+      setTimeout(() => {
+        isSyncingScrollHost = false
+      }, 0)
+    }
+  }
+
+  function syncScrollHostSizeFromRenderer() {
+    if (!usingNativeScroll || !scrollHost) return
+    const m = ctx.renderer.getViewportMetrics?.()
+    if (!m) return
+    const thickness = ctx.metrics.scrollbarThickness
+    const headerX = ctx.metrics.headerColWidth
+    const headerY = ctx.metrics.headerRowHeight
+    const vScrollable = m.contentHeight > m.heightAvail
+    const hScrollable = m.contentWidth > m.widthAvail
+    const w = headerX + m.contentWidth + (vScrollable ? thickness : 0)
+    const h = headerY + m.contentHeight + (hScrollable ? thickness : 0)
+    const spacer = scrollHost.querySelector('.sheet-scroll-spacer') as HTMLElement | null
+    if (!spacer) return
+    const curW = (spacer.style.width || '').endsWith('px') ? parseInt(spacer.style.width) : 0
+    const curH = (spacer.style.height || '').endsWith('px') ? parseInt(spacer.style.height) : 0
+    if (curW !== w) spacer.style.width = `${w}px`
+    if (curH !== h) spacer.style.height = `${h}px`
+  }
+
   function schedule() {
     baseSchedule()
     // Keep non-editing overlay + IME host synced to selection/editor state
@@ -57,6 +96,10 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       const now = performance.now()
       lastScrollX = state.scroll.x
       lastScrollY = state.scroll.y
+      // reflect programmatic scroll changes back to host (e.g., keyboard, scrollbar drag)
+      syncScrollHostFromState()
+      // keep spacer size in sync too (e.g., after resize/row-col size change)
+      syncScrollHostSizeFromRenderer()
       if (kb?.editor && state.editor) {
         const r = state.editor.r,
           c = state.editor.c
@@ -69,12 +112,17 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     }
   }
 
-  function normalizeScroll() {
-    const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
-    const maxX = Math.max(0, contentWidth - widthAvail)
-    const maxY = Math.max(0, contentHeight - heightAvail)
-    state.scroll.x = Math.max(0, Math.min(maxX, state.scroll.x))
-    state.scroll.y = Math.max(0, Math.min(maxY, state.scroll.y))
+  function normalizeScroll(prevX: number, prevY: number) {
+    const { widthAvail, heightAvail, contentWidth, contentHeight, maxScrollX, maxScrollY } =
+      computeAvailViewport(ctx)
+    const maxX = maxScrollX ?? Math.max(0, contentWidth - widthAvail)
+    const maxY = maxScrollY ?? Math.max(0, contentHeight - heightAvail)
+    const nextX = Math.max(0, Math.min(maxX, state.scroll.x))
+    const nextY = Math.max(0, Math.min(maxY, state.scroll.y))
+    const changed = nextX !== prevX || nextY !== prevY
+    state.scroll.x = nextX
+    state.scroll.y = nextY
+    return changed
   }
 
   const { onWheel } = createWheelHandler(ctx, state, { schedule, normalizeScroll })
@@ -127,7 +175,28 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
   ctx.canvas.addEventListener('pointerleave', onPointerLeave)
-  ctx.canvas.addEventListener('wheel', onWheel, { passive: false })
+  // When a native scroll host exists, use its 'scroll' events to drive rendering; otherwise, use wheel deltas
+  let onScrollFn: ((e: Event) => void) | null = null
+  if (usingNativeScroll && scrollHost) {
+    onScrollFn = (e: Event) => {
+      if (isSyncingScrollHost) return
+      const el = e.target as HTMLElement
+      const prevX = state.scroll.x
+      const prevY = state.scroll.y
+      state.scroll.x = el.scrollLeft
+      state.scroll.y = el.scrollTop
+      // Clamp and schedule (one full render per frame via RAF)
+      normalizeScroll(prevX, prevY)
+      // while scrolling, keep spacer size synced as well
+      syncScrollHostSizeFromRenderer()
+      schedule()
+    }
+    scrollHost.addEventListener('scroll', onScrollFn, { passive: true })
+  } else {
+    // Use a non-passive wheel listener so we can call preventDefault to block page scroll
+    // while the pointer is over the canvas. The handler keeps work minimal and defers updates to RAF.
+    ctx.canvas.addEventListener('wheel', onWheel as any, { passive: false })
+  }
   ctx.canvas.addEventListener('dblclick', onDblClick)
 
   function colLeft(index: number): number {
@@ -188,7 +257,9 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       state.scroll.x = sX
       state.scroll.y = sY
       lastProgScrollTs = performance.now()
+      // Use baseSchedule to render immediately, then sync host scroll to avoid loop
       baseSchedule()
+      syncScrollHostFromState()
     }
   }
   function isCellVisible(r: number, c: number): boolean {
@@ -206,7 +277,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const vOverlap = !(bottom <= viewTop || top >= viewBottom)
     return hOverlap && vOverlap
   }
-  function onDblClick(e: MouseEvent) {
+  async function onDblClick(e: MouseEvent) {
     const cell = posToCell(ctx, state, e.clientX, e.clientY)
     if (!cell) return
     // resolve anchor if merged
@@ -235,43 +306,46 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const relY = Math.max(0, clickY - (y0 + paddingY))
     const v = ctx.sheet.getValueAt(ar, ac)
     const text = v == null ? '' : String(v)
-    // use same font as editor layer for measurement
-    ctx.renderer.ctx.save()
-    // Use shared API for text layout mapping
+    // Use shared API for text layout mapping (no direct renderer ctx)
     const wrap = !!style?.alignment?.wrapText
     let caret = 0
     if (text) {
+      const wr: any = ctx.renderer as any
       if (wrap) {
         const maxW = Math.max(0, w - 8)
         const sizePx = style?.font?.size ?? 14
         const lineH = Math.max(12, Math.round(sizePx * 1.25))
-        caret = caretIndexFromPoint(text, relX, relY, {
-          maxWidth: maxW,
-          font: style?.font,
-          defaultSize: 14,
-          lineHeight: lineH,
-        })
+        caret =
+          (wr.caretIndexFromPoint
+            ? await wr.caretIndexFromPoint(text, relX, relY, {
+                maxWidth: maxW,
+                font: style?.font,
+                defaultSize: 14,
+                lineHeight: lineH,
+              })
+            : caretIndexFromPoint(text, relX, relY, {
+                maxWidth: maxW,
+                font: style?.font,
+                defaultSize: 14,
+                lineHeight: lineH,
+              })) ?? 0
       } else {
-        // map single line using shared measure
-        const font = fontStringFromStyle(style?.font, 14)
-        // get measuring context
-        const ctx2 = ctx.renderer.ctx as CanvasRenderingContext2D
-        ctx2.save()
-        ctx2.font = font
-        let acc = 0
-        for (let i = 0; i < text.length; i++) {
-          const wch = ctx2.measureText(text[i]).width
-          if (acc + wch / 2 >= relX) {
-            caret = i
-            break
-          }
-          acc += wch
-          caret = i + 1
-        }
-        ctx2.restore()
+        caret =
+          (wr.caretIndexFromPoint
+            ? await wr.caretIndexFromPoint(text, relX, 0, {
+                maxWidth: 1e9,
+                font: style?.font,
+                defaultSize: 14,
+                lineHeight: (style?.font?.size ?? 14) * 1.25,
+              })
+            : caretIndexFromPoint(text, relX, 0, {
+                maxWidth: 1e9,
+                font: style?.font,
+                defaultSize: 14,
+                lineHeight: (style?.font?.size ?? 14) * 1.25,
+              })) ?? 0
       }
     }
-    ctx.renderer.ctx.restore()
     // begin editing and set caret at computed position (do not auto-scroll here to reduce disruption)
     kb!.editor.beginAt(ar, ac)
     kb!.editor.setCaret(caret)
@@ -284,10 +358,13 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
       ctx.canvas.removeEventListener('pointerleave', onPointerLeave)
-      ctx.canvas.removeEventListener('wheel', onWheel)
+      if (onScrollFn && usingNativeScroll && scrollHost)
+        scrollHost.removeEventListener('scroll', onScrollFn)
+      else ctx.canvas.removeEventListener('wheel', onWheel)
       ctx.canvas.removeEventListener('dblclick', onDblClick)
       kb.destroy()
       cancelAnimationFrame(state.raf)
+      destroyRender?.()
     },
     ...cmds,
     onEditorChange(
