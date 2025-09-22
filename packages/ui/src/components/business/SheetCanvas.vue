@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { CanvasRenderer, createWorkerRenderer } from '@sheet/renderer'
-import type { HeaderStyle, HeaderLabels } from '@sheet/renderer'
+import { CanvasRenderer } from '@sheet/renderer'
+import type { HeaderStyle, HeaderLabels, WorkerRenderer } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
 
 // DOM/Renderer refs exposed to parent so interaction layer can attach
@@ -49,10 +49,11 @@ function renderOnce() {
   syncScrollSpacer()
 }
 
+type RendererLike = CanvasRenderer | WorkerRenderer
 const emit = defineEmits<{
   (e: 'ready', payload: {
     canvas: HTMLCanvasElement
-    renderer: CanvasRenderer
+    renderer: RendererLike
     sheet: Sheet
     scrollHost?: HTMLElement | null
   }): void
@@ -95,10 +96,11 @@ function syncScrollSpacer() {
   const defaultRowHeight = props.defaultRowHeight ?? 24
   let contentWidth = sheet.cols * defaultColWidth
   if (sheet.colWidths.size)
-    for (const [c, w] of sheet.colWidths) contentWidth += w - defaultColWidth
+    // Only the width delta matters here; avoid unused key var
+    for (const w of sheet.colWidths.values()) contentWidth += w - defaultColWidth
   let contentHeight = sheet.rows * defaultRowHeight
   if (sheet.rowHeights.size)
-    for (const [rIdx, h] of sheet.rowHeights) contentHeight += h - defaultRowHeight
+    for (const h of sheet.rowHeights.values()) contentHeight += h - defaultRowHeight
   // Resolve interdependency between v/h scrollbars (mirror of interaction/viewport.ts)
   let widthAvail = Math.max(0, baseW - headerX)
   let heightAvail = Math.max(0, baseH - headerY)
@@ -148,17 +150,15 @@ onMounted(() => {
     // ensure scroll spacer sized after first paint
     syncScrollSpacer()
   })
-  // Sync DPR to worker once at mount; can expand to listen to DPI changes if needed
-  try {
-    const anyRenderer = rendererRef.value as any
-    if (anyRenderer?.setDpr) anyRenderer.setDpr(window.devicePixelRatio || 1)
-  } catch {}
+  // Sync DPR once at mount for worker renderer (no-op for CanvasRenderer)
+  type DprCapable = { setDpr: (dpr: number) => void }
+  ;(rendererRef.value as unknown as Partial<DprCapable>).setDpr?.(
+    window.devicePixelRatio || 1,
+  )
   // Auto-sync DPR on zoom/monitor change
-  const anyRenderer = rendererRef.value as any
+  const dprCap = rendererRef.value as unknown as Partial<DprCapable>
   const syncDpr = () => {
-    try {
-      anyRenderer?.setDpr?.(window.devicePixelRatio || 1)
-    } catch {}
+    dprCap.setDpr?.(window.devicePixelRatio || 1)
   }
   const onResize = () => syncDpr()
   window.addEventListener('resize', onResize)
@@ -169,7 +169,7 @@ onMounted(() => {
     const mql = window.matchMedia(`(resolution: ${v}dppx)`)
     const fn = () => syncDpr()
     mql.addEventListener?.('change', fn)
-    // @ts-ignore legacy Safari
+    // Legacy Safari fallback (deprecated API, still present in types)
     mql.addListener?.(fn)
     mqls.push(mql)
     mqlHandlers.push({ mql, fn })
@@ -181,14 +181,14 @@ onMounted(() => {
     window.removeEventListener('orientationchange', onOrientation)
     for (const { mql, fn } of mqlHandlers) {
       mql.removeEventListener?.('change', fn)
-      // @ts-ignore legacy
+      // Legacy Safari fallback
       mql.removeListener?.(fn)
     }
   })
   // Notify parent that canvas+renderer+sheet are ready
   emit('ready', {
     canvas: canvasRef.value,
-    renderer: rendererRef.value,
+    renderer: rendererRef.value as unknown as RendererLike,
     sheet,
     scrollHost: scrollHostRef.value,
   })

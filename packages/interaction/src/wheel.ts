@@ -65,15 +65,11 @@ export function createWheelHandler(
     accX += pixelX
     accY += pixelY
     // Kick a UI-only quick paint immediately to keep scrollbars/headers in sync.
-    try {
-      const r: any = ctx.renderer as any
-      const predX = state.scroll.x + accX
-      const predY = state.scroll.y + accY
-      if (typeof r.renderUiOnly === 'function') r.renderUiOnly(ctx.sheet, predX, predY)
-      else if (typeof r.render === 'function') r.render(ctx.sheet, predX, predY, 'ui')
-    } catch {
-      /* ignore */
-    }
+    // Kick a lightweight UI repaint (headers/scrollbars) to keep in sync while accumulating.
+    // Both CanvasRenderer and WorkerRenderer support `render(..., 'ui')`.
+    const predX = state.scroll.x + accX
+    const predY = state.scroll.y + accY
+    ctx.renderer.render(ctx.sheet, predX, predY, 'ui')
     if (!flushing) {
       flushing = true
       requestAnimationFrame(flush)
