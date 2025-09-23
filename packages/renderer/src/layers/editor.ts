@@ -97,13 +97,15 @@ export class EditorLayer implements Layer {
     // Prepare text to draw
     const textToDraw = ed.text || ''
     // Detect whether we should allow overlay text to extend beyond the anchor cell box.
-    // If there is a non-empty cell immediately to the left, we keep the editor text
-    // clipped within the anchor cell to avoid occluding left cell overflow (e.g. editing B8 while A8 overflows).
+    // Keep the left neighbor's overflow visible only while the editor is empty; once
+    // the user has entered content, favour the editor visibility.
     let allowExtend = true
-    if (c - 1 >= 0) {
-      const leftVal = rc.sheet.getValueAt(r, c - 1)
-      const hasLeft = leftVal != null && String(leftVal) !== ''
-      if (hasLeft) allowExtend = false
+    if (!textToDraw) {
+      if (c - 1 >= 0) {
+        const leftVal = rc.sheet.getValueAt(r, c - 1)
+        const hasLeft = leftVal != null && String(leftVal) !== ''
+        if (hasLeft) allowExtend = false
+      }
     }
 
     // Draw overlay text within allowed region (for single-line); wrap stays within cell anyway
@@ -114,41 +116,22 @@ export class EditorLayer implements Layer {
       if (allowExtend) {
         const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
         const viewportRight = rc.viewport.width - vGap2
-        // base desired right by measuring text
+        // Allow the editor text to extend to its natural width while editing,
+        // only clamping at the viewport edge so the full value remains visible.
         const desiredRight = tx + (textToDraw ? ctx.measureText(textToDraw).width : 0) + 2
-        // scan to find first blocker (occupied cell) to the right
-        let aw = sheet.colWidths.get(c) ?? defaultColWidth
-        const am = sheet.getMergeAt(r, c)
-        if (am && am.r === r && am.c === c) {
-          aw = 0
-          for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
-        }
-        let curX = x + aw
-        let scanC = am && am.r === r && am.c === c ? am.c + am.cols : c + 1
-        let rightLimit = viewportRight
-        while (scanC < sheet.cols) {
-          const vHere = sheet.getValueAt(r, scanC)
-          const hasValHere = vHere != null && String(vHere) !== ''
-          if (hasValHere) {
-            rightLimit = Math.min(rightLimit, curX)
-            break
-          }
-          const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
-          curX += w2
-          scanC++
-        }
-        clipRightX = Math.min(desiredRight, rightLimit)
+        clipRightX = Math.min(desiredRight, viewportRight)
       }
       ctx.beginPath()
       ctx.rect(x + 1, y + 1, Math.max(0, Math.floor(clipRightX - x) - 2), Math.max(0, h - 2))
       ctx.clip()
       if (isEditing) {
-        // Background remains within the anchor cell to avoid masking neighbor cells
+        // Fill the entire clip region so extended editor text occludes neighboring content
         ctx.fillStyle = bg
+        const clipW = Math.max(0, Math.floor(clipRightX - x) - 2)
         ctx.fillRect(
           Math.floor(x) + 1,
           Math.floor(y) + 1,
-          Math.max(0, Math.floor(w) - 2),
+          clipW,
           Math.max(0, Math.floor(h) - 2),
         )
       }
@@ -337,27 +320,7 @@ export class EditorLayer implements Layer {
           const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
           const viewportRight = rc.viewport.width - vGap2
           const desiredRight = tx + (textToDraw ? ctx.measureText(textToDraw).width : 0) + 2
-          let aw = sheet.colWidths.get(c) ?? defaultColWidth
-          const am = sheet.getMergeAt(r, c)
-          if (am && am.r === r && am.c === c) {
-            aw = 0
-            for (let cc = am.c; cc < am.c + am.cols; cc++) aw += sheet.colWidths.get(cc) ?? defaultColWidth
-          }
-          let curX = x + aw
-          let scanC = am && am.r === r && am.c === c ? am.c + am.cols : c + 1
-          let rightLimit = viewportRight
-          while (scanC < sheet.cols) {
-            const vHere = sheet.getValueAt(r, scanC)
-            const hasValHere = vHere != null && String(vHere) !== ''
-            if (hasValHere) {
-              rightLimit = Math.min(rightLimit, curX)
-              break
-            }
-            const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
-            curX += w2
-            scanC++
-          }
-          clipRightX = Math.min(desiredRight, rightLimit)
+          clipRightX = Math.min(desiredRight, viewportRight)
         }
         caretX = Math.min(caretX, Math.floor(clipRightX) - 1 + 0.5)
       }

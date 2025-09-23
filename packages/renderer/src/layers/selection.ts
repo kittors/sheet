@@ -106,17 +106,17 @@ export class SelectionLayer implements Layer {
       const wrap = !!style?.alignment?.wrapText
       const halign = style?.alignment?.horizontal ?? 'left'
       if (!wrap && halign === 'left') {
-        // Only consider hiding the right edge when the editor is allowed to extend beyond
-        // its own cell (no non-empty left neighbor).
+        // Mirror the editor overlay rule: only suppress the right edge when the editor
+        // itself is allowed to extend beyond the cell box.
         let allowExtend = true
-        if (c0 - 1 >= 0) {
+        const txt = ed!.text ?? ''
+        if (!txt && c0 - 1 >= 0) {
           const leftVal = rc.sheet.getValueAt(r0, c0 - 1)
           const hasLeft = leftVal != null && String(leftVal) !== ''
           if (hasLeft) allowExtend = false
         }
         if (allowExtend) {
           // Measure editor text width with the same font to detect real overflow beyond right border
-          const txt = ed!.text ?? ''
           if (txt) {
             ctx.save()
             if (style?.font) {
