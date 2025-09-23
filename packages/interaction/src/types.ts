@@ -23,12 +23,15 @@ export interface AttachArgs {
   // When provided, wheel handling is disabled and we listen to 'scroll' on this host instead.
   // In the current UI, this is simply the parent element of the canvas (a hidden scroll container).
   scrollHost?: HTMLElement | null
+  // Enable infinite scrolling behavior (rows/cols grow on demand)
+  infiniteScroll?: boolean
 }
 
 export interface Context {
   canvas: HTMLCanvasElement
   renderer: CanvasRenderer
   sheet: Sheet
+  infiniteScroll?: boolean
   metrics: {
     defaultColWidth: number
     defaultRowHeight: number

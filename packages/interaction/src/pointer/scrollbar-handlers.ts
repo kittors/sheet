@@ -13,6 +13,12 @@ export function createScrollbarHandlers(
   let arrowVY = 0
   let arrowTimer: any = 0
   function clampAndSchedule() {
+    // Allow renderer to grow bounds before clamping in infinite mode
+    try {
+      ;(ctx as any).infiniteScroll && ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+    } catch (e) {
+      void e
+    }
     const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
     const maxX = Math.max(0, contentWidth - widthAvail)
     const maxY = Math.max(0, contentHeight - heightAvail)

@@ -3,9 +3,15 @@ import { onBeforeUnmount, ref } from 'vue'
 import '@sheet/ui/styles/theme.css'
 import { SheetCanvas, SheetControlLayout, ContextMenu } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
-import { createWorkbookWithSheet, applyCells, applyMerges, createSheetApi } from '@sheet/api'
-import type { CanvasRenderer } from '@sheet/renderer'
-import type { Sheet } from '@sheet/core'
+import {
+  createWorkbookWithSheet,
+  applyCells,
+  applyMerges,
+  createSheetApi,
+  type InitCell,
+} from '@sheet/api'
+import type { CanvasRenderer, WorkerRenderer } from '@sheet/renderer'
+import type { BorderStyle, Sheet, Style } from '@sheet/core'
 import tableData from './data/table.json'
 import cellMenu from './config/contextMenu'
 
@@ -24,20 +30,34 @@ const tbUnderline = ref(false)
 const tbStrike = ref(false)
 
 // Configure grid size and initial cell contents (externalized JSON under src/data)
+type AttachArgs = Parameters<typeof attachSheetInteractions>[0]
+type StyleDefinition = Omit<Style, 'id'>
+type TableCell = InitCell & { style?: string }
+type BorderRegion = {
+  r0: number
+  c0: number
+  r1: number
+  c1: number
+  color?: string
+  width?: number
+  style?: BorderStyle
+  outsideOnly?: boolean
+}
+
 interface TableData {
   rows: number
   cols: number
-  cells: Array<{ r: number; c: number; value: unknown; style?: string }>
+  cells: TableCell[]
   merges: Array<{ r: number; c: number; rows: number; cols: number }>
-  styles?: Record<string, unknown>
+  styles?: Record<string, StyleDefinition>
   colWidths?: Array<{ index: number; width: number }>
   rowHeights?: Array<{ index: number; height: number }>
-  borderRegions?: Array<{ r0: number; c0: number; r1: number; c1: number; color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }>
+  borderRegions?: BorderRegion[]
 }
 const td = tableData as TableData
 const rows = ref(td.rows)
 const cols = ref(td.cols)
-const cells = ref(td.cells)
+const cells = ref<TableCell[]>(td.cells)
 const merges = ref(td.merges)
 
 // Create workbook/sheet externally and fill initial cells
@@ -48,7 +68,18 @@ applyMerges(sheet, merges.value)
 
 // ---------- Demo: Borders ----------
 // Helper to apply a border style to a rectangular region; interior sides dedupe in renderer
-function applyRegionBorder(r0: number, c0: number, r1: number, c1: number, cfg: { color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }) {
+function applyRegionBorder(
+  r0: number,
+  c0: number,
+  r1: number,
+  c1: number,
+  cfg: {
+    color?: string
+    width?: number
+    style?: BorderStyle
+    outsideOnly?: boolean
+  },
+) {
   const color = cfg.color ?? '#111827'
   const width = Math.max(1, Math.floor(cfg.width ?? 1))
   const style = cfg.style ?? 'solid'
@@ -59,8 +90,18 @@ function applyRegionBorder(r0: number, c0: number, r1: number, c1: number, cfg: 
       const left = c === c0
       const right = c === c1
       const sides = cfg.outsideOnly
-        ? { top: top ? { color, width, style } : undefined, bottom: bottom ? { color, width, style } : undefined, left: left ? { color, width, style } : undefined, right: right ? { color, width, style } : undefined }
-        : { top: { color, width, style }, bottom: { color, width, style }, left: { color, width, style }, right: { color, width, style } }
+        ? {
+            top: top ? { color, width, style } : undefined,
+            bottom: bottom ? { color, width, style } : undefined,
+            left: left ? { color, width, style } : undefined,
+            right: right ? { color, width, style } : undefined,
+          }
+        : {
+            top: { color, width, style },
+            bottom: { color, width, style },
+            left: { color, width, style },
+            right: { color, width, style },
+          }
       const id = sheet.defineStyle({ border: sides })
       sheet.setCellStyle(r, c, id)
     }
@@ -68,27 +109,26 @@ function applyRegionBorder(r0: number, c0: number, r1: number, c1: number, cfg: 
 }
 
 // 从 JSON 应用：样式、单元格样式、行高列宽、边框区域
-type BorderRegion = { r0: number; c0: number; r1: number; c1: number; color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }
 const styleMap = new Map<string, number>()
-if ((td as any).styles) {
-  for (const [name, def] of Object.entries((td as any).styles)) {
-    styleMap.set(name, sheet.defineStyle(def as any))
+if (td.styles) {
+  for (const [name, def] of Object.entries(td.styles)) {
+    styleMap.set(name, sheet.defineStyle(def))
   }
 }
 // apply cell-level styles defined by style name
-for (const cell of cells.value as Array<{ r: number; c: number; value: unknown; style?: string }>) {
+for (const cell of cells.value) {
   if (cell.style) {
     const id = styleMap.get(cell.style)
     if (id != null) sheet.setCellStyle(cell.r, cell.c, id)
   }
 }
 // col widths / row heights
-for (const it of (td as any).colWidths ?? [])
+for (const it of td.colWidths ?? [])
   if (it.index >= 0 && it.index < sheet.cols) sheet.setColWidth(it.index, it.width)
-for (const it of (td as any).rowHeights ?? [])
+for (const it of td.rowHeights ?? [])
   if (it.index >= 0 && it.index < sheet.rows) sheet.setRowHeight(it.index, it.height)
 // border regions
-for (const br of (td as any).borderRegions as BorderRegion[] | undefined ?? [])
+for (const br of td.borderRegions ?? [])
   applyRegionBorder(br.r0, br.c0, br.r1, br.c1, br)
 
 // Header appearance and labels (configurable)
@@ -105,14 +145,26 @@ const headerLabels = {
   // row: (i: number) => `行${i + 1}`,
 }
 
-function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet; scrollHost?: HTMLElement | null }) {
+function onReady(payload: {
+  canvas: HTMLCanvasElement
+  renderer: CanvasRenderer | WorkerRenderer
+  sheet: Sheet
+  scrollHost?: HTMLElement | null
+  infiniteScroll?: boolean
+}) {
   // attach interactions as soon as child reports ready
   // Safari/macOS 在滚动到左右/上下边缘时容易触发系统级回退/前进手势或产生弹性回弹导致画布抖动。
   // 为了彻底规避该问题，在 Safari 下禁用“原生滚动主机”路径，改用自定义 wheel 处理（会调用 preventDefault）。
   const ua = navigator.userAgent
   const isSafari = /Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua)
-  const args = isSafari ? { ...payload, scrollHost: null as HTMLElement | null } : payload
-  handle.value = attachSheetInteractions(args as any)
+  const attachArgs: AttachArgs = {
+    canvas: payload.canvas,
+    renderer: payload.renderer as CanvasRenderer,
+    sheet: payload.sheet,
+    scrollHost: isSafari ? null : payload.scrollHost,
+    infiniteScroll: payload.infiniteScroll,
+  }
+  handle.value = attachSheetInteractions(attachArgs)
   // build API and subscribe formula to selection changes
   api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
   // live sync formula bar while editing
@@ -163,8 +215,10 @@ const onApplyFill = (color: string) => api?.applyFillColor(color)
 const onApplyBorder = (p: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }) => {
   if (!api) return
   if (p.mode === 'thick') api.applyBorder({ mode: 'all', width: 2, style: 'solid', color: p.color })
-  else if (p.mode === 'outside') api.applyBorder({ mode: 'outside', width: 1, style: 'solid', color: p.color })
-  else if (p.mode === 'all') api.applyBorder({ mode: 'all', width: 1, style: 'solid', color: p.color })
+  else if (p.mode === 'outside')
+    api.applyBorder({ mode: 'outside', width: 1, style: 'solid', color: p.color })
+  else if (p.mode === 'all')
+    api.applyBorder({ mode: 'all', width: 1, style: 'solid', color: p.color })
   else api.applyBorder({ mode: 'none' })
 }
 
@@ -258,6 +312,7 @@ function onOpenContextMenu(e: MouseEvent) {
         :sheet="sheet"
         :header-style="headerStyle"
         :header-labels="headerLabels"
+        :infinite-scroll="true"
         @ready="onReady"
       />
     </div>
@@ -274,7 +329,8 @@ body,
   margin: 0;
 }
 /* 全局禁用 overscroll 链接与回弹，降低 Safari 边缘手势误触 */
-html, body {
+html,
+body {
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
 }

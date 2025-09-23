@@ -22,6 +22,8 @@ const props = defineProps<{
   scrollbarThickness?: number
   headerStyle?: Partial<HeaderStyle>
   headerLabels?: HeaderLabels
+  // Infinite scroll: dynamically grow rows/cols as user scrolls
+  infiniteScroll?: boolean
 }>()
 
 // Use external sheet directly
@@ -56,6 +58,7 @@ const emit = defineEmits<{
     renderer: RendererLike
     sheet: Sheet
     scrollHost?: HTMLElement | null
+    infiniteScroll?: boolean
   }): void
 }>()
 
@@ -144,6 +147,7 @@ onMounted(() => {
     scrollbarThickness: props.scrollbarThickness ?? 16,
     headerStyle: props.headerStyle,
     headerLabels: props.headerLabels,
+    infiniteScroll: !!props.infiniteScroll,
   })
   // Do one passive paint; 交互包挂载后会接管渲染循环
   requestAnimationFrame(() => {
@@ -192,6 +196,7 @@ onMounted(() => {
     renderer: rendererRef.value as unknown as RendererLike,
     sheet,
     scrollHost: scrollHostRef.value,
+    infiniteScroll: !!props.infiniteScroll,
   })
   // After parent (interaction) attaches, adjust scroll spacer once more (in case sizes changed)
   nextTick(() => syncScrollSpacer())

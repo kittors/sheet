@@ -106,14 +106,20 @@ export function attachKeyboard(
         let c = ac.c
         const curM = ctx.sheet.getMergeAt(r, c)
         const curIsAnchor = !!curM && curM.r === r && curM.c === c
-        if (curIsAnchor) r = Math.min(ctx.sheet.rows - 1, curM!.r + curM!.rows)
+        if (curIsAnchor) r = curM!.r + curM!.rows
         else r = r + 1
-        if (r >= ctx.sheet.rows) {
-          r = 0
-          c = c + 1
-        }
-        if (c >= ctx.sheet.cols) {
-          c = 0
+        // Infinite mode: extend sheet instead of wrapping
+        if ((ctx as any).infiniteScroll) {
+          if (r >= ctx.sheet.rows) ctx.sheet.rows = r + 1
+          if (c >= ctx.sheet.cols) ctx.sheet.cols = c + 1
+        } else {
+          if (r >= ctx.sheet.rows) {
+            r = 0
+            c = c + 1
+          }
+          if (c >= ctx.sheet.cols) {
+            c = 0
+          }
         }
         // If landing inside a merged block, select the full block at its anchor
         const nextM = ctx.sheet.getMergeAt(r, c)
@@ -168,7 +174,7 @@ export function attachKeyboard(
         e.preventDefault()
         return
       }
-      // commit and move selection down (sheet-wide wrap)
+      // commit and move selection down
       const cur = state.editor
       ed.commit()
       // compute next cell (column-major wrap)
@@ -176,14 +182,19 @@ export function attachKeyboard(
       let c = cur?.c ?? 0
       const merge = ctx.sheet.getMergeAt(r, c)
       const isMergeAnchor = !!merge && merge.r === r && merge.c === c
-      if (isMergeAnchor) r = Math.min(ctx.sheet.rows - 1, merge!.r + merge!.rows)
+      if (isMergeAnchor) r = merge!.r + merge!.rows
       else r = r + 1
-      if (r >= ctx.sheet.rows) {
-        r = 0
-        c = c + 1
-      }
-      if (c >= ctx.sheet.cols) {
-        c = 0
+      if ((ctx as any).infiniteScroll) {
+        if (r >= ctx.sheet.rows) ctx.sheet.rows = r + 1
+        if (c >= ctx.sheet.cols) ctx.sheet.cols = c + 1
+      } else {
+        if (r >= ctx.sheet.rows) {
+          r = 0
+          c = c + 1
+        }
+        if (c >= ctx.sheet.cols) {
+          c = 0
+        }
       }
       // If landing inside a merged block, select the full block at its anchor
       const nextM = ctx.sheet.getMergeAt(r, c)

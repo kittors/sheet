@@ -45,6 +45,9 @@ export interface RendererOptions {
   headerLabels?: HeaderLabels
   // Optional: override device pixel ratio (for OffscreenCanvas workers)
   dpr?: number
+  // When enabled, dynamically extend sheet.rows/cols near the scroll edge
+  // so the grid behaves like it has no fixed size.
+  infiniteScroll?: boolean
 }
 
 export class CanvasRenderer {
@@ -89,6 +92,11 @@ export class CanvasRenderer {
   private fastUntilTs = 0
   // Weak cache for merge boundary blockers keyed by visible range + merges signature (capped size)
   private gridBlockersCache = new Map<string, { v: Map<number, Set<number>>; h: Map<number, Set<number>> }>()
+  // Infinite-scroll: track dynamic explored content sizes used for scrollbar geometry
+  private _expContentWidth: number | null = null
+  private _expContentHeight: number | null = null
+  private _baseContentWidth: number | null = null
+  private _baseContentHeight: number | null = null
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, opts: RendererOptions = {}) {
     this.canvas = canvas
@@ -123,6 +131,7 @@ export class CanvasRenderer {
       // Make scrollbars thicker by default for better hit targets
       scrollbarThickness: opts.scrollbarThickness ?? 16,
       scrollbarThumbMinSize: opts.scrollbarThumbMinSize ?? 24,
+      infiniteScroll: opts.infiniteScroll ?? false,
     }
     this.headerStyle = {
       background: opts.headerStyle?.background ?? '#f9fafb',
@@ -151,14 +160,14 @@ export class CanvasRenderer {
     const viewportContentWidth = Math.max(0, viewport.width - originX)
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
-    // Compute content size
-    const contentWidth =
+    // Compute raw content size from current sheet bounds
+    let contentWidth =
       sheet.cols * this.opts.defaultColWidth! +
       Array.from(sheet.colWidths.values()).reduce(
         (acc, w) => acc + (w - this.opts.defaultColWidth!),
         0,
       )
-    const contentHeight =
+    let contentHeight =
       sheet.rows * this.opts.defaultRowHeight! +
       Array.from(sheet.rowHeights.values()).reduce(
         (acc, h) => acc + (h - this.opts.defaultRowHeight!),
@@ -175,20 +184,113 @@ export class CanvasRenderer {
       vScrollable = contentHeight > heightAvail + 0.5
       hScrollable = contentWidth > widthAvail + 0.5
     }
-    const widthAvail = Math.max(0, viewportContentWidth - (vScrollable ? thickness : 0))
-    const heightAvail = Math.max(0, viewportContentHeight - (hScrollable ? thickness : 0))
+    let widthAvail = Math.max(0, viewportContentWidth - (vScrollable ? thickness : 0))
+    let heightAvail = Math.max(0, viewportContentHeight - (hScrollable ? thickness : 0))
+
+    // Infinite mode: two layers
+    // 1) Physically extend sheet bounds when near raw limits so渲染区域有内容；
+    // 2) 为滚动条计算一个“可探索”的动态内容长度（可增可减），用于拇指大小与映射。
+    if (this.opts.infiniteScroll) {
+      // 1) Physical growth near raw edge
+      const marginXGrow = Math.max(this.opts.defaultColWidth! * 3, Math.floor(widthAvail * 0.5))
+      const marginYGrow = Math.max(this.opts.defaultRowHeight! * 6, Math.floor(heightAvail * 0.5))
+      const maxScrollXPre = Math.max(0, contentWidth - widthAvail)
+      const maxScrollYPre = Math.max(0, contentHeight - heightAvail)
+      if (scrollX > maxScrollXPre - marginXGrow) {
+        const neededWidth = scrollX + widthAvail + marginXGrow
+        if (neededWidth > contentWidth) {
+          const deltaW = neededWidth - contentWidth
+          const addCols = Math.max(1, Math.ceil(deltaW / this.opts.defaultColWidth!))
+          sheet.cols += addCols
+          contentWidth += addCols * this.opts.defaultColWidth!
+        }
+      }
+      if (scrollY > maxScrollYPre - marginYGrow) {
+        const neededHeight = scrollY + heightAvail + marginYGrow
+        if (neededHeight > contentHeight) {
+          const deltaH = neededHeight - contentHeight
+          const addRows = Math.max(1, Math.ceil(deltaH / this.opts.defaultRowHeight!))
+          sheet.rows += addRows
+          contentHeight += addRows * this.opts.defaultRowHeight!
+        }
+      }
+      // After growth, recompute scrollability baseline
+      vScrollable = contentHeight > viewportContentHeight + 0.5
+      hScrollable = contentWidth > viewportContentWidth + 0.5
+      widthAvail = Math.max(0, viewportContentWidth - (vScrollable ? thickness : 0))
+      heightAvail = Math.max(0, viewportContentHeight - (hScrollable ? thickness : 0))
+
+      // 2) Dynamic explored content used for scrollbar geometry (can grow and shrink).
+      // Minimal bound based on actual used data/merges so滚动条不会小于“已使用”范围。
+      const used = (sheet as any).getUsedExtents?.() as { rows: number; cols: number } | undefined
+      const usedRows = Math.max(0, used?.rows ?? 0)
+      const usedCols = Math.max(0, used?.cols ?? 0)
+      const usedMinHeight = (() => {
+        if (usedRows <= 0) return 0
+        let base = usedRows * this.opts.defaultRowHeight!
+        if (sheet.rowHeights.size)
+          for (const [r, h] of sheet.rowHeights)
+            if (r < usedRows) base += h - this.opts.defaultRowHeight!
+        return base
+      })()
+      const usedMinWidth = (() => {
+        if (usedCols <= 0) return 0
+        let base = usedCols * this.opts.defaultColWidth!
+        if (sheet.colWidths.size)
+          for (const [c, w] of sheet.colWidths)
+            if (c < usedCols) base += w - this.opts.defaultColWidth!
+        return base
+      })()
+      // Remember initial content as another baseline to avoid over-shrinking on empty sheets
+      if (this._baseContentWidth == null)
+        this._baseContentWidth = Math.max(usedMinWidth, Math.max(1, viewportContentWidth))
+      if (this._baseContentHeight == null)
+        this._baseContentHeight = Math.max(usedMinHeight, Math.max(1, viewportContentHeight))
+      const minW = Math.max(this._baseContentWidth, usedMinWidth)
+      const minH = Math.max(this._baseContentHeight, usedMinHeight)
+      // Compute exploration targets from current desired scroll and available viewport
+      const marginX = Math.max(this.opts.defaultColWidth! * 2, Math.floor(widthAvail * 0.5))
+      const marginY = Math.max(this.opts.defaultRowHeight! * 4, Math.floor(heightAvail * 0.5))
+      const targetExpW = Math.max(minW, scrollX + widthAvail + marginX)
+      const targetExpH = Math.max(minH, scrollY + heightAvail + marginY)
+      // Apply immediately (no hysteresis) so回溯时滚动块可变大
+      this._expContentWidth = targetExpW
+      this._expContentHeight = targetExpH
+      // After computing target explored sizes, recompute scrollbar visibility and available viewport
+      const effW = this._expContentWidth ?? contentWidth
+      const effH = this._expContentHeight ?? contentHeight
+      let vScrollableEff = effH > viewportContentHeight + 0.5
+      let hScrollableEff = effW > viewportContentWidth + 0.5
+      for (let i = 0; i < 2; i++) {
+        const nextWAvail = Math.max(0, viewportContentWidth - (vScrollableEff ? thickness : 0))
+        const nextHAvail = Math.max(0, viewportContentHeight - (hScrollableEff ? thickness : 0))
+        vScrollableEff = effH > nextHAvail + 0.5
+        hScrollableEff = effW > nextWAvail + 0.5
+      }
+      widthAvail = Math.max(0, viewportContentWidth - (vScrollableEff ? thickness : 0))
+      heightAvail = Math.max(0, viewportContentHeight - (hScrollableEff ? thickness : 0))
+      vScrollable = vScrollableEff
+      hScrollable = hScrollableEff
+    } else {
+      this._expContentWidth = null
+      this._expContentHeight = null
+      if (this._baseContentWidth == null) this._baseContentWidth = contentWidth
+      if (this._baseContentHeight == null) this._baseContentHeight = contentHeight
+    }
 
     // Clamp scroll to available content viewport (prevents boundary drift)
-    const maxScrollX = Math.max(0, contentWidth - widthAvail)
-    const maxScrollY = Math.max(0, contentHeight - heightAvail)
+    const effContentWidth = this._expContentWidth ?? contentWidth
+    const effContentHeight = this._expContentHeight ?? contentHeight
+    const maxScrollX = Math.max(0, effContentWidth - widthAvail)
+    const maxScrollY = Math.max(0, effContentHeight - heightAvail)
     const sX = Math.max(0, Math.min(scrollX, maxScrollX))
     const sY = Math.max(0, Math.min(scrollY, maxScrollY))
 
     this.viewportMetrics = {
       widthAvail,
       heightAvail,
-      contentWidth,
-      contentHeight,
+      contentWidth: effContentWidth,
+      contentHeight: effContentHeight,
       maxScrollX,
       maxScrollY,
       viewportWidth: viewport.width,
@@ -235,10 +337,10 @@ export class CanvasRenderer {
       const trackSpan = h
       const thumbLen = Math.max(
         minThumb,
-        Math.max(0, Math.floor(trackSpan * (heightAvail / contentHeight))),
+        Math.max(0, Math.floor(trackSpan * (heightAvail / effContentHeight))),
       )
       const maxThumbTop = trackSpan - thumbLen
-      const maxScrollY = Math.max(0, contentHeight - heightAvail)
+      const maxScrollY = Math.max(0, effContentHeight - heightAvail)
       const frac = maxScrollY > 0 ? sY / maxScrollY : 0
       const thumbTop = yTrack + Math.floor(maxThumbTop * frac)
       // Make the thumb thinner than the track and center it horizontally
@@ -269,10 +371,10 @@ export class CanvasRenderer {
       const trackSpan = w
       const thumbLen = Math.max(
         minThumb,
-        Math.max(0, Math.floor(trackSpan * (widthAvail / contentWidth))),
+        Math.max(0, Math.floor(trackSpan * (widthAvail / effContentWidth))),
       )
       const maxThumbLeft = trackSpan - thumbLen
-      const maxScrollX = Math.max(0, contentWidth - widthAvail)
+      const maxScrollX = Math.max(0, effContentWidth - widthAvail)
       const frac = maxScrollX > 0 ? sX / maxScrollX : 0
       const thumbLeft = xTrack + Math.floor(maxThumbLeft * frac)
       // Make the thumb thinner than the track and center it vertically

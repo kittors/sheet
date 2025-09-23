@@ -16,6 +16,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     canvas: args.canvas,
     renderer: args.renderer,
     sheet: args.sheet,
+    infiniteScroll: args.infiniteScroll,
     metrics: {
       defaultColWidth: args.renderer.opts.defaultColWidth!,
       defaultRowHeight: args.renderer.opts.defaultRowHeight!,
@@ -115,6 +116,13 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
   }
 
   function normalizeScroll(prevX: number, prevY: number) {
+    // In infinite mode, give the renderer a chance to grow the sheet before clamping
+    // so clamping reflects the expanded bounds.
+    try {
+      if (ctx.infiniteScroll) ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+    } catch (e) {
+      void e
+    }
     const { widthAvail, heightAvail, contentWidth, contentHeight, maxScrollX, maxScrollY } =
       computeAvailViewport(ctx)
     const maxX = maxScrollX ?? Math.max(0, contentWidth - widthAvail)

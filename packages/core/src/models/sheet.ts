@@ -32,6 +32,9 @@ export class Sheet {
   merges: MergeRange[] = []
   // Fast lookup for covered cells: key -> anchor key
   private mergeCoverIndex = new Map<string, string>()
+  // Track max used cell indices (0-based). Only grows; not decremented on clear.
+  private maxDataRow = -1
+  private maxDataCol = -1
 
   constructor(name: string, rows: number, cols: number) {
     this.name = name
@@ -65,6 +68,12 @@ export class Sheet {
     const cur = this.cells.get(k) || {}
     cur.value = value
     this.cells.set(k, cur)
+    // Consider non-empty as used. Empty string or null/undefined are not counted.
+    const nonEmpty = value != null && (typeof value !== 'string' || value.length > 0)
+    if (nonEmpty) {
+      if (ar > this.maxDataRow) this.maxDataRow = ar
+      if (ac > this.maxDataCol) this.maxDataCol = ac
+    }
   }
 
   defineStyle(style: Omit<Style, 'id'>): number {
@@ -175,6 +184,11 @@ export class Sheet {
     }
     this.merges.push(next)
     this.rebuildMergeCoverIndex()
+    // Treat merged region as used extent for scrollbar sizing purposes
+    const rMax = r + rows - 1
+    const cMax = c + cols - 1
+    if (rMax > this.maxDataRow) this.maxDataRow = rMax
+    if (cMax > this.maxDataCol) this.maxDataCol = cMax
     return true
   }
 
@@ -202,6 +216,11 @@ export class Sheet {
         }
       }
     }
+  }
+
+  /** Return current used extents measured by data/merges (counts not indices). */
+  getUsedExtents(): { rows: number; cols: number } {
+    return { rows: this.maxDataRow + 1, cols: this.maxDataCol + 1 }
   }
 
   /** Utility: rectangle intersection test for merges. */
