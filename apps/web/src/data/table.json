@@ -1,0 +1,338 @@
+{
+  "rows": 100000,
+  "cols": 100,
+  "styles": {
+    "clip": {
+      "alignment": {
+        "overflow": "clip"
+      }
+    },
+    "ellipsis": {
+      "alignment": {
+        "overflow": "ellipsis"
+      }
+    },
+    "wrapTop": {
+      "alignment": {
+        "wrapText": true,
+        "vertical": "top"
+      }
+    },
+    "mergeTitle": {
+      "alignment": {
+        "horizontal": "center",
+        "vertical": "middle"
+      },
+      "font": {
+        "bold": true
+      },
+      "fill": {
+        "backgroundColor": "#f3f4f6"
+      }
+    },
+    "fs12": {
+      "font": {
+        "size": 12
+      }
+    },
+    "fs14Bold": {
+      "font": {
+        "size": 14,
+        "bold": true
+      }
+    },
+    "fs18Italic": {
+      "font": {
+        "size": 18,
+        "italic": true
+      }
+    },
+    "fs24Underline": {
+      "font": {
+        "size": 24,
+        "underline": true
+      }
+    },
+    "fs18Strike": {
+      "font": {
+        "size": 18,
+        "strikethrough": true
+      }
+    },
+    "fs18All": {
+      "font": {
+        "size": 18,
+        "bold": true,
+        "italic": true,
+        "underline": true,
+        "strikethrough": true
+      }
+    },
+    "alignLeftTop": {
+      "alignment": {
+        "horizontal": "left",
+        "vertical": "top"
+      }
+    },
+    "alignCenterMiddle": {
+      "alignment": {
+        "horizontal": "center",
+        "vertical": "middle"
+      }
+    },
+    "alignRightBottom": {
+      "alignment": {
+        "horizontal": "right",
+        "vertical": "bottom"
+      }
+    }
+  },
+  "cells": [
+    {
+      "r": 0,
+      "c": 0,
+      "value": "A1"
+    },
+    {
+      "r": 1,
+      "c": 1,
+      "value": "B2"
+    },
+    {
+      "r": 2,
+      "c": 2,
+      "value": "C3"
+    },
+    {
+      "r": 7,
+      "c": 0,
+      "value": "Overflow: This is a very very long content to demonstrate overflow, clipping and wrapping behavior."
+    },
+    {
+      "r": 8,
+      "c": 0,
+      "value": "Clip: This is a very very long content to demonstrate overflow, clipping and wrapping behavior.",
+      "style": "clip"
+    },
+    {
+      "r": 9,
+      "c": 0,
+      "value": "Ellipsis: This is a very very long content to demonstrate overflow, clipping and wrapping behavior.",
+      "style": "ellipsis"
+    },
+    {
+      "r": 10,
+      "c": 0,
+      "value": "Wrap: This is a very very long content to demonstrate overflow, clipping and wrapping behavior.",
+      "style": "wrapTop"
+    },
+    {
+      "r": 12,
+      "c": 0,
+      "value": "字体 Demo"
+    },
+    {
+      "r": 13,
+      "c": 0,
+      "value": "12px 正常",
+      "style": "fs12"
+    },
+    {
+      "r": 13,
+      "c": 1,
+      "value": "14px 粗体",
+      "style": "fs14Bold"
+    },
+    {
+      "r": 13,
+      "c": 2,
+      "value": "18px 斜体",
+      "style": "fs18Italic"
+    },
+    {
+      "r": 13,
+      "c": 3,
+      "value": "24px 下划线",
+      "style": "fs24Underline"
+    },
+    {
+      "r": 13,
+      "c": 4,
+      "value": "18px 删除线",
+      "style": "fs18Strike"
+    },
+    {
+      "r": 14,
+      "c": 0,
+      "value": "综合：粗斜下删 18px",
+      "style": "fs18All"
+    },
+    {
+      "r": 16,
+      "c": 0,
+      "value": "对齐 Demo"
+    },
+    {
+      "r": 17,
+      "c": 1,
+      "value": "左上",
+      "style": "alignLeftTop"
+    },
+    {
+      "r": 18,
+      "c": 1,
+      "value": "水平居中/垂直中",
+      "style": "alignCenterMiddle"
+    },
+    {
+      "r": 19,
+      "c": 1,
+      "value": "右下",
+      "style": "alignRightBottom"
+    },
+    {
+      "r": 0,
+      "c": 0,
+      "value": "合并 A1:C2",
+      "style": "mergeTitle"
+    },
+    {
+      "r": 4,
+      "c": 0,
+      "value": "A5:B5 合并",
+      "style": "mergeTitle"
+    },
+    {
+      "r": 0,
+      "c": 5,
+      "value": "F1:F3 合并",
+      "style": "mergeTitle"
+    },
+    {
+      "r": 3,
+      "c": 2,
+      "value": "全部边框 (C4:F7)"
+    },
+    {
+      "r": 3,
+      "c": 7,
+      "value": "外边框 (H4:K7)"
+    },
+    {
+      "r": 8,
+      "c": 2,
+      "value": "虚线网格 (C9:F12)"
+    },
+    {
+      "r": 8,
+      "c": 7,
+      "value": "点线网格 (H9:K12)"
+    }
+  ],
+  "merges": [
+    {
+      "r": 0,
+      "c": 0,
+      "rows": 2,
+      "cols": 3
+    },
+    {
+      "r": 4,
+      "c": 0,
+      "rows": 1,
+      "cols": 2
+    },
+    {
+      "r": 0,
+      "c": 5,
+      "rows": 3,
+      "cols": 1
+    }
+  ],
+  "colWidths": [
+    {
+      "index": 0,
+      "width": 140
+    },
+    {
+      "index": 1,
+      "width": 220
+    },
+    {
+      "index": 3,
+      "width": 180
+    }
+  ],
+  "rowHeights": [
+    {
+      "index": 0,
+      "height": 32
+    },
+    {
+      "index": 1,
+      "height": 40
+    },
+    {
+      "index": 5,
+      "height": 36
+    },
+    {
+      "index": 10,
+      "height": 72
+    },
+    {
+      "index": 17,
+      "height": 40
+    },
+    {
+      "index": 18,
+      "height": 40
+    },
+    {
+      "index": 19,
+      "height": 40
+    }
+  ],
+  "borderRegions": [
+    {
+      "r0": 3,
+      "c0": 2,
+      "r1": 6,
+      "c1": 5,
+      "color": "#111827",
+      "width": 1,
+      "style": "solid",
+      "outsideOnly": false
+    },
+    {
+      "r0": 3,
+      "c0": 7,
+      "r1": 6,
+      "c1": 10,
+      "color": "#111827",
+      "width": 2,
+      "style": "solid",
+      "outsideOnly": true
+    },
+    {
+      "r0": 8,
+      "c0": 2,
+      "r1": 11,
+      "c1": 5,
+      "color": "#3b82f6",
+      "width": 1,
+      "style": "dashed",
+      "outsideOnly": false
+    },
+    {
+      "r0": 8,
+      "c0": 7,
+      "r1": 11,
+      "c1": 10,
+      "color": "#ef4444",
+      "width": 1,
+      "style": "dotted",
+      "outsideOnly": false
+    }
+  ]
+}

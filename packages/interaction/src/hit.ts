@@ -15,19 +15,23 @@ export function posToCell(
   if (x < originX || y < originY) return null
   const sb = ctx.renderer.getScrollbars?.()
   if (sb) {
-    const inV =
-      sb.vTrack &&
-      x >= sb.vTrack.x &&
-      x <= sb.vTrack.x + sb.vTrack.w &&
-      y >= sb.vTrack.y &&
-      y <= sb.vTrack.y + sb.vTrack.h
-    const inH =
-      sb.hTrack &&
-      x >= sb.hTrack.x &&
-      x <= sb.hTrack.x + sb.hTrack.w &&
-      y >= sb.hTrack.y &&
-      y <= sb.hTrack.y + sb.hTrack.h
-    if (inV || inH) return null
+    const inVTrack =
+      !!sb.vTrack && x >= sb.vTrack.x && x <= sb.vTrack.x + sb.vTrack.w && y >= sb.vTrack.y && y <= sb.vTrack.y + sb.vTrack.h
+    const inVThumb =
+      !!sb.vThumb && x >= sb.vThumb.x && x <= sb.vThumb.x + sb.vThumb.w && y >= sb.vThumb.y && y <= sb.vThumb.y + sb.vThumb.h
+    const inVArrow = !!(
+      (sb.vArrowUp && x >= sb.vArrowUp.x && x <= sb.vArrowUp.x + sb.vArrowUp.w && y >= sb.vArrowUp.y && y <= sb.vArrowUp.y + sb.vArrowUp.h) ||
+      (sb.vArrowDown && x >= sb.vArrowDown.x && x <= sb.vArrowDown.x + sb.vArrowDown.w && y >= sb.vArrowDown.y && y <= sb.vArrowDown.y + sb.vArrowDown.h)
+    )
+    const inHTrack =
+      !!sb.hTrack && x >= sb.hTrack.x && x <= sb.hTrack.x + sb.hTrack.w && y >= sb.hTrack.y && y <= sb.hTrack.y + sb.hTrack.h
+    const inHThumb =
+      !!sb.hThumb && x >= sb.hThumb.x && x <= sb.hThumb.x + sb.hThumb.w && y >= sb.hThumb.y && y <= sb.hThumb.y + sb.hThumb.h
+    const inHArrow = !!(
+      (sb.hArrowLeft && x >= sb.hArrowLeft.x && x <= sb.hArrowLeft.x + sb.hArrowLeft.w && y >= sb.hArrowLeft.y && y <= sb.hArrowLeft.y + sb.hArrowLeft.h) ||
+      (sb.hArrowRight && x >= sb.hArrowRight.x && x <= sb.hArrowRight.x + sb.hArrowRight.w && y >= sb.hArrowRight.y && y <= sb.hArrowRight.y + sb.hArrowRight.h)
+    )
+    if (inVTrack || inVThumb || inVArrow || inHTrack || inHThumb || inHArrow) return null
   }
   const {
     widthAvail: viewportContentWidth,

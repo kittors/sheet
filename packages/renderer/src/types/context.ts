@@ -40,6 +40,11 @@ export interface RenderContext {
     vThumb: { x: number; y: number; w: number; h: number } | null
     hTrack: { x: number; y: number; w: number; h: number } | null
     hThumb: { x: number; y: number; w: number; h: number } | null
+    // Optional arrow buttons at both ends of the tracks
+    vArrowUp?: { x: number; y: number; w: number; h: number } | null
+    vArrowDown?: { x: number; y: number; w: number; h: number } | null
+    hArrowLeft?: { x: number; y: number; w: number; h: number } | null
+    hArrowRight?: { x: number; y: number; w: number; h: number } | null
   }
   // scrollbar interaction state (for hover/active styling)
   scrollbarState: {
@@ -47,6 +52,11 @@ export interface RenderContext {
     hHover: boolean
     vActive: boolean
     hActive: boolean
+    // fine-grained hover flags for arrow buttons
+    vArrowHoverUp?: boolean
+    vArrowHoverDown?: boolean
+    hArrowHoverLeft?: boolean
+    hArrowHoverRight?: boolean
   }
   // optional resize/guide lines to render (canvas coordinates)
   guides?: {

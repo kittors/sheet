@@ -6,6 +6,8 @@ import { attachSheetInteractions, type InteractionHandle } from '@sheet/interact
 import { createWorkbookWithSheet, applyCells, applyMerges, createSheetApi } from '@sheet/api'
 import type { CanvasRenderer } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
+import tableData from './data/table.json'
+import cellMenu from './config/contextMenu'
 
 const handle = ref<InteractionHandle | null>(null)
 let api: ReturnType<typeof createSheetApi> | null = null
@@ -21,90 +23,28 @@ const tbItalic = ref(false)
 const tbUnderline = ref(false)
 const tbStrike = ref(false)
 
-// Configure grid size and initial cell contents here (app layer)
-const rows = ref(1000)
-const cols = ref(100)
-const cells = ref([
-  { r: 0, c: 0, value: 'A1' },
-  { r: 1, c: 1, value: 'B2' },
-  { r: 2, c: 2, value: 'C3' },
-])
-// Initial merged ranges (non-overlapping)
-const merges = ref([
-  { r: 0, c: 0, rows: 2, cols: 3 }, // A1:C2
-  { r: 4, c: 0, rows: 1, cols: 2 }, // A5:B5 (row merge)
-  { r: 0, c: 5, rows: 3, cols: 1 }, // F1:F3 (col merge)
-])
+// Configure grid size and initial cell contents (externalized JSON under src/data)
+interface TableData {
+  rows: number
+  cols: number
+  cells: Array<{ r: number; c: number; value: unknown; style?: string }>
+  merges: Array<{ r: number; c: number; rows: number; cols: number }>
+  styles?: Record<string, unknown>
+  colWidths?: Array<{ index: number; width: number }>
+  rowHeights?: Array<{ index: number; height: number }>
+  borderRegions?: Array<{ r0: number; c0: number; r1: number; c1: number; color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }>
+}
+const td = tableData as TableData
+const rows = ref(td.rows)
+const cols = ref(td.cols)
+const cells = ref(td.cells)
+const merges = ref(td.merges)
 
 // Create workbook/sheet externally and fill initial cells
 const { sheet } = createWorkbookWithSheet({ name: 'Sheet1', rows: rows.value, cols: cols.value })
 applyCells(sheet, cells.value)
 applyMerges(sheet, merges.value)
-// Demo: overflow/clip/ellipsis/wrap
-const longText =
-  'This is a very very long content to demonstrate overflow, clipping and wrapping behavior.'
-// Styles for alignment/flow
-const styleClip = sheet.defineStyle({ alignment: { overflow: 'clip' } })
-const styleEllipsis = sheet.defineStyle({ alignment: { overflow: 'ellipsis' } })
-const styleWrap = sheet.defineStyle({ alignment: { wrapText: true, vertical: 'top' } })
-// Place sample cells (same column to compare)
-sheet.setValue(7, 0, 'Overflow: ' + longText) // default overflow
-sheet.setValue(8, 0, 'Clip: ' + longText)
-sheet.setCellStyle(8, 0, styleClip)
-sheet.setValue(9, 0, 'Ellipsis: ' + longText)
-sheet.setCellStyle(9, 0, styleEllipsis)
-sheet.setValue(10, 0, 'Wrap: ' + longText)
-sheet.setCellStyle(10, 0, styleWrap)
-sheet.setRowHeight(10, 72)
-
-// ---------- Demo: Font styles (size/bold/italic/underline/strikethrough) ----------
-// Place a small showcase starting at row 12
-sheet.setValue(12, 0, '字体 Demo')
-const stBold = sheet.defineStyle({ font: { bold: true } })
-const stItalic = sheet.defineStyle({ font: { italic: true } })
-const stUnderline = sheet.defineStyle({ font: { underline: true } })
-const stStrike = sheet.defineStyle({ font: { strikethrough: true } })
-const st12 = sheet.defineStyle({ font: { size: 12 } })
-const st14 = sheet.defineStyle({ font: { size: 14 } })
-const st18 = sheet.defineStyle({ font: { size: 18 } })
-const st24 = sheet.defineStyle({ font: { size: 24 } })
-const stAll18 = sheet.defineStyle({ font: { size: 18, bold: true, italic: true, underline: true, strikethrough: true } })
-
-sheet.setValue(13, 0, '12px 正常')
-sheet.setCellStyle(13, 0, st12)
-sheet.setValue(13, 1, '14px 粗体')
-sheet.setCellStyle(13, 1, sheet.defineStyle({ font: { size: 14, bold: true } }))
-sheet.setValue(13, 2, '18px 斜体')
-sheet.setCellStyle(13, 2, sheet.defineStyle({ font: { size: 18, italic: true } }))
-sheet.setValue(13, 3, '24px 下划线')
-sheet.setCellStyle(13, 3, sheet.defineStyle({ font: { size: 24, underline: true } }))
-sheet.setValue(13, 4, '18px 删除线')
-sheet.setCellStyle(13, 4, sheet.defineStyle({ font: { size: 18, strikethrough: true } }))
-sheet.setValue(14, 0, '综合：粗斜下删 18px')
-sheet.setCellStyle(14, 0, stAll18)
-
-// ---------- Demo: Alignment (horizontal/vertical) ----------
-sheet.setValue(16, 0, '对齐 Demo')
-// Make 3 rows higher to see vertical alignment
-sheet.setRowHeight(17, 40)
-sheet.setRowHeight(18, 40)
-sheet.setRowHeight(19, 40)
-sheet.setValue(17, 1, '左上')
-sheet.setCellStyle(17, 1, sheet.defineStyle({ alignment: { horizontal: 'left', vertical: 'top' } }))
-sheet.setValue(18, 1, '水平居中/垂直中')
-sheet.setCellStyle(18, 1, sheet.defineStyle({ alignment: { horizontal: 'center', vertical: 'middle' } }))
-sheet.setValue(19, 1, '右下')
-sheet.setCellStyle(19, 1, sheet.defineStyle({ alignment: { horizontal: 'right', vertical: 'bottom' } }))
-
-// ---------- Demo: Merged cells ----------
-// Style existing merges and add a visible fill to emphasize
-const mergeTitle = sheet.defineStyle({ alignment: { horizontal: 'center', vertical: 'middle' }, font: { bold: true }, fill: { backgroundColor: '#f3f4f6' } })
-sheet.setValue(0, 0, '合并 A1:C2')
-sheet.setCellStyle(0, 0, mergeTitle)
-sheet.setValue(4, 0, 'A5:B5 合并')
-sheet.setCellStyle(4, 0, mergeTitle)
-sheet.setValue(0, 5, 'F1:F3 合并')
-sheet.setCellStyle(0, 5, mergeTitle)
+// Demo内容改为从 JSON 读取（见下方 JSON 应用段）
 
 // ---------- Demo: Borders ----------
 // Helper to apply a border style to a rectangular region; interior sides dedupe in renderer
@@ -127,38 +67,29 @@ function applyRegionBorder(r0: number, c0: number, r1: number, c1: number, cfg: 
   }
 }
 
-// Area 1: 全部边框（细实线） C4:F7
-sheet.setValue(3, 2, '全部边框 (C4:F7)')
-applyRegionBorder(3, 2, 6, 5, { color: '#111827', width: 1, style: 'solid', outsideOnly: false })
-
-// Area 2: 外边框（粗实线） H4:K7
-sheet.setValue(3, 7, '外边框 (H4:K7)')
-applyRegionBorder(3, 7, 6, 10, { color: '#111827', width: 2, style: 'solid', outsideOnly: true })
-
-// Area 3: 虚线网格（蓝色） C9:F12
-sheet.setValue(8, 2, '虚线网格 (C9:F12)')
-applyRegionBorder(8, 2, 11, 5, { color: '#3b82f6', width: 1, style: 'dashed', outsideOnly: false })
-
-// Area 4: 点线网格（红色） H9:K12
-sheet.setValue(8, 7, '点线网格 (H9:K12)')
-applyRegionBorder(8, 7, 11, 10, { color: '#ef4444', width: 1, style: 'dotted', outsideOnly: false })
-
-// App-level size configuration: define a few custom column widths and row heights
-// Adjust or externalize as needed (e.g., from settings or persisted user prefs)
-const initialColWidths: Array<{ index: number; width: number }> = [
-  { index: 0, width: 140 },
-  { index: 1, width: 220 },
-  { index: 3, width: 180 },
-]
-const initialRowHeights: Array<{ index: number; height: number }> = [
-  { index: 0, height: 32 },
-  { index: 1, height: 40 },
-  { index: 5, height: 36 },
-]
-for (const it of initialColWidths)
+// 从 JSON 应用：样式、单元格样式、行高列宽、边框区域
+type BorderRegion = { r0: number; c0: number; r1: number; c1: number; color?: string; width?: number; style?: import('@sheet/core').BorderStyle; outsideOnly?: boolean }
+const styleMap = new Map<string, number>()
+if ((td as any).styles) {
+  for (const [name, def] of Object.entries((td as any).styles)) {
+    styleMap.set(name, sheet.defineStyle(def as any))
+  }
+}
+// apply cell-level styles defined by style name
+for (const cell of cells.value as Array<{ r: number; c: number; value: unknown; style?: string }>) {
+  if (cell.style) {
+    const id = styleMap.get(cell.style)
+    if (id != null) sheet.setCellStyle(cell.r, cell.c, id)
+  }
+}
+// col widths / row heights
+for (const it of (td as any).colWidths ?? [])
   if (it.index >= 0 && it.index < sheet.cols) sheet.setColWidth(it.index, it.width)
-for (const it of initialRowHeights)
+for (const it of (td as any).rowHeights ?? [])
   if (it.index >= 0 && it.index < sheet.rows) sheet.setRowHeight(it.index, it.height)
+// border regions
+for (const br of (td as any).borderRegions as BorderRegion[] | undefined ?? [])
+  applyRegionBorder(br.r0, br.c0, br.r1, br.c1, br)
 
 // Header appearance and labels (configurable)
 const headerStyle = {
@@ -174,9 +105,14 @@ const headerLabels = {
   // row: (i: number) => `行${i + 1}`,
 }
 
-function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet }) {
+function onReady(payload: { canvas: HTMLCanvasElement; renderer: CanvasRenderer; sheet: Sheet; scrollHost?: HTMLElement | null }) {
   // attach interactions as soon as child reports ready
-  handle.value = attachSheetInteractions(payload)
+  // Safari/macOS 在滚动到左右/上下边缘时容易触发系统级回退/前进手势或产生弹性回弹导致画布抖动。
+  // 为了彻底规避该问题，在 Safari 下禁用“原生滚动主机”路径，改用自定义 wheel 处理（会调用 preventDefault）。
+  const ua = navigator.userAgent
+  const isSafari = /Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua)
+  const args = isSafari ? { ...payload, scrollHost: null as HTMLElement | null } : payload
+  handle.value = attachSheetInteractions(args as any)
   // build API and subscribe formula to selection changes
   api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
   // live sync formula bar while editing
@@ -280,112 +216,9 @@ function formatSelection(sel: { r0: number; c0: number; r1: number; c1: number }
 }
 
 // 右键菜单（仅在表格内容区域触发）
-import { Scissors, Copy, ClipboardPaste, AlignLeft, AlignCenter, AlignRight } from 'lucide-vue-next'
 import type { ContextMenuItem } from '@sheet/ui'
 const cmRef = ref<InstanceType<typeof ContextMenu> | null>(null)
 const cmItems = ref<ContextMenuItem[]>([])
-// 右键菜单（含二级菜单，仅展示，不实现功能）
-const cellMenu: ContextMenuItem[] = [
-  { id: 'cut', label: '剪切', icon: Scissors, shortcut: '⌘X' },
-  { id: 'copy', label: '复制', icon: Copy, shortcut: '⌘C' },
-  { id: 'paste', label: '粘贴', icon: ClipboardPaste, shortcut: '⌘V' },
-  { id: 'grp-sep-1', seperator: true },
-  {
-    id: 'insert',
-    label: '插入',
-    children: [
-      { id: 'insert-row-above', label: '在上方插入行' },
-      { id: 'insert-row-below', label: '在下方插入行' },
-      { id: 'ins-sep-1', seperator: true },
-      { id: 'insert-col-left', label: '在左侧插入列' },
-      { id: 'insert-col-right', label: '在右侧插入列' },
-    ],
-  },
-  {
-    id: 'align',
-    label: '对齐',
-    children: [
-      { id: 'align-left', label: '左对齐', icon: AlignLeft },
-      { id: 'align-center', label: '水平居中', icon: AlignCenter },
-      { id: 'align-right', label: '右对齐', icon: AlignRight },
-      { id: 'aln-sep-1', seperator: true },
-      { id: 'valign-top', label: '顶部对齐' },
-      { id: 'valign-middle', label: '垂直居中' },
-      { id: 'valign-bottom', label: '底部对齐' },
-      // 第三级示例
-      {
-        id: 'align-advanced',
-        label: '高级',
-        separatorBefore: true,
-        children: [
-          { id: 'distribute-h', label: '水平分布' },
-          { id: 'distribute-v', label: '垂直分布' },
-          {
-            id: 'indent',
-            label: '缩进',
-            children: [
-              { id: 'indent-increase', label: '增加缩进' },
-              { id: 'indent-decrease', label: '减少缩进' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  { id: 'grp-sep-2', seperator: true },
-  // 多级菜单综合示例：格式 -> 数字格式 -> 小数位 -> 选项
-  {
-    id: 'format',
-    label: '格式',
-    children: [
-      {
-        id: 'number-format',
-        label: '数字格式',
-        children: [
-          { id: 'fmt-general', label: '常规' },
-          { id: 'fmt-number', label: '数值' },
-          { id: 'fmt-percent', label: '百分比' },
-          {
-            id: 'fmt-decimal',
-            label: '小数位',
-            children: [
-              { id: 'decimal-0', label: '0 位' },
-              { id: 'decimal-1', label: '1 位' },
-              { id: 'decimal-2', label: '2 位' },
-              { id: 'decimal-3', label: '3 位' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'borders',
-        label: '边框',
-        children: [
-          { id: 'border-all', label: '所有边框' },
-          { id: 'border-outside', label: '外边框' },
-          { id: 'border-inside', label: '内部边框' },
-        ],
-      },
-      {
-        id: 'text-orientation',
-        label: '文本方向',
-        children: [
-          { id: 'orientation-horizontal', label: '水平' },
-          { id: 'orientation-vertical', label: '垂直' },
-          {
-            id: 'orientation-angle',
-            label: '角度',
-            children: [
-              { id: 'angle-45', label: '45 deg' },
-              { id: 'angle-90', label: '90 deg' },
-              { id: 'angle-135', label: '135 deg' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-]
 function onOpenContextMenu(e: MouseEvent) {
   // 仅在内容区域（cell）打开
   const hit = handle.value?.hitTest(e.clientX, e.clientY)
@@ -439,5 +272,10 @@ body,
 #app {
   height: 100%;
   margin: 0;
+}
+/* 全局禁用 overscroll 链接与回弹，降低 Safari 边缘手势误触 */
+html, body {
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
 }
 </style>

@@ -73,7 +73,11 @@ export class CanvasRenderer {
     vThumb: { x: number; y: number; w: number; h: number } | null
     hTrack: { x: number; y: number; w: number; h: number } | null
     hThumb: { x: number; y: number; w: number; h: number } | null
-  } = { vTrack: null, vThumb: null, hTrack: null, hThumb: null }
+    vArrowUp?: { x: number; y: number; w: number; h: number } | null
+    vArrowDown?: { x: number; y: number; w: number; h: number } | null
+    hArrowLeft?: { x: number; y: number; w: number; h: number } | null
+    hArrowRight?: { x: number; y: number; w: number; h: number } | null
+  } = { vTrack: null, vThumb: null, hTrack: null, hThumb: null, vArrowUp: null, vArrowDown: null, hArrowLeft: null, hArrowRight: null }
   scrollbarState = { vHover: false, hHover: false, vActive: false, hActive: false }
   private viewportMetrics: ViewportMetrics | null = null
   private lastRenderTs = 0
@@ -116,7 +120,8 @@ export class CanvasRenderer {
       overscan: opts.overscan ?? 1,
       headerRowHeight: opts.headerRowHeight ?? 28,
       headerColWidth: opts.headerColWidth ?? 48,
-      scrollbarThickness: opts.scrollbarThickness ?? 12,
+      // Make scrollbars thicker by default for better hit targets
+      scrollbarThickness: opts.scrollbarThickness ?? 16,
       scrollbarThumbMinSize: opts.scrollbarThumbMinSize ?? 24,
     }
     this.headerStyle = {
@@ -209,13 +214,24 @@ export class CanvasRenderer {
     // Vertical scrollbar visible only if content exceeds viewport
     let vTrack: { x: number; y: number; w: number; h: number } | null = null
     let vThumb: { x: number; y: number; w: number; h: number } | null = null
+    let vArrowUp: { x: number; y: number; w: number; h: number } | null = null
+    let vArrowDown: { x: number; y: number; w: number; h: number } | null = null
     if (vScrollable) {
       const x = viewport.width - thickness
       const y = originY
       const w = thickness
       // If horizontal bar also visible we keep room for corner
-      const h = viewport.height - originY - (hScrollable ? thickness : 0)
-      vTrack = { x, y, w, h }
+      const hTotal = viewport.height - originY - (hScrollable ? thickness : 0)
+      // Arrow buttons: square at both ends (cap around 1/3 of total span to avoid overlap)
+      // Slightly larger arrow length to increase hit area
+      const arrow = Math.min(Math.floor(thickness * 1.5), Math.max(0, Math.floor(hTotal / 3)))
+      // Define arrow rects
+      vArrowUp = { x, y, w, h: arrow }
+      vArrowDown = { x, y: y + hTotal - arrow, w, h: arrow }
+      // Thumb track excludes arrow areas
+      const yTrack = y + arrow
+      const h = Math.max(0, hTotal - arrow - arrow)
+      vTrack = { x, y: yTrack, w, h }
       const trackSpan = h
       const thumbLen = Math.max(
         minThumb,
@@ -224,20 +240,32 @@ export class CanvasRenderer {
       const maxThumbTop = trackSpan - thumbLen
       const maxScrollY = Math.max(0, contentHeight - heightAvail)
       const frac = maxScrollY > 0 ? sY / maxScrollY : 0
-      const thumbTop = y + Math.floor(maxThumbTop * frac)
-      vThumb = { x, y: thumbTop, w, h: thumbLen }
+      const thumbTop = yTrack + Math.floor(maxThumbTop * frac)
+      // Make the thumb thinner than the track and center it horizontally
+      const thumbThick = Math.max(4, Math.floor(w * 0.6))
+      const thumbX = x + Math.floor((w - thumbThick) / 2)
+      vThumb = { x: thumbX, y: thumbTop, w: thumbThick, h: thumbLen }
     }
 
     // Horizontal scrollbar
     let hTrack: { x: number; y: number; w: number; h: number } | null = null
     let hThumb: { x: number; y: number; w: number; h: number } | null = null
+    let hArrowLeft: { x: number; y: number; w: number; h: number } | null = null
+    let hArrowRight: { x: number; y: number; w: number; h: number } | null = null
     if (hScrollable) {
       const x = originX
       const y = viewport.height - thickness
       // If vertical bar also visible we keep room for corner
-      const w = viewport.width - originX - (vScrollable ? thickness : 0)
+      const wTotal = viewport.width - originX - (vScrollable ? thickness : 0)
       const h = thickness
-      hTrack = { x, y, w, h }
+      // Arrow buttons on both sides
+      const arrow = Math.min(Math.floor(thickness * 1.5), Math.max(0, Math.floor(wTotal / 3)))
+      hArrowLeft = { x, y, w: arrow, h }
+      hArrowRight = { x: x + wTotal - arrow, y, w: arrow, h }
+      // Thumb track excludes arrows
+      const xTrack = x + arrow
+      const w = Math.max(0, wTotal - arrow - arrow)
+      hTrack = { x: xTrack, y, w, h }
       const trackSpan = w
       const thumbLen = Math.max(
         minThumb,
@@ -246,11 +274,14 @@ export class CanvasRenderer {
       const maxThumbLeft = trackSpan - thumbLen
       const maxScrollX = Math.max(0, contentWidth - widthAvail)
       const frac = maxScrollX > 0 ? sX / maxScrollX : 0
-      const thumbLeft = x + Math.floor(maxThumbLeft * frac)
-      hThumb = { x: thumbLeft, y, w: thumbLen, h }
+      const thumbLeft = xTrack + Math.floor(maxThumbLeft * frac)
+      // Make the thumb thinner than the track and center it vertically
+      const thumbThick = Math.max(4, Math.floor(h * 0.6))
+      const thumbY = y + Math.floor((h - thumbThick) / 2)
+      hThumb = { x: thumbLeft, y: thumbY, w: thumbLen, h: thumbThick }
     }
 
-    this.lastScrollbars = { vTrack, vThumb, hTrack, hThumb }
+    this.lastScrollbars = { vTrack, vThumb, hTrack, hThumb, vArrowUp, vArrowDown, hArrowLeft, hArrowRight }
 
     // Perf hint: treat as fast-scrolling if renders are close together and scroll moved noticeably
     const now = performance.now()
@@ -345,6 +376,10 @@ export class CanvasRenderer {
         vThumb,
         hTrack,
         hThumb,
+        vArrowUp,
+        vArrowDown,
+        hArrowLeft,
+        hArrowRight,
       },
       scrollbarState: this.scrollbarState,
       guides: this.guides,

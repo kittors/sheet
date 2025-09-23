@@ -276,22 +276,31 @@ export class ContentLayer implements Layer {
                   anchorW += sheet.colWidths.get(cc) ?? defaultColWidth
               }
               const anchorRightX = anchorLeftX + anchorW
-              // Determine right limit for overflow: stop at the first non-empty/editing cell
+              // Determine right limit for overflow: stop at the first non-empty cell.
+              // If there is an active editor in this row, carve a hole for its cell
+              // but continue the overflow rendering after that hole.
               let overflowRightLimitX = viewportRight
+              let holeLeftX = -1
+              let holeRightX = -1
               let curX = anchorRightX
               let scanC = anchorMerge ? anchorMerge.c + anchorMerge.cols : anchorC + 1
               const isRowEditing =
                 !!rc.editor && rc.editor.r === r && rc.editor.selStart != null && rc.editor.selEnd != null
               while (scanC < sheet.cols) {
-                const isAnchorHere = isRowEditing && rc.editor!.c === scanC
+                const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
+                const nextX = curX + w2
+                const isEditorHere = isRowEditing && rc.editor!.c === scanC
                 const vHere = sheet.getValueAt(r, scanC)
                 const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
-                if (hasValHere || isAnchorHere) {
+                if (hasValHere) {
                   overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                   break
                 }
-                const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
-                curX += w2
+                if (isEditorHere) {
+                  holeLeftX = curX
+                  holeRightX = nextX
+                }
+                curX = nextX
                 if (curX >= viewportRight) break
                 scanC++
               }
@@ -331,12 +340,20 @@ export class ContentLayer implements Layer {
                 overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
               const finalRight = Math.min(desiredRight, allowedRight)
 
-              // Clip region: viewport left to the computed finalRight (do not pass the editor anchor)
+              // Clip region: viewport-left to finalRight, with an optional hole for the editor cell
               ctx.save()
               ctx.beginPath()
               const clipLeft = Math.floor(viewportLeft) + 1
-              const clipW = Math.max(0, Math.floor(finalRight) - clipLeft)
-              ctx.rect(clipLeft, y + 1, clipW, Math.max(0, baseH - 2))
+              if (isRowEditing && holeLeftX >= 0 && holeRightX > holeLeftX) {
+                const leftW = Math.max(0, Math.floor(Math.min(finalRight, holeLeftX) - clipLeft))
+                if (leftW > 0) ctx.rect(clipLeft, y + 1, leftW, Math.max(0, baseH - 2))
+                const rightX = Math.max(clipLeft, Math.floor(holeRightX))
+                const rightW = Math.max(0, Math.floor(finalRight - rightX))
+                if (rightW > 0) ctx.rect(rightX, y + 1, rightW, Math.max(0, baseH - 2))
+              } else {
+                const clipW = Math.max(0, Math.floor(finalRight) - clipLeft)
+                if (clipW > 0) ctx.rect(clipLeft, y + 1, clipW, Math.max(0, baseH - 2))
+              }
               ctx.clip()
               // Draw the text and its decorations within the same clip region
               ctx.fillText(raw, tx, ty)
@@ -444,21 +461,31 @@ export class ContentLayer implements Layer {
           const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
           const viewportRight = rc.viewport.width - vGap2
           let overflowRightLimitX = viewportRight
-          let rowEditing2 = isActiveEditing
+          // Only treat the active editor as a blocker in the SAME row; otherwise do not affect other rows.
+          const isRowEditing = isActiveEditing && rc.editor!.r === r
+          // Track an optional hole (the active editor cell) so overflow can continue after it.
+          let holeLeftX = -1
+          let holeRightX = -1
           if (!wrap && overflow === 'overflow') {
             // Start scanning from the first column after current (or after current merge span)
             let curX = x + drawW
             let scanC = m && m.r === r && m.c === c ? m.c + m.cols : c + 1
             while (scanC < sheet.cols) {
-              const isAnchorHere = rowEditing2 && rc.editor!.c === scanC
+              const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
+              const nextX = curX + w2
+              const isEditorHere = isRowEditing && rc.editor!.c === scanC
               const vHere = sheet.getValueAt(r, scanC)
               const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
-              if (hasValHere || isAnchorHere) {
+              if (hasValHere) {
                 overflowRightLimitX = Math.min(overflowRightLimitX, curX)
                 break
               }
-              const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
-              curX += w2
+              if (isEditorHere) {
+                // Record editor hole and continue scanning to allow overflow after the editor
+                holeLeftX = curX
+                holeRightX = nextX
+              }
+              curX = nextX
               if (curX >= viewportRight) break
               scanC++
             }
@@ -535,55 +562,39 @@ export class ContentLayer implements Layer {
           } else {
             // single-line: apply overflow policy (Excel-like precise column-bound algorithm)
             const needsClipPolicy = overflow === 'clip' || overflow === 'ellipsis'
-            let clipW = Math.max(0, Math.floor(drawW))
-            if (overflow === 'overflow' && halign === 'left') {
-              // measure text and compute desired right edge based on pixel width
+            if (needsClipPolicy || isEditingAnchor || halign !== 'left') {
+              // For clip/ellipsis, or non-left alignment, just clip to cell box
+              ctx.save()
+              ctx.beginPath()
+              ctx.rect(x + 1, y + 1, Math.max(0, drawH > 0 ? drawW - 2 : 0), Math.max(0, drawH - 2))
+              ctx.clip()
+            } else if (overflow === 'overflow') {
+              // measure text and compute desired right edge
               const textW = this.measureTextCached(ctx, txt)
               const desiredRight = tx + textW + 2
-              // Default allowed region extends to the next blocker (occupied cell),
-              // but if this row is in editing mode we exclude only the anchor cell area,
-              // still allowing overflow to continue after the anchor.
               const allowedRight =
                 overflowRightLimitX < viewportRight ? overflowRightLimitX : viewportRight
-              // Base clip (no holes)
-              let finalRight = Math.min(desiredRight, allowedRight)
-              clipW = Math.max(0, Math.floor(finalRight - x))
-            }
-            const hasOverflowStop = overflow === 'overflow' && overflowRightLimitX < viewportRight
-            // Never clip the editing anchor itself; it should render fully (handled by editor layer)
-            const interiorClipW = Math.max(0, Math.floor(clipW) - 2)
-            const doClipPolicy =
-              !isEditingAnchor && (needsClipPolicy || hasOverflowStop) && interiorClipW > 2
-            // Additionally, if actively editing on this row and this cell is not the anchor,
-            // avoid drawing inside the anchor cell box only. For cells to the left of the
-            // anchor, allow overflow to continue after the anchor by creating a two-segment clip.
-            const isRowEditing =
-              !!rc.editor &&
-              rc.editor.r === r &&
-              rc.editor.selStart != null &&
-              rc.editor.selEnd != null
-            // Only carve a custom two-segment clip for overflow policy.
-            // For 'clip' or 'ellipsis', keep the normal per-cell clip so text does not escape its box.
-            // Treat the active editor cell as a hard blocker for overflow from the left.
-            // Do not carve holes to allow overflow to continue after the editor.
-            let didCustomClip = false
-            if (!didCustomClip && doClipPolicy) {
+              const finalRight = Math.min(desiredRight, allowedRight)
               ctx.save()
               ctx.beginPath()
-              ctx.rect(x + 1, y + 1, interiorClipW, Math.max(0, drawH - 2))
+              if (isRowEditing && holeLeftX >= 0 && holeRightX > holeLeftX) {
+                // Two-segment clip: left of editor, and right of editor until finalRight
+                const leftW = Math.max(0, Math.floor(holeLeftX - (x + 1)))
+                if (leftW > 0) ctx.rect(x + 1, y + 1, leftW, Math.max(0, drawH - 2))
+                const rightX = Math.max(holeRightX, x + 1)
+                const rightW = Math.max(0, Math.floor(finalRight - rightX))
+                if (rightW > 0) ctx.rect(Math.floor(rightX), y + 1, rightW, Math.max(0, drawH - 2))
+              } else {
+                // Simple one-piece clip from cell left to finalRight
+                const wideW = Math.max(0, Math.floor(finalRight - (x + 1)))
+                if (wideW > 0) ctx.rect(x + 1, y + 1, wideW, Math.max(0, drawH - 2))
+              }
               ctx.clip()
-            } else if (!didCustomClip && !doClipPolicy) {
-              // Ensure we always clip vertically to the cell height to prevent vertical overflow,
-              // while not restricting horizontal overflow (allow until viewport right).
+            } else {
+              // Fallback safety: clip to cell interior
               ctx.save()
               ctx.beginPath()
-              const vGap3 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-              const vpRight = rc.viewport.width - vGap3
-              // If overflow is active and we computed a right limit, respect it; otherwise go to viewport right
-              const rightX =
-                overflow === 'overflow' && halign === 'left' ? Math.min(vpRight, overflowRightLimitX) : vpRight
-              const wideW = Math.max(0, Math.floor(rightX - (x + 1)))
-              ctx.rect(x + 1, y + 1, wideW, Math.max(0, drawH - 2))
+              ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
               ctx.clip()
             }
             let out = txt
@@ -612,7 +623,7 @@ export class ContentLayer implements Layer {
               const sY = topY + Math.max(1, Math.round(sizePx2 * 0.45))
               ctx.save()
               // Keep the same clip region as used for the text above.
-              // We already set a clip in all cases (custom/tight or wide-to-viewport),
+              // We already set a clip in all cases (custom/two-segment or wide-to-viewport),
               // so do not re-clip here; otherwise decorations would be wrongly cut off
               // at the cell boundary and disappear when only the overflow area is visible.
               ctx.strokeStyle = style?.font?.color ?? '#111827'

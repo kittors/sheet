@@ -58,7 +58,7 @@ export class WorkerRenderer {
       overscan: opts.overscan ?? 1,
       headerRowHeight: opts.headerRowHeight ?? 28,
       headerColWidth: opts.headerColWidth ?? 48,
-      scrollbarThickness: opts.scrollbarThickness ?? 12,
+      scrollbarThickness: opts.scrollbarThickness ?? 16,
       scrollbarThumbMinSize: opts.scrollbarThumbMinSize ?? 24,
       headerStyle: opts.headerStyle,
       headerLabels: opts.headerLabels,

@@ -140,7 +140,8 @@ onMounted(() => {
     overscan: props.overscan ?? 1,
     headerColWidth: props.headerColWidth ?? 48,
     headerRowHeight: props.headerRowHeight ?? 28,
-    scrollbarThickness: props.scrollbarThickness ?? 12,
+    // Thicker scrollbars by default for easier hit/drag
+    scrollbarThickness: props.scrollbarThickness ?? 16,
     headerStyle: props.headerStyle,
     headerLabels: props.headerLabels,
   })
