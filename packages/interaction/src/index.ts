@@ -185,12 +185,12 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       const el = e.target as HTMLElement
       const prevX = state.scroll.x
       const prevY = state.scroll.y
-      state.scroll.x = el.scrollLeft
-      state.scroll.y = el.scrollTop
-      // Clamp and schedule (one full render per frame via RAF)
+      // Pixel-align scroll to match scrollbar drag feel and eliminate subpixel jitter
+      state.scroll.x = Math.max(0, Math.floor(el.scrollLeft))
+      state.scroll.y = Math.max(0, Math.floor(el.scrollTop))
+      // Clamp to bounds first
       normalizeScroll(prevX, prevY)
-      // while scrolling, keep spacer size synced as well
-      syncScrollHostSizeFromRenderer()
+      // Queue the normal full render for the next frame (coalesced with other updates)
       schedule()
     }
     scrollHost.addEventListener('scroll', onScrollFn, { passive: true })

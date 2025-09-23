@@ -56,6 +56,8 @@ export class ContentLayer implements Layer {
   render(rc: RenderContext) {
     const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
     // Lightweight drawing when fast-scrolling to keep input latency low
+    // When `fast` is true we avoid the most expensive passes (overflow scanning and text layout)
+    // and only paint backgrounds, grid and borders. Full text paint will catch up on the next frame.
     const fast = !!rc.perf?.fast
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
@@ -221,17 +223,14 @@ export class ContentLayer implements Layer {
       ctx.restore()
 
       // PASS 1.7: overflow text from offscreen left anchors
-      // If a cell immediately to the left of the visible region in this row contains text
-      // and has overflow policy 'overflow' with left alignment, render its text spilling into
-      // the viewport across empty neighbors. Fixes disappearance of long text (e.g. A8) when
-      // horizontally scrolled such that the source cell is offscreen.
+      // 始终绘制，避免在 fast/非 fast 之间切换造成溢出文本的“闪现/消失”。
       {
-        // Viewport content bounds (exclude scrollbars)
-        const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-        const viewportLeft = originX
-        const viewportRight = rc.viewport.width - vGap2
-        // Only needed if there are columns hidden to the left
-        if (visible.colStart > 0) {
+      // Viewport content bounds (exclude scrollbars)
+      const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
+      const viewportLeft = originX
+      const viewportRight = rc.viewport.width - vGap2
+      // Only needed if there are columns hidden to the left
+      if (visible.colStart > 0) {
           // Helper to compute cumulative width up to column index i
           const cumWidth = (i: number): number => {
             let base = i * defaultColWidth
@@ -374,7 +373,7 @@ export class ContentLayer implements Layer {
         }
       }
 
-      // PASS 2: text
+      // PASS 2: text（始终完整绘制，保证视觉稳定，避免 fast/非 fast 间切换导致闪烁）
         x = originX - visible.offsetX
         for (let c = visible.colStart; c <= visible.colEnd; c++) {
           const baseW = sheet.colWidths.get(c) ?? defaultColWidth
@@ -643,6 +642,7 @@ export class ContentLayer implements Layer {
 
         x += baseW
       }
+      // 行累加必须始终进行（之前在 fast 时被包进了文本分支，导致行线错位/消失）
       y += baseH
     }
 
