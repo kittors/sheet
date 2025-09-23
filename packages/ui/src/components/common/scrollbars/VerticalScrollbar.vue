@@ -64,7 +64,9 @@ function onUp(e: PointerEvent) {
   if (!dragging.value) return
   try {
     thumbEl.value?.releasePointerCapture?.(e.pointerId)
-  } catch {}
+  } catch (err) {
+    void err
+  }
   dragging.value = false
 }
 

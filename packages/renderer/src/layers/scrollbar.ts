@@ -1,4 +1,5 @@
 import type { Layer, RenderContext } from '../types/context'
+import type { Canvas2DContext } from '@sheet/shared-utils'
 
 export class ScrollbarLayer implements Layer {
   name = 'scrollbar'
@@ -132,7 +133,7 @@ export class ScrollbarLayer implements Layer {
   }
 
   private roundRect(
-    ctx: CanvasRenderingContext2D,
+    ctx: Canvas2DContext,
     x: number,
     y: number,
     w: number,
@@ -150,7 +151,7 @@ export class ScrollbarLayer implements Layer {
   }
 
   private drawRoundedTriangle(
-    ctx: CanvasRenderingContext2D,
+    ctx: Canvas2DContext,
     a: { x: number; y: number },
     b: { x: number; y: number },
     c: { x: number; y: number },
@@ -196,7 +197,7 @@ export class ScrollbarLayer implements Layer {
     ctx.closePath()
     ctx.fill()
   }
-  private drawArrowUp(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  private drawArrowUp(ctx: Canvas2DContext, x: number, y: number, w: number, h: number) {
     // Slightly shrink icon without changing clickable area
     const pad = Math.floor(Math.min(w, h) * 0.24)
     const availW = Math.max(0, w - 2 * pad)
@@ -217,7 +218,7 @@ export class ScrollbarLayer implements Layer {
       r,
     )
   }
-  private drawArrowDown(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  private drawArrowDown(ctx: Canvas2DContext, x: number, y: number, w: number, h: number) {
     const pad = Math.floor(Math.min(w, h) * 0.24)
     const availW = Math.max(0, w - 2 * pad)
     const availH = Math.max(0, h - 2 * pad)
@@ -236,7 +237,7 @@ export class ScrollbarLayer implements Layer {
       r,
     )
   }
-  private drawArrowLeft(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  private drawArrowLeft(ctx: Canvas2DContext, x: number, y: number, w: number, h: number) {
     const pad = Math.floor(Math.min(w, h) * 0.24)
     const availW = Math.max(0, w - 2 * pad)
     const availH = Math.max(0, h - 2 * pad)
@@ -255,7 +256,7 @@ export class ScrollbarLayer implements Layer {
       r,
     )
   }
-  private drawArrowRight(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  private drawArrowRight(ctx: Canvas2DContext, x: number, y: number, w: number, h: number) {
     const pad = Math.floor(Math.min(w, h) * 0.24)
     const availW = Math.max(0, w - 2 * pad)
     const availH = Math.max(0, h - 2 * pad)

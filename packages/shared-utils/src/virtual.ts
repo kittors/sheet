@@ -75,7 +75,7 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
   const sizeAt = (i: number, def: number, m?: Map<number, number>) => m?.get(i) ?? def
 
   // Find starting column/row by binary search on cumulative sums
-  const findStart = (sPos: number, count: number, def: number, keys: number[], pref: number[], m?: Map<number, number>) => {
+  const findStart = (sPos: number, count: number, def: number, keys: number[], pref: number[]) => {
     let lo = 0,
       hi = count
     while (lo < hi) {
@@ -89,8 +89,8 @@ export function computeVisibleRange(p: VirtualParams): VisibleRange {
     return { start: idx, offset: sPos - base }
   }
 
-  const colRes = findStart(sX, p.colCount, p.defaultColWidth, colP.keys, colP.pref, p.colWidths)
-  const rowRes = findStart(sY, p.rowCount, p.defaultRowHeight, rowP.keys, rowP.pref, p.rowHeights)
+  const colRes = findStart(sX, p.colCount, p.defaultColWidth, colP.keys, colP.pref)
+  const rowRes = findStart(sY, p.rowCount, p.defaultRowHeight, rowP.keys, rowP.pref)
   let colStart = colRes.start
   let rowStart = rowRes.start
   let offsetX = colRes.offset

@@ -1,6 +1,8 @@
 import type { Layer, RenderContext } from '../types/context'
-import { snapCoord, snappedRect, strokeCrispRect } from '@sheet/shared-utils'
+import { snapCoord } from '@sheet/shared-utils'
+import type { Canvas2DContext } from '@sheet/shared-utils'
 import { wrapTextIndices, fontStringFromStyle } from '@sheet/api'
+import type { Style } from '@sheet/core'
 
 export class ContentLayer implements Layer {
   name = 'content'
@@ -10,7 +12,7 @@ export class ContentLayer implements Layer {
   private wrapCache = new Map<string, Array<{ start: number; end: number }>>()
   // Cache ellipsis cutoff index by font+text+maxW
   private ellipsisCache = new Map<string, number>()
-  private measureTextCached(ctx: CanvasRenderingContext2D, text: string): number {
+  private measureTextCached(ctx: Canvas2DContext, text: string): number {
     const key = ctx.font + '|' + text
     const cached = this.textWidthCache.get(key)
     if (cached != null) return cached
@@ -21,10 +23,10 @@ export class ContentLayer implements Layer {
     return w
   }
   private wrapTextCached(
-    ctx: CanvasRenderingContext2D,
+    ctx: Canvas2DContext,
     text: string,
     maxW: number,
-    font?: any,
+    font?: Style['font'],
   ): Array<{ start: number; end: number }> {
     const key = ctx.font + '|' + text + '|' + maxW
     const hit = this.wrapCache.get(key)
@@ -35,7 +37,7 @@ export class ContentLayer implements Layer {
     this.wrapCache.set(key, lines)
     return lines
   }
-  private ellipsisCutCached(ctx: CanvasRenderingContext2D, text: string, maxW: number): number {
+  private ellipsisCutCached(ctx: Canvas2DContext, text: string, maxW: number): number {
     const key = ctx.font + '|' + text + '|' + maxW
     const hit = this.ellipsisCache.get(key)
     if (hit != null) return hit
@@ -55,10 +57,8 @@ export class ContentLayer implements Layer {
   }
   render(rc: RenderContext) {
     const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
-    // Lightweight drawing when fast-scrolling to keep input latency low
-    // When `fast` is true we avoid the most expensive passes (overflow scanning and text layout)
-    // and only paint backgrounds, grid and borders. Full text paint will catch up on the next frame.
-    const fast = !!rc.perf?.fast
+    // Lightweight drawing during fast scrolls is handled elsewhere; we always render full detail here
+    // so cached measurements stay warm and visuals remain consistent.
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.save()
@@ -79,57 +79,7 @@ export class ContentLayer implements Layer {
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
-      // If this row has an active editor, pre-compute anchor box and its overflow span in pixel space
-      let editSpanStartX = -1,
-        editSpanEndX = -1,
-        editAnchorC = -1,
-        editAnchorLeftX = -1,
-        editAnchorRightX = -1
       let x = originX - visible.offsetX
-      const isActiveEditingRow =
-        !!rc.editor && rc.editor.selStart != null && rc.editor.selEnd != null && rc.editor.r === r
-      if (isActiveEditingRow) {
-        editAnchorC = rc.editor.c
-        // compute anchor start X
-        let ax = originX
-        for (let cc = 0; cc < editAnchorC; cc++) ax += sheet.colWidths.get(cc) ?? defaultColWidth
-        ax -= visible.offsetX
-        // compute anchor width (respect merges)
-        let aw = sheet.colWidths.get(editAnchorC) ?? defaultColWidth
-        const am = sheet.getMergeAt(r, editAnchorC)
-        if (am && am.r === r && am.c === editAnchorC) {
-          aw = 0
-          for (let cc = am.c; cc < am.c + am.cols; cc++)
-            aw += sheet.colWidths.get(cc) ?? defaultColWidth
-        }
-        // scan to find first blocker (non-empty or actively editing cell)
-        const vGap2 = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
-        const viewportRight = rc.viewport.width - vGap2
-        let rightLimit = viewportRight
-        let curX = ax + aw
-        let scanC = am && am.r === r && am.c === editAnchorC ? am.c + am.cols : editAnchorC + 1
-        const rowEditing =
-          isActiveEditingRow
-        while (scanC < sheet.cols) {
-          const editingHere = rowEditing && rc.editor!.c === scanC
-          const vHere = sheet.getValueAt(r, scanC)
-          // Avoid string allocation; empty string is the only stringy "empty"
-          const hasValHere = vHere != null && (typeof vHere !== 'string' || vHere.length > 0)
-          if (editingHere || hasValHere) {
-            rightLimit = Math.min(rightLimit, curX)
-            break
-          }
-          const w2 = sheet.colWidths.get(scanC) ?? defaultColWidth
-          curX += w2
-          // No need to scan past viewport right; overflow won't render beyond it
-          if (curX >= viewportRight) break
-          scanC++
-        }
-        editSpanStartX = ax
-        editSpanEndX = rightLimit
-        editAnchorLeftX = ax
-        editAnchorRightX = ax + aw
-      }
 
       // PASS 1: backgrounds only (to avoid covering overflow text from previous cells)
       x = originX - visible.offsetX
@@ -168,8 +118,8 @@ export class ContentLayer implements Layer {
       // PASS 1.5: grid lines (drawn above backgrounds, below text)
       const vBlockers = rc.gridBlockers?.v
       const hBlockers = rc.gridBlockers?.h
-      const isVBoundaryBlockedAtRow = (b: number, row: number) => (!!vBlockers ? !!vBlockers.get(row)?.has(b) : false)
-      const isHBoundaryBlockedAtCol = (b: number, col: number) => (!!hBlockers ? !!hBlockers.get(col)?.has(b) : false)
+      const isVBoundaryBlockedAtRow = (b: number, row: number) => vBlockers?.get(row)?.has(b) ?? false
+      const isHBoundaryBlockedAtCol = (b: number, col: number) => hBlockers?.get(col)?.has(b) ?? false
       // vertical segments for this row band
       ctx.save()
       ctx.strokeStyle = rc.headerStyle.gridColor
@@ -362,7 +312,7 @@ export class ContentLayer implements Layer {
                 const sizePx2 = style?.font?.size ?? 14
                 // Derive a top-edge Y from current baseline (consistent with single-line path)
                 let topY: number
-                const base = (ctx.textBaseline as any) || 'alphabetic'
+                const base = ctx.textBaseline || 'alphabetic'
                 if (base === 'top') topY = ty
                 else if (base === 'bottom') topY = ty - sizePx2
                 else if (base === 'middle') topY = ty - sizePx2 * 0.5
@@ -424,32 +374,6 @@ export class ContentLayer implements Layer {
           // alignment & flow
           const halign = style?.alignment?.horizontal ?? 'left'
           const valign = style?.alignment?.vertical ?? 'middle'
-          // Fast path disabled to ensure consistent visuals; rely on caches for performance
-          if (false) {
-            let tx = x + 4
-            if (halign === 'center') tx = x + drawW / 2
-            else if (halign === 'right') tx = x + drawW - 4
-            let ty = y + drawH / 2
-            if (valign === 'top') {
-              ctx.textBaseline = 'top'
-              ty = y + 3
-            } else if (valign === 'bottom') {
-              ctx.textBaseline = 'bottom'
-              ty = y + drawH - 3
-            } else {
-              ctx.textBaseline = 'middle'
-              ty = y + drawH / 2
-            }
-            if (halign === 'left') ctx.textAlign = 'left'
-            else if (halign === 'right') ctx.textAlign = 'right'
-            else ctx.textAlign = 'center'
-            ctx.save()
-            ctx.beginPath()
-            ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
-            ctx.clip()
-            ctx.fillText(txt, tx, ty)
-            ctx.restore()
-          }
           {
           const wrap = style?.alignment?.wrapText ?? false
           // While editing, force overflow rendering so hidden text is visible.
@@ -614,7 +538,7 @@ export class ContentLayer implements Layer {
               // Derive a top-edge Y from current baseline so we can use
               // consistent top-relative offsets (matches the multiline path)
               let topY: number
-              const base = (ctx.textBaseline as any) || 'alphabetic'
+              const base = ctx.textBaseline || 'alphabetic'
               if (base === 'top') topY = ty
               else if (base === 'bottom') topY = ty - sizePx2
               else if (base === 'middle') topY = ty - sizePx2 * 0.5
@@ -736,7 +660,7 @@ export class ContentLayer implements Layer {
     }
 
     // GLOBAL PASS: draw custom cell borders on top of everything (always on to avoid flicker)
-    if (true) {
+    {
       let yB = originY - visible.offsetY
       for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
       const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
@@ -841,66 +765,49 @@ export class ContentLayer implements Layer {
             return owner
           }
 
-          // Fast path: identical four sides (common case)
-          const eq = (
-            a?: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number },
-            b?: { color?: string; style?: 'solid' | 'dashed' | 'dotted'; width?: number },
+          // Per-side draw with crisp alignment; dedupe against neighbor to prevent double-thick internal lines
+          const drawSide = (
+            side: 'top' | 'bottom' | 'left' | 'right',
+            cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted' | 'none'; width?: number } | undefined,
           ) => {
-            if (!a || !b) return false
-            return (
-              (a.color ?? '#111827') === (b.color ?? '#111827') &&
-              Math.max(1, Math.floor(a.width ?? 1)) === Math.max(1, Math.floor(b.width ?? 1)) &&
-              (a.style ?? 'solid') === (b.style ?? 'solid')
-            )
-          }
-
-          if (true) {
-            // Per-side draw with crisp alignment; dedupe against neighbor to prevent double-thick internal lines
-            const drawSide = (
-              side: 'top' | 'bottom' | 'left' | 'right',
-              cfg: { color?: string; style?: 'solid' | 'dashed' | 'dotted' | 'none'; width?: number } | undefined,
-            ) => {
-              if (!cfg) return
-              if (!shouldDraw(side, cfg)) return
-              if (cfg.style === 'none') return
-              const color = cfg.color ?? '#111827'
-              const lw = Math.max(1, Math.floor(cfg.width ?? 1))
-              const styleKind = cfg.style ?? 'solid'
-              ctx.save()
-              ctx.strokeStyle = color
-              ctx.lineWidth = lw
-              ctx.lineCap = 'butt'
-              ctx.lineJoin = 'miter'
-              if (styleKind === 'dashed') ctx.setLineDash([4 * lw, 2 * lw])
-              else if (styleKind === 'dotted') ctx.setLineDash([lw, lw])
-              ctx.beginPath()
-              if (side === 'top') {
-                const y = snapCoord(top, lw)
-                ctx.moveTo(Math.floor(left), y)
-                ctx.lineTo(Math.floor(right), y)
-              } else if (side === 'bottom') {
-                const y = snapCoord(bottom, lw)
-                ctx.moveTo(Math.floor(left), y)
-                ctx.lineTo(Math.floor(right), y)
-              } else if (side === 'left') {
-                const x = snapCoord(left, lw)
-                ctx.moveTo(x, Math.floor(top))
-                ctx.lineTo(x, Math.floor(bottom))
-              } else if (side === 'right') {
-                const x = snapCoord(right, lw)
-                ctx.moveTo(x, Math.floor(top))
-                ctx.lineTo(x, Math.floor(bottom))
-              }
-              ctx.stroke()
-              ctx.restore()
+            if (!cfg) return
+            if (!shouldDraw(side, cfg)) return
+            if (cfg.style === 'none') return
+            const color = cfg.color ?? '#111827'
+            const lw = Math.max(1, Math.floor(cfg.width ?? 1))
+            const styleKind = cfg.style ?? 'solid'
+            ctx.save()
+            ctx.strokeStyle = color
+            ctx.lineWidth = lw
+            ctx.lineCap = 'butt'
+            ctx.lineJoin = 'miter'
+            if (styleKind === 'dashed') ctx.setLineDash([4 * lw, 2 * lw])
+            else if (styleKind === 'dotted') ctx.setLineDash([lw, lw])
+            ctx.beginPath()
+            if (side === 'top') {
+              const y = snapCoord(top, lw)
+              ctx.moveTo(Math.floor(left), y)
+              ctx.lineTo(Math.floor(right), y)
+            } else if (side === 'bottom') {
+              const y = snapCoord(bottom, lw)
+              ctx.moveTo(Math.floor(left), y)
+              ctx.lineTo(Math.floor(right), y)
+            } else if (side === 'left') {
+              const x = snapCoord(left, lw)
+              ctx.moveTo(x, Math.floor(top))
+              ctx.lineTo(x, Math.floor(bottom))
+            } else if (side === 'right') {
+              const x = snapCoord(right, lw)
+              ctx.moveTo(x, Math.floor(top))
+              ctx.lineTo(x, Math.floor(bottom))
             }
-            if (bTop) drawSide('top', bTop)
-            if (bBottom) drawSide('bottom', bBottom)
-            if (bLeft) drawSide('left', bLeft)
-            if (bRight) drawSide('right', bRight)
-          } else {
-            // Unreachable branch (kept for diff clarity)
+            ctx.stroke()
+            ctx.restore()
           }
+          if (bTop) drawSide('top', bTop)
+          if (bBottom) drawSide('bottom', bBottom)
+          if (bLeft) drawSide('left', bLeft)
+          if (bRight) drawSide('right', bRight)
         }
         xB += baseW
       }

@@ -120,6 +120,7 @@ function onMaskClick() {
     >
       <Transition name="ui-modal-pop">
         <div
+          v-if="open"
           ref="winRef"
           class="md-window"
           :style="{

@@ -1,5 +1,6 @@
 import type { Context, State } from '../types'
 import { caretIndexFromPoint } from '@sheet/api'
+import { getWorkerRenderer } from '../utils/renderer-adapter'
 
 export function createTextSelectHandlers(
   ctx: Context,
@@ -33,7 +34,7 @@ export function createTextSelectHandlers(
       for (let rr = m.r; rr < m.r + m.rows; rr++)
         h += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
     }
-    let inside = clickX >= x0 && clickX <= x0 + w && clickY >= y0 && clickY <= y0 + h
+    const inside = clickX >= x0 && clickX <= x0 + w && clickY >= y0 && clickY <= y0 + h
     const style = ctx.sheet.getStyleAt(ed.r, ed.c)
     const wrap = !!style?.alignment?.wrapText
     const paddingX = 4
@@ -49,14 +50,14 @@ export function createTextSelectHandlers(
     const relY = Math.max(0, clickY - (y0 + paddingY))
     let caret = ed.caret
     const text = ed.text || ''
-    const wr: any = ctx.renderer as any
+    const worker = getWorkerRenderer(ctx.renderer)
     if (wrap) {
       const maxW = Math.max(0, w - 8)
       const sizePx = style?.font?.size ?? 14
       const lineH = Math.max(12, Math.round(sizePx * 1.25))
       caret =
-        (wr.caretIndexFromPoint
-          ? await wr.caretIndexFromPoint(text, relX, relY, {
+        (worker.caretIndexFromPoint
+          ? await worker.caretIndexFromPoint(text, relX, relY, {
               maxWidth: maxW,
               font: style?.font,
               defaultSize: 14,
@@ -70,8 +71,8 @@ export function createTextSelectHandlers(
             })) ?? 0
     } else {
       caret =
-        (wr.caretIndexFromPoint
-          ? await wr.caretIndexFromPoint(text, relX, 0, {
+        (worker.caretIndexFromPoint
+          ? await worker.caretIndexFromPoint(text, relX, 0, {
               maxWidth: 1e9,
               font: style?.font,
               defaultSize: 14,
@@ -122,23 +123,38 @@ export function createTextSelectHandlers(
     const relY = Math.max(0, clickY - (y0 + paddingY))
     const text = ed.text || ''
     let caret = ed.caret
+    const worker = getWorkerRenderer(ctx.renderer)
     if (wrap) {
       const maxW = Math.max(0, w - 8)
       const sizePx = style?.font?.size ?? 14
       const lineH = Math.max(12, Math.round(sizePx * 1.25))
-      caret = caretIndexFromPoint(text, relX, relY, {
-        maxWidth: maxW,
-        font: style?.font,
-        defaultSize: 14,
-        lineHeight: lineH,
-      })
+      caret = worker.caretIndexFromPoint
+        ? await worker.caretIndexFromPoint(text, relX, relY, {
+            maxWidth: maxW,
+            font: style?.font,
+            defaultSize: 14,
+            lineHeight: lineH,
+          })
+        : caretIndexFromPoint(text, relX, relY, {
+            maxWidth: maxW,
+            font: style?.font,
+            defaultSize: 14,
+            lineHeight: lineH,
+          })
     } else {
-      caret = caretIndexFromPoint(text, relX, 0, {
-        maxWidth: 1e9,
-        font: style?.font,
-        defaultSize: 14,
-        lineHeight: (style?.font?.size ?? 14) * 1.25,
-      })
+      caret = worker.caretIndexFromPoint
+        ? await worker.caretIndexFromPoint(text, relX, 0, {
+            maxWidth: 1e9,
+            font: style?.font,
+            defaultSize: 14,
+            lineHeight: (style?.font?.size ?? 14) * 1.25,
+          })
+        : caretIndexFromPoint(text, relX, 0, {
+            maxWidth: 1e9,
+            font: style?.font,
+            defaultSize: 14,
+            lineHeight: (style?.font?.size ?? 14) * 1.25,
+          })
     }
     const anchor = state.textSelectAnchor != null ? state.textSelectAnchor : ed.caret
     deps.setSelectionRange?.(anchor, caret)

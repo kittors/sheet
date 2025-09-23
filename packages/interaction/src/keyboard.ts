@@ -109,7 +109,7 @@ export function attachKeyboard(
         if (curIsAnchor) r = curM!.r + curM!.rows
         else r = r + 1
         // Infinite mode: extend sheet instead of wrapping
-        if ((ctx as any).infiniteScroll) {
+        if (ctx.infiniteScroll) {
           if (r >= ctx.sheet.rows) ctx.sheet.rows = r + 1
           if (c >= ctx.sheet.cols) ctx.sheet.cols = c + 1
         } else {
@@ -184,7 +184,7 @@ export function attachKeyboard(
       const isMergeAnchor = !!merge && merge.r === r && merge.c === c
       if (isMergeAnchor) r = merge!.r + merge!.rows
       else r = r + 1
-      if ((ctx as any).infiniteScroll) {
+      if (ctx.infiniteScroll) {
         if (r >= ctx.sheet.rows) ctx.sheet.rows = r + 1
         if (c >= ctx.sheet.cols) ctx.sheet.cols = c + 1
       } else {

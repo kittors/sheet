@@ -1,38 +1,44 @@
 import { exportSheet, type Sheet, type SheetOp, type Style } from '@sheet/core'
-import type { RendererOptions } from '..'
-import type { MeasureTextResult, WrapTextResult, CaretFromPointResult } from './protocol'
-import type { FromWorker, ToWorker } from './protocol'
+import type { RendererOptions, ViewportMetrics, CanvasRenderer, HeaderStyle, HeaderLabels } from '..'
+import type {
+  MetricsMsg,
+  MeasureTextResult,
+  WrapTextResult,
+  CaretFromPointResult,
+  ToWorker,
+} from './protocol'
+
+type WorkerResponse = MetricsMsg | MeasureTextResult | WrapTextResult | CaretFromPointResult
+type ScrollbarSnapshot = CanvasRenderer['lastScrollbars']
+type OffscreenTransferCanvas = HTMLCanvasElement & {
+  transferControlToOffscreen?: () => OffscreenCanvas
+}
 
 // Proxy object that mirrors the CanvasRenderer API and forwards to a worker
 export class WorkerRenderer {
   private worker: Worker
-  private lastViewportMetrics: any | null = null
-  private lastScrollbars: any | null = null
+  private lastViewportMetrics: ViewportMetrics | null = null
+  private lastScrollbars: ScrollbarSnapshot | null = null
   private pendingOps: SheetOp[] = []
   // Mirror CanvasRenderer public options so interaction can read metrics
   opts: RendererOptions
   private reqId = 1
-  private pending = new Map<number, (data: any) => void>()
+  private pending = new Map<number, (data: WorkerResponse) => void>()
 
   constructor(canvas: HTMLCanvasElement, sheet: Sheet, opts: RendererOptions = {}) {
-    const off = (canvas as any).transferControlToOffscreen?.()
-    if (!off) throw new Error('OffscreenCanvas is not supported')
+    const offscreenCanvas = (canvas as OffscreenTransferCanvas).transferControlToOffscreen?.()
+    if (!offscreenCanvas) throw new Error('OffscreenCanvas is not supported')
     // Resolve worker URL relative to this module
-    // eslint-disable-next-line no-restricted-globals
     const url = new URL('./renderer-worker.ts', import.meta.url)
     this.worker = new Worker(url, { type: 'module' })
-    this.worker.onmessage = (e: MessageEvent<any>) => {
-      const msg = e.data
+    this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      const msg = event.data
       if (msg.type === 'metrics') {
         this.lastViewportMetrics = msg.viewportMetrics
         this.lastScrollbars = msg.scrollbars
         return
       }
-      if (
-        msg.type === 'measureTextResult' ||
-        msg.type === 'wrapTextResult' ||
-        msg.type === 'caretFromPointResult'
-      ) {
+      if (msg.type === 'measureTextResult' || msg.type === 'wrapTextResult' || msg.type === 'caretFromPointResult') {
         const cb = this.pending.get(msg.id)
         if (cb) {
           this.pending.delete(msg.id)
@@ -42,13 +48,12 @@ export class WorkerRenderer {
     }
     const initMsg: ToWorker = {
       type: 'init',
-      // @ts-ignore OffscreenCanvas structured clone
-      canvas: off,
+      canvas: offscreenCanvas,
       opts,
       sheet: exportSheet(sheet),
-      dpr: (globalThis as any).devicePixelRatio || 1,
+      dpr: (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1,
     }
-    this.worker.postMessage(initMsg, [off as any])
+    this.worker.postMessage(initMsg, [offscreenCanvas])
     // Instrument sheet to replicate ops into worker
     this.patchSheet(sheet)
     // Normalize and expose opts like CanvasRenderer does
@@ -70,25 +75,26 @@ export class WorkerRenderer {
       const w = Math.max(1, Math.floor(rect.width))
       const h = Math.max(1, Math.floor(rect.height))
       this.resize(w, h)
-    } catch {}
+    } catch (err) {
+      void err
+    }
   }
 
   private flushOps() {
     if (!this.pendingOps.length) return
     // Ensure ops are structured-cloneable (defensive deep copy)
-    const safeOps = this.pendingOps.map((op) => {
+    const safeOps: SheetOp[] = this.pendingOps.map((op) => {
       try {
-        return JSON.parse(JSON.stringify(op))
+        return JSON.parse(JSON.stringify(op)) as SheetOp
       } catch {
-        // Fallback: rebuild defineStyle payload shallowly; other ops are flat
-        if ((op as any).type === 'defineStyle') {
-          const st = (op as any).style || {}
+        if (op.type === 'defineStyle') {
+          const st = op.style
           return {
             type: 'defineStyle',
             style: {
               id: st.id,
               font: st.font ? { ...st.font } : undefined,
-              fill: st.fill ? { backgroundColor: st.fill.backgroundColor } : undefined,
+              fill: st.fill ? { ...st.fill } : undefined,
               border: st.border
                 ? {
                     top: st.border.top ? { ...st.border.top } : undefined,
@@ -103,7 +109,7 @@ export class WorkerRenderer {
         }
         return op
       }
-    }) as any
+    })
     const msg: ToWorker = { type: 'applyOps', ops: safeOps }
     this.pendingOps.length = 0
     this.worker.postMessage(msg)
@@ -111,7 +117,6 @@ export class WorkerRenderer {
 
   // Monkey-patch mutating methods to forward ops to worker
   private patchSheet(sheet: Sheet) {
-    const self = this
     const orig = {
       setValue: sheet.setValue.bind(sheet),
       setCellStyle: sheet.setCellStyle.bind(sheet),
@@ -121,39 +126,38 @@ export class WorkerRenderer {
       removeMergeAt: sheet.removeMergeAt.bind(sheet),
       defineStyle: sheet.defineStyle.bind(sheet),
     }
-    sheet.setValue = function (r: number, c: number, value: any) {
+    sheet.setValue = (r: number, c: number, value: Parameters<Sheet['setValue']>[2]) => {
       orig.setValue(r, c, value)
-      self.pendingOps.push({ type: 'setValue', r, c, value })
-    } as any
-    sheet.setCellStyle = function (r: number, c: number, styleId: number) {
+      this.pendingOps.push({ type: 'setValue', r, c, value })
+    }
+    sheet.setCellStyle = (r: number, c: number, styleId: Parameters<Sheet['setCellStyle']>[2]) => {
       orig.setCellStyle(r, c, styleId)
-      self.pendingOps.push({ type: 'setCellStyle', r, c, styleId })
-    } as any
-    sheet.setRowHeight = function (r: number, h: number) {
+      this.pendingOps.push({ type: 'setCellStyle', r, c, styleId })
+    }
+    sheet.setRowHeight = (r: number, h: Parameters<Sheet['setRowHeight']>[1]) => {
       orig.setRowHeight(r, h)
-      self.pendingOps.push({ type: 'setRowHeight', r, h })
-    } as any
-    sheet.setColWidth = function (c: number, w: number) {
+      this.pendingOps.push({ type: 'setRowHeight', r, h })
+    }
+    sheet.setColWidth = (c: number, w: Parameters<Sheet['setColWidth']>[1]) => {
       orig.setColWidth(c, w)
-      self.pendingOps.push({ type: 'setColWidth', c, w })
-    } as any
-    sheet.addMerge = function (r: number, c: number, rows: number, cols: number) {
+      this.pendingOps.push({ type: 'setColWidth', c, w })
+    }
+    sheet.addMerge = (r: number, c: number, rows: number, cols: number) => {
       const ok = orig.addMerge(r, c, rows, cols)
-      if (ok) self.pendingOps.push({ type: 'addMerge', r, c, rows, cols })
+      if (ok) this.pendingOps.push({ type: 'addMerge', r, c, rows, cols })
       return ok
-    } as any
-    sheet.removeMergeAt = function (r: number, c: number) {
+    }
+    sheet.removeMergeAt = (r: number, c: number) => {
       const ok = orig.removeMergeAt(r, c)
-      if (ok) self.pendingOps.push({ type: 'removeMergeAt', r, c })
+      if (ok) this.pendingOps.push({ type: 'removeMergeAt', r, c })
       return ok
-    } as any
-    sheet.defineStyle = function (styleIn: Omit<Style, 'id'>) {
+    }
+    sheet.defineStyle = (styleIn: Omit<Style, 'id'>) => {
       const id = orig.defineStyle(styleIn)
-      // Registry holds full style (with id) now
       const st = sheet.getStyle(id)!
-      self.pendingOps.push({ type: 'defineStyle', style: st })
+      this.pendingOps.push({ type: 'defineStyle', style: st })
       return id
-    } as any
+    }
   }
 
   resize(width: number, height: number) {
@@ -170,7 +174,7 @@ export class WorkerRenderer {
     // apply accumulated ops then render
     this.flushOps()
     if (mode === 'ui') {
-      const msg: ToWorker = { type: 'renderUiOnly', scrollX, scrollY } as any
+      const msg: ToWorker = { type: 'renderUiOnly', scrollX, scrollY }
       this.worker.postMessage(msg)
     } else {
       const msg: ToWorker = { type: 'render', scrollX, scrollY }
@@ -180,7 +184,7 @@ export class WorkerRenderer {
 
   renderUiOnly(_sheet: Sheet, scrollX: number, scrollY: number) {
     this.flushOps()
-    const msg: ToWorker = { type: 'renderUiOnly', scrollX, scrollY } as any
+    const msg: ToWorker = { type: 'renderUiOnly', scrollX, scrollY }
     this.worker.postMessage(msg)
   }
 
@@ -202,15 +206,15 @@ export class WorkerRenderer {
     const msg: ToWorker = { type: 'setScrollbarState', state }
     this.worker.postMessage(msg)
   }
-  setHeaderStyle(style: any) {
+  setHeaderStyle(style: Partial<HeaderStyle>) {
     const msg: ToWorker = { type: 'setHeaderStyle', style }
     this.worker.postMessage(msg)
   }
-  setHeaderLabels(labels?: any) {
+  setHeaderLabels(labels?: HeaderLabels) {
     const msg: ToWorker = { type: 'setHeaderLabels', labels }
     this.worker.postMessage(msg)
   }
-  setEditor(editor?: any) {
+  setEditor(editor?: Parameters<CanvasRenderer['setEditor']>[0]) {
     const msg: ToWorker = { type: 'setEditor', editor }
     this.worker.postMessage(msg)
   }
@@ -218,7 +222,7 @@ export class WorkerRenderer {
   // Text measurement RPCs for IME/layout on main thread
   async measureText(text: string, font?: Style['font'], defaultSize = 14): Promise<number> {
     const id = this.reqId++
-    const msg: ToWorker = { type: 'measureText', id, text, font, defaultSize } as any
+    const msg: ToWorker = { type: 'measureText', id, text, font, defaultSize }
     return new Promise<number>((resolve) => {
       this.pending.set(id, (res: MeasureTextResult) => resolve(res.width))
       this.worker.postMessage(msg)
@@ -231,7 +235,7 @@ export class WorkerRenderer {
     defaultSize = 14,
   ): Promise<Array<{ start: number; end: number }>> {
     const id = this.reqId++
-    const msg: ToWorker = { type: 'wrapText', id, text, maxWidth, font, defaultSize } as any
+    const msg: ToWorker = { type: 'wrapText', id, text, maxWidth, font, defaultSize }
     return new Promise((resolve) => {
       this.pending.set(id, (res: WrapTextResult) => resolve(res.lines))
       this.worker.postMessage(msg)
@@ -245,7 +249,7 @@ export class WorkerRenderer {
     opts: { maxWidth: number; font?: Style['font']; defaultSize?: number; lineHeight?: number },
   ): Promise<number> {
     const id = this.reqId++
-    const msg: ToWorker = { type: 'caretFromPoint', id, text, relX, relY, opts } as any
+    const msg: ToWorker = { type: 'caretFromPoint', id, text, relX, relY, opts }
     return new Promise<number>((resolve) => {
       this.pending.set(id, (res: CaretFromPointResult) => resolve(res.caret))
       this.worker.postMessage(msg)

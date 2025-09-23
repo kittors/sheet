@@ -132,17 +132,21 @@ function onSvDown(ev: MouseEvent | TouchEvent) {
     const p = 'touches' in e ? e.touches[0] : (e as MouseEvent)
     moveAt(p.clientX, p.clientY)
   }
-  const onUp = () => {
-    window.removeEventListener('mousemove', onMove as any)
-    window.removeEventListener('touchmove', onMove as any)
-    window.removeEventListener('mouseup', onUp)
-    window.removeEventListener('touchend', onUp)
+  const onMouseMove = (e: MouseEvent) => onMove(e)
+  const onTouchMove = (e: TouchEvent) => onMove(e)
+  const cleanup = () => {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('touchmove', onTouchMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    window.removeEventListener('touchend', onTouchEnd)
     updateColor(true)
   }
-  window.addEventListener('mousemove', onMove as any)
-  window.addEventListener('touchmove', onMove as any, { passive: false })
-  window.addEventListener('mouseup', onUp)
-  window.addEventListener('touchend', onUp)
+  const onMouseUp = () => cleanup()
+  const onTouchEnd = () => cleanup()
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('touchmove', onTouchMove, { passive: false })
+  window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('touchend', onTouchEnd)
   ev.preventDefault()
 }
 function moveAt(cx: number, cy: number) {
@@ -166,17 +170,21 @@ function onHueDown(ev: MouseEvent | TouchEvent) {
     const p = 'touches' in e ? e.touches[0] : (e as MouseEvent)
     moveHue(p.clientX)
   }
-  const onUp = () => {
-    window.removeEventListener('mousemove', onMove as any)
-    window.removeEventListener('touchmove', onMove as any)
-    window.removeEventListener('mouseup', onUp)
-    window.removeEventListener('touchend', onUp)
+  const onMouseMove = (e: MouseEvent) => onMove(e)
+  const onTouchMove = (e: TouchEvent) => onMove(e)
+  const cleanup = () => {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('touchmove', onTouchMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    window.removeEventListener('touchend', onTouchEnd)
     updateColor(true)
   }
-  window.addEventListener('mousemove', onMove as any)
-  window.addEventListener('touchmove', onMove as any, { passive: false })
-  window.addEventListener('mouseup', onUp)
-  window.addEventListener('touchend', onUp)
+  const onMouseUp = () => cleanup()
+  const onTouchEnd = () => cleanup()
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('touchmove', onTouchMove, { passive: false })
+  window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('touchend', onTouchEnd)
   ev.preventDefault()
 }
 function moveHue(cx: number) {

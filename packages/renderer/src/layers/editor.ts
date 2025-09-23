@@ -266,7 +266,7 @@ export class EditorLayer implements Layer {
         const drawnW = ctx.measureText(textToDraw).width
         const sizePx2 = style?.font?.size ?? 14
         let topY: number
-        const base = (ctx.textBaseline as any) || 'alphabetic'
+        const base = ctx.textBaseline || 'alphabetic'
         if (base === 'top') topY = ty
         else if (base === 'bottom') topY = ty - sizePx2
         else if (base === 'middle') topY = ty - sizePx2 * 0.5

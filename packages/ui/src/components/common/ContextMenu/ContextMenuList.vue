@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import ContextMenuItem from './ContextMenuItem.vue'
-import { CTX_MENU_KEY, type CtxMenuApi, type MenuItem } from './types'
+import { CTX_MENU_KEY, type MenuItem } from './types'
 
 const props = defineProps<{ level: number; items: MenuItem[] }>()
 const api = inject(CTX_MENU_KEY)!

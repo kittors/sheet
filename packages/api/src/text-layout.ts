@@ -8,12 +8,14 @@ function getCtx(): CanvasRenderingContext2D {
   if (measureCtx) return measureCtx
   // try OffscreenCanvas first (no DOM requirement)
   try {
-    // @ts-ignore
+    // @ts-expect-error OffscreenCanvas is not available in all targets
     const osc = new OffscreenCanvas(1, 1)
-    // @ts-ignore
+    // @ts-expect-error OffscreenCanvas#getContext typing is broader than CanvasRenderingContext2D
     measureCtx = osc.getContext('2d') as CanvasRenderingContext2D
     if (measureCtx) return measureCtx
-  } catch {}
+  } catch (err) {
+    void err
+  }
   // fallback to DOM canvas
   const c = document.createElement('canvas')
   measureCtx = c.getContext('2d')!

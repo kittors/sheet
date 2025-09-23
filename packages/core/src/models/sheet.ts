@@ -94,6 +94,10 @@ export class Sheet {
     return id ? this.styles.get(id) : undefined
   }
 
+  iterStyles(): IterableIterator<Style> {
+    return this.styles.values()
+  }
+
   setCellStyle(r: number, c: number, styleId: number): void {
     const { ar, ac } = this.getMergeAnchorFor(r, c) ?? { ar: r, ac: c }
     const k = this.key(ar, ac)
@@ -274,7 +278,7 @@ export function exportSheet(sheet: Sheet): SerializedSheet {
   }
   const rowHeights = Array.from(sheet.rowHeights.entries())
   const colWidths = Array.from(sheet.colWidths.entries())
-  const styles = Array.from((sheet as any).styles?.values?.() ?? []) as Style[]
+  const styles = Array.from(sheet.iterStyles())
   return {
     name: sheet.name,
     rows: sheet.rows,

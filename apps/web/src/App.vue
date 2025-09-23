@@ -128,8 +128,7 @@ for (const it of td.colWidths ?? [])
 for (const it of td.rowHeights ?? [])
   if (it.index >= 0 && it.index < sheet.rows) sheet.setRowHeight(it.index, it.height)
 // border regions
-for (const br of td.borderRegions ?? [])
-  applyRegionBorder(br.r0, br.c0, br.r1, br.c1, br)
+for (const br of td.borderRegions ?? []) applyRegionBorder(br.r0, br.c0, br.r1, br.c1, br)
 
 // Header appearance and labels (configurable)
 const headerStyle = {

@@ -1,4 +1,5 @@
 import type { Context, State, InteractionHandle } from './types'
+import type { Style } from '@sheet/core'
 
 export function createCommands(
   ctx: Context,
@@ -44,13 +45,13 @@ export function createCommands(
     forEachSelected((r, c) => {
       if (!canApplyAt(r, c)) return
       const base = ctx.sheet.getStyleAt(r, c)
-      const next = {
+      const next: Omit<Style, 'id'> = {
         font: { ...(base?.font ?? {}), ...normalized },
         fill: base?.fill,
         border: base?.border,
         alignment: base?.alignment,
       }
-      const id = ctx.sheet.defineStyle(next as any)
+      const id = ctx.sheet.defineStyle(next)
       ctx.sheet.setCellStyle(r, c, id)
     })
     deps.schedule()
@@ -79,13 +80,13 @@ export function createCommands(
     forEachSelected((r, c) => {
       if (!canApplyAt(r, c)) return
       const base = ctx.sheet.getStyleAt(r, c)
-      const next = {
+      const next: Omit<Style, 'id'> = {
         font: { ...(base?.font ?? {}), color },
         fill: base?.fill,
         border: base?.border,
         alignment: base?.alignment,
       }
-      const id = ctx.sheet.defineStyle(next as any)
+      const id = ctx.sheet.defineStyle(next)
       ctx.sheet.setCellStyle(r, c, id)
     })
     deps.schedule()
@@ -114,13 +115,13 @@ export function createCommands(
     forEachSelected((r, c) => {
       if (!canApplyAt(r, c)) return
       const base = ctx.sheet.getStyleAt(r, c)
-      const next = {
+      const next: Omit<Style, 'id'> = {
         font: base?.font,
         fill: { ...(base?.fill ?? {}), backgroundColor },
         border: base?.border,
         alignment: base?.alignment,
       }
-      const id = ctx.sheet.defineStyle(next as any)
+      const id = ctx.sheet.defineStyle(next)
       ctx.sheet.setCellStyle(r, c, id)
     })
     deps.schedule()
@@ -173,15 +174,20 @@ export function createCommands(
       if (isSingleRow && (side === 'left' || side === 'right')) return
       // Write onto merge anchor, preserving other sides
       const base = ctx.sheet.getStyleAt(m.r, m.c)
-      const nb = {
+      const nb: NonNullable<Style['border']> = {
         top: base?.border?.top,
         bottom: base?.border?.bottom,
         left: base?.border?.left,
         right: base?.border?.right,
       }
       nb[side] = { color, width, style, ...spec }
-      const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: nb }
-      const id = ctx.sheet.defineStyle(next as any)
+      const next: Omit<Style, 'id'> = {
+        font: base?.font,
+        fill: base?.fill,
+        alignment: base?.alignment,
+        border: nb,
+      }
+      const id = ctx.sheet.defineStyle(next)
       ctx.sheet.setCellStyle(m.r, m.c, id)
     }
 
@@ -208,7 +214,7 @@ export function createCommands(
       forEachSelected((r, c) => {
         if (!canApplyAt(r, c)) return
         const base = ctx.sheet.getStyleAt(r, c)
-        const next = {
+        const next: Omit<Style, 'id'> = {
           font: base?.font,
           fill: base?.fill,
           alignment: base?.alignment,
@@ -219,7 +225,7 @@ export function createCommands(
             right: { style: 'none' as const, width: 0 },
           },
         }
-        const id = ctx.sheet.defineStyle(next as any)
+        const id = ctx.sheet.defineStyle(next)
         ctx.sheet.setCellStyle(r, c, id)
       })
       deps.schedule()
@@ -237,7 +243,7 @@ export function createCommands(
           return
         }
         const base = ctx.sheet.getStyleAt(r, c)
-        const next = {
+        const next: Omit<Style, 'id'> = {
           font: base?.font,
           fill: base?.fill,
           alignment: base?.alignment,
@@ -248,7 +254,7 @@ export function createCommands(
             right: { color, width, style },
           },
         }
-        const id = ctx.sheet.defineStyle(next as any)
+        const id = ctx.sheet.defineStyle(next)
         ctx.sheet.setCellStyle(r, c, id)
       })
       deps.schedule()
@@ -271,8 +277,14 @@ export function createCommands(
           const bottom = r === r1 ? { color, width, style } : base?.border?.bottom
           const left = c === c0 ? { color, width, style } : base?.border?.left
           const right = c === c1 ? { color, width, style } : base?.border?.right
-          const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: { top, bottom, left, right } }
-          const id = ctx.sheet.defineStyle(next as any)
+          const border: NonNullable<Style['border']> = { top, bottom, left, right }
+          const next: Omit<Style, 'id'> = {
+            font: base?.font,
+            fill: base?.fill,
+            alignment: base?.alignment,
+            border,
+          }
+          const id = ctx.sheet.defineStyle(next)
           ctx.sheet.setCellStyle(r, c, id)
         }
       }
@@ -295,8 +307,14 @@ export function createCommands(
         return
       }
       const base = ctx.sheet.getStyleAt(r, c)
-      const next = { font: base?.font, fill: base?.fill, alignment: base?.alignment, border: { top, bottom, left, right } }
-      const id = ctx.sheet.defineStyle(next as any)
+      const border: NonNullable<Style['border']> = { top, bottom, left, right }
+      const next: Omit<Style, 'id'> = {
+        font: base?.font,
+        fill: base?.fill,
+        alignment: base?.alignment,
+        border,
+      }
+      const id = ctx.sheet.defineStyle(next)
       ctx.sheet.setCellStyle(r, c, id)
     })
     deps.schedule()

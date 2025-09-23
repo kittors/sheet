@@ -74,7 +74,7 @@ function onButtonClick(ev: MouseEvent) {
   }
 }
 
-function onCaretClick(ev: MouseEvent) {
+function onCaretClick() {
   if (props.disabled) return
   open.value = !open.value
 }

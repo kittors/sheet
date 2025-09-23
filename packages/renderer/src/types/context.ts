@@ -1,5 +1,5 @@
 import type { Sheet } from '@sheet/core'
-import type { VisibleRange } from '@sheet/shared-utils'
+import type { Canvas2DContext, VisibleRange } from '@sheet/shared-utils'
 
 export interface Viewport {
   width: number
@@ -13,7 +13,7 @@ export interface ScrollState {
 
 export interface RenderContext {
   canvas: HTMLCanvasElement | OffscreenCanvas
-  ctx: CanvasRenderingContext2D
+  ctx: Canvas2DContext
   dpr: number
   viewport: Viewport
   // content origin offsets (to account for headers)

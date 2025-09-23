@@ -197,7 +197,7 @@ export function createPointerHandlers(
     ctx.renderer.setGuides?.(undefined)
     ctx.renderer.setScrollbarState?.({ vActive: false, hActive: false })
     // Stop any scrollbar arrow hold loop
-    ;(sbHandlers as any).stopArrowHold?.()
+    sbHandlers.stopArrowHold()
     deps.schedule()
     // After completing selection interaction, refocus IME host so the next key starts composition immediately
     deps.focusIme?.()

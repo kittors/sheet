@@ -2,6 +2,7 @@ import type { Context, State } from '../types'
 import type { Style } from '@sheet/core'
 import { wrapTextIndices, measureText } from '@sheet/api'
 import { colLeftFor, rowTopFor } from '@sheet/shared-utils'
+import { getWorkerRenderer } from '../utils/renderer-adapter'
 
 export async function computeImeGeometry(
   ctx: Context,
@@ -32,12 +33,12 @@ export async function computeImeGeometry(
   const lineH = Math.max(12, Math.round(sizePx * 1.25))
   let caretX = x0 + paddingX
   let caretY = y0 + (wrap ? 3 : Math.floor(h / 2))
-  const wr: any = ctx.renderer as any
+  const worker = getWorkerRenderer(ctx.renderer)
   if (wrap) {
     const maxW = Math.max(0, w - 8)
-    const lines = (wr.wrapTextIndices
-      ? await wr.wrapTextIndices(src.text, maxW, style?.font, 14)
-      : wrapTextIndices(src.text, maxW, style?.font, 14)) as Array<{ start: number; end: number }>
+    const lines = worker.wrapTextIndices
+      ? await worker.wrapTextIndices(src.text, maxW, style?.font, 14)
+      : wrapTextIndices(src.text, maxW, style?.font, 14)
     let lineIndex = 0
     for (let li = 0; li < lines.length; li++) {
       if (src.caret <= lines[li].end) {
@@ -48,13 +49,17 @@ export async function computeImeGeometry(
     }
     const seg = lines[Math.min(lineIndex, Math.max(0, lines.length - 1))]
     const head = src.text.slice(seg.start, Math.min(seg.end, src.caret))
-    const advance = wr.measureText ? await wr.measureText(head, style?.font, 14) : measureText(head, style?.font, 14)
+    const advance = worker.measureText
+      ? await worker.measureText(head, style?.font, 14)
+      : measureText(head, style?.font, 14)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + 3 + lineIndex * lineH)
     return { caretX, caretY, lineH, hostWidth: Math.max(16, Math.floor(maxW)), sizePx, style }
   } else {
     const head = src.text.substring(0, src.caret)
-    const advance = wr.measureText ? await wr.measureText(head, style?.font, 14) : measureText(head, style?.font, 14)
+    const advance = worker.measureText
+      ? await worker.measureText(head, style?.font, 14)
+      : measureText(head, style?.font, 14)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + (h - lineH) / 2)
     return { caretX, caretY, lineH, hostWidth: 480, sizePx, style }

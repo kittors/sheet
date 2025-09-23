@@ -1,12 +1,12 @@
 // Message protocol between main thread proxy and renderer worker
-import type { HeaderLabels, HeaderStyle } from '..'
+import type { HeaderLabels, HeaderStyle, RendererOptions, CanvasRenderer, ViewportMetrics } from '..'
 import type { SerializedSheet, SheetOp } from '@sheet/core'
 import type { Style } from '@sheet/core'
 
 export type InitMsg = {
   type: 'init'
   canvas: OffscreenCanvas
-  opts: any
+  opts: RendererOptions
   sheet: SerializedSheet
   dpr: number
 }
@@ -60,8 +60,8 @@ export type ToWorker =
 
 export type MetricsMsg = {
   type: 'metrics'
-  viewportMetrics: any | null
-  scrollbars: any
+  viewportMetrics: ViewportMetrics | null
+  scrollbars: CanvasRenderer['lastScrollbars'] | null
 }
 
 export type FromWorker = MetricsMsg

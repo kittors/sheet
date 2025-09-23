@@ -34,9 +34,9 @@ export function applyTheme(theme: Theme) {
 }
 
 function setScale(root: HTMLElement, prefix: string, scale: ColorScale) {
-  ;([50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const).forEach((k) => {
-    const v = (scale as any)[k]
+  const keys: ReadonlyArray<keyof ColorScale> = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]
+  keys.forEach((k) => {
+    const v = scale[k]
     if (v) root.style.setProperty(`--${prefix}-${k}`, v)
   })
 }
-

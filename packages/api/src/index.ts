@@ -138,50 +138,52 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     applyFontSize(size) {
       const clamp = (n: number) => Math.min(72, Math.max(6, Math.round(n)))
       const s = clamp(size)
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ size: s })
-      else {
-        const sel = interaction?.getSelection?.()
-        if (!sel) return
-        const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
-        const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
-        const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
-        const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-        const styleId = sheet.defineStyle({ font: { size: s } })
-        for (let r = r0; r <= r1; r++)
-          for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') {
+        applyFont({ size: s })
+        return
       }
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      const styleId = sheet.defineStyle({ font: { size: s } })
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     applyFontFamily(family) {
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ family })
-      else {
-        const sel = interaction?.getSelection?.()
-        if (!sel) return
-        const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
-        const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
-        const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
-        const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
-        const styleId = sheet.defineStyle({ font: { family } })
-        for (let r = r0; r <= r1; r++)
-          for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') {
+        applyFont({ family })
+        return
       }
+      const sel = interaction?.getSelection?.()
+      if (!sel) return
+      const r0 = Math.max(0, Math.min(sel.r0, sel.r1))
+      const r1 = Math.min(sheet.rows - 1, Math.max(sel.r0, sel.r1))
+      const c0 = Math.max(0, Math.min(sel.c0, sel.c1))
+      const c1 = Math.min(sheet.cols - 1, Math.max(sel.c0, sel.c1))
+      const styleId = sheet.defineStyle({ font: { family } })
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++) sheet.setCellStyle(r, c, styleId)
     },
     applyFontBold(enabled) {
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ bold: enabled })
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') applyFont({ bold: enabled })
     },
     applyFontItalic(enabled) {
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ italic: enabled })
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') applyFont({ italic: enabled })
     },
     applyFontUnderline(enabled) {
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ underline: enabled })
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') applyFont({ underline: enabled })
     },
     applyFontStrikethrough(enabled) {
-      const h = (interaction as any)
-      if (h && typeof h.applyFont === 'function') h.applyFont({ strikethrough: enabled })
+      const applyFont = interaction?.applyFont
+      if (typeof applyFont === 'function') applyFont({ strikethrough: enabled })
     },
     applyHorizontalAlign(al) {
       const styleId = sheet.defineStyle({ alignment: { horizontal: al } })

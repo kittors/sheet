@@ -11,11 +11,11 @@ export function createScrollbarHandlers(
   let arrowActive = false
   let arrowVX = 0
   let arrowVY = 0
-  let arrowTimer: any = 0
+  let arrowTimer: ReturnType<typeof setInterval> | null = null
   function clampAndSchedule() {
     // Allow renderer to grow bounds before clamping in infinite mode
     try {
-      ;(ctx as any).infiniteScroll && ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+      if (ctx.infiniteScroll) ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
     } catch (e) {
       void e
     }
@@ -34,7 +34,7 @@ export function createScrollbarHandlers(
   function startTimer() {
     // Use a timer to avoid relying on pointermove; 60fps is acceptable but a bit fast.
     // 30fps felt smoother for discrete cell stepping.
-    clearInterval(arrowTimer)
+    if (arrowTimer) clearInterval(arrowTimer)
     arrowTimer = setInterval(arrowStepOnce, 33)
   }
   function startArrowHold(dir: 'v-up' | 'v-down' | 'h-left' | 'h-right') {
@@ -54,8 +54,10 @@ export function createScrollbarHandlers(
   }
   function stopArrowHold() {
     arrowActive = false
-    clearInterval(arrowTimer)
-    arrowTimer = 0
+    if (arrowTimer) {
+      clearInterval(arrowTimer)
+      arrowTimer = null
+    }
   }
 
   function tryPointerDown(x: number, y: number): boolean {

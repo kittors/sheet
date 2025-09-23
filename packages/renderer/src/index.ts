@@ -1,4 +1,5 @@
 import { computeVisibleRange, resizeCanvasForDPR, getDPR } from '@sheet/shared-utils'
+import type { Canvas2DContext } from '@sheet/shared-utils'
 import type { Sheet } from '@sheet/core'
 import { BackgroundLayer } from './layers/background'
 import { ContentLayer } from './layers/content'
@@ -50,9 +51,28 @@ export interface RendererOptions {
   infiniteScroll?: boolean
 }
 
+function isHTMLCanvasElement(canvas: HTMLCanvasElement | OffscreenCanvas): canvas is HTMLCanvasElement {
+  return typeof HTMLCanvasElement !== 'undefined' && canvas instanceof HTMLCanvasElement
+}
+
+function getCanvasLogicalSize(canvas: HTMLCanvasElement | OffscreenCanvas) {
+  if (isHTMLCanvasElement(canvas)) {
+    const width = canvas.clientWidth ?? canvas.width
+    const height = canvas.clientHeight ?? canvas.height
+    return {
+      width: width && width > 0 ? width : canvas.width || 1,
+      height: height && height > 0 ? height : canvas.height || 1,
+    }
+  }
+  return {
+    width: canvas.width || 1,
+    height: canvas.height || 1,
+  }
+}
+
 export class CanvasRenderer {
   canvas: HTMLCanvasElement | OffscreenCanvas
-  ctx: CanvasRenderingContext2D
+  ctx: Canvas2DContext
   dpr: number
   layers: Layer[]
   opts: RendererOptions
@@ -101,9 +121,8 @@ export class CanvasRenderer {
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, opts: RendererOptions = {}) {
     this.canvas = canvas
     this.dpr = opts.dpr ?? getDPR()
-    const initW = (canvas as any).clientWidth != null ? (canvas as any).clientWidth : (canvas as any).width || 1
-    const initH = (canvas as any).clientHeight != null ? (canvas as any).clientHeight : (canvas as any).height || 1
-    this.ctx = resizeCanvasForDPR(canvas as any, initW, initH, this.dpr)
+    const { width: initW, height: initH } = getCanvasLogicalSize(canvas)
+    this.ctx = resizeCanvasForDPR(canvas, initW, initH, this.dpr)
     this.logicalW = Math.max(1, Math.floor(initW))
     this.logicalH = Math.max(1, Math.floor(initH))
     // Draw headers above content to avoid any overlap artifacts in top/right areas
@@ -148,7 +167,7 @@ export class CanvasRenderer {
   }
 
   resize(width: number, height: number) {
-    this.ctx = resizeCanvasForDPR(this.canvas as any, width, height, this.dpr)
+    this.ctx = resizeCanvasForDPR(this.canvas, width, height, this.dpr)
     this.logicalW = Math.max(1, Math.floor(width))
     this.logicalH = Math.max(1, Math.floor(height))
   }
@@ -226,7 +245,7 @@ export class CanvasRenderer {
 
       // 2) Dynamic explored content used for scrollbar geometry (can grow and shrink).
       // Minimal bound based on actual used data/merges so滚动条不会小于“已使用”范围。
-      const used = (sheet as any).getUsedExtents?.() as { rows: number; cols: number } | undefined
+      const used = sheet.getUsedExtents()
       const usedRows = Math.max(0, used?.rows ?? 0)
       const usedCols = Math.max(0, used?.cols ?? 0)
       const usedMinHeight = (() => {

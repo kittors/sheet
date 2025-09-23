@@ -1,5 +1,6 @@
 import type { Context, State } from '../types'
 import { wrapTextIndices } from '@sheet/api'
+import { getWorkerRenderer } from '../utils/renderer-adapter'
 
 export function createImeHost(
   ctx: Context,
@@ -89,10 +90,10 @@ export function createImeHost(
         }
         const padding = 8
         const maxW = Math.max(0, width - padding)
-        const wr: any = ctx.renderer as any
-        const lines = (wr.wrapTextIndices
-          ? await wr.wrapTextIndices(ed.text, maxW, style?.font, 14)
-          : wrapTextIndices(ed.text, maxW, style?.font, 14)) as Array<{ start: number; end: number }>
+        const worker = getWorkerRenderer(ctx.renderer)
+        const lines = worker.wrapTextIndices
+          ? await worker.wrapTextIndices(ed.text, maxW, style?.font, 14)
+          : wrapTextIndices(ed.text, maxW, style?.font, 14)
         let lineIndex = 0
         for (let li = 0; li < lines.length; li++) {
           if (ed.caret <= lines[li].end) {
