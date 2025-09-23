@@ -190,6 +190,10 @@ export class CanvasRenderer {
     // Infinite mode: two layers
     // 1) Physically extend sheet bounds when near raw limits so渲染区域有内容；
     // 2) 为滚动条计算一个“可探索”的动态内容长度（可增可减），用于拇指大小与映射。
+    let baseMarginX = 0
+    let baseMarginY = 0
+    let dynamicMarginX = 0
+    let dynamicMarginY = 0
     if (this.opts.infiniteScroll) {
       // 1) Physical growth near raw edge
       const marginXGrow = Math.max(this.opts.defaultColWidth! * 3, Math.floor(widthAvail * 0.5))
@@ -249,8 +253,15 @@ export class CanvasRenderer {
       const minW = Math.max(this._baseContentWidth, usedMinWidth)
       const minH = Math.max(this._baseContentHeight, usedMinHeight)
       // Compute exploration targets from current desired scroll and available viewport
-      const marginX = Math.max(this.opts.defaultColWidth! * 2, Math.floor(widthAvail * 0.5))
-      const marginY = Math.max(this.opts.defaultRowHeight! * 4, Math.floor(heightAvail * 0.5))
+      const safeAvailW = Math.max(widthAvail, this.opts.defaultColWidth! * 2)
+      const safeAvailH = Math.max(heightAvail, this.opts.defaultRowHeight! * 3)
+      // Keep an almost-full thumb at rest so users read "no overflow yet"
+      baseMarginX = Math.max(8, Math.min(48, Math.floor(safeAvailW * 0.05)))
+      baseMarginY = Math.max(8, Math.min(48, Math.floor(safeAvailH * 0.05)))
+      dynamicMarginX = Math.min(Math.floor(safeAvailW * 4), Math.floor(Math.max(0, scrollX) * 0.12))
+      dynamicMarginY = Math.min(Math.floor(safeAvailH * 4), Math.floor(Math.max(0, scrollY) * 0.12))
+      const marginX = baseMarginX + dynamicMarginX
+      const marginY = baseMarginY + dynamicMarginY
       const targetExpW = Math.max(minW, scrollX + widthAvail + marginX)
       const targetExpH = Math.max(minH, scrollY + heightAvail + marginY)
       // Apply immediately (no hysteresis) so回溯时滚动块可变大
@@ -281,8 +292,12 @@ export class CanvasRenderer {
     // Clamp scroll to available content viewport (prevents boundary drift)
     const effContentWidth = this._expContentWidth ?? contentWidth
     const effContentHeight = this._expContentHeight ?? contentHeight
-    const maxScrollX = Math.max(0, effContentWidth - widthAvail)
-    const maxScrollY = Math.max(0, effContentHeight - heightAvail)
+    // Trim most of the artificial margin so the thumb hugs the track end while still
+    // allowing a sliver of headroom to keep infinite scrolling responsive.
+    const slackX = this.opts.infiniteScroll ? dynamicMarginX + Math.floor(baseMarginX * 0.9) : 0
+    const slackY = this.opts.infiniteScroll ? dynamicMarginY + Math.floor(baseMarginY * 0.9) : 0
+    const maxScrollX = Math.max(0, effContentWidth - widthAvail - slackX)
+    const maxScrollY = Math.max(0, effContentHeight - heightAvail - slackY)
     const sX = Math.max(0, Math.min(scrollX, maxScrollX))
     const sY = Math.max(0, Math.min(scrollY, maxScrollY))
 
@@ -340,8 +355,8 @@ export class CanvasRenderer {
         Math.max(0, Math.floor(trackSpan * (heightAvail / effContentHeight))),
       )
       const maxThumbTop = trackSpan - thumbLen
-      const maxScrollY = Math.max(0, effContentHeight - heightAvail)
-      const frac = maxScrollY > 0 ? sY / maxScrollY : 0
+      const scrollRangeY = maxScrollY
+      const frac = scrollRangeY > 0 ? sY / scrollRangeY : 0
       const thumbTop = yTrack + Math.floor(maxThumbTop * frac)
       // Make the thumb thinner than the track and center it horizontally
       const thumbThick = Math.max(4, Math.floor(w * 0.6))
@@ -374,8 +389,8 @@ export class CanvasRenderer {
         Math.max(0, Math.floor(trackSpan * (widthAvail / effContentWidth))),
       )
       const maxThumbLeft = trackSpan - thumbLen
-      const maxScrollX = Math.max(0, effContentWidth - widthAvail)
-      const frac = maxScrollX > 0 ? sX / maxScrollX : 0
+      const scrollRangeX = maxScrollX
+      const frac = scrollRangeX > 0 ? sX / scrollRangeX : 0
       const thumbLeft = xTrack + Math.floor(maxThumbLeft * frac)
       // Make the thumb thinner than the track and center it vertically
       const thumbThick = Math.max(4, Math.floor(h * 0.6))
