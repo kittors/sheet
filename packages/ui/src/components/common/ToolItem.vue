@@ -98,46 +98,50 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 </script>
 
 <template>
-  <div ref="root" class="tool-item-wrap" :class="{ 'has-menu': hasMenu, 'is-active': props.active }">
+  <div
+    ref="root"
+    class="tool-item-wrap"
+    :class="{ 'has-menu': hasMenu, 'is-active': props.active }"
+  >
     <!-- Split mode: main action button + separate caret button -->
     <template v-if="props.split">
       <div class="tool-split">
         <button
-        type="button"
-        class="tool-item"
-        :class="[
-          props.label
-            ? props.labelPosition === 'right'
-              ? 'pos-right'
-              : props.labelPosition === 'none'
-                ? 'pos-none'
-                : 'pos-bottom'
-            : props.labelPosition === 'right'
-              ? 'pos-right'
-              : props.labelPosition === 'none'
-                ? 'pos-none'
-                : 'pos-bottom',
-          { disabled: props.disabled },
-        ]"
-        :aria-label="ariaLabel || label"
-        @click="onButtonClick"
-      >
-        <span class="icon">
-          <component :is="activeIcon" v-if="activeIcon" :size="18" />
-          <slot v-else />
-        </span>
-        <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
+          type="button"
+          class="tool-item"
+          :class="[
+            props.label
+              ? props.labelPosition === 'right'
+                ? 'pos-right'
+                : props.labelPosition === 'none'
+                  ? 'pos-none'
+                  : 'pos-bottom'
+              : props.labelPosition === 'right'
+                ? 'pos-right'
+                : props.labelPosition === 'none'
+                  ? 'pos-none'
+                  : 'pos-bottom',
+            { disabled: props.disabled },
+          ]"
+          :aria-label="ariaLabel || label"
+          @click="onButtonClick"
+        >
+          <span class="icon">
+            <component :is="activeIcon" v-if="activeIcon" :size="18" />
+            <slot v-else />
+          </span>
+          <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
         </button>
         <button
-        v-if="wantsMenu"
-        type="button"
-        class="caret-btn"
-        aria-haspopup="menu"
-        :aria-expanded="open"
-        @click.stop="onCaretClick"
-      >
-        <component :is="open ? ChevronUp : ChevronDown" class="caret" :size="14" />
-      </button>
+          v-if="wantsMenu"
+          type="button"
+          class="caret-btn"
+          aria-haspopup="menu"
+          :aria-expanded="open"
+          @click.stop="onCaretClick"
+        >
+          <component :is="open ? ChevronUp : ChevronDown" class="caret" :size="14" />
+        </button>
       </div>
     </template>
 
@@ -170,7 +174,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
         <slot v-else />
       </span>
       <span v-if="label && labelPosition !== 'none'" class="label">{{ label }}</span>
-      <component v-if="wantsMenu" :is="open ? ChevronUp : ChevronDown" class="caret" :size="14" />
+      <component :is="open ? ChevronUp : ChevronDown" v-if="wantsMenu" class="caret" :size="14" />
     </button>
     <Transition name="ui-fade-scale">
       <div v-if="open && wantsMenu" class="ti-menu" :class="['align-' + alignMenu]">
@@ -272,7 +276,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 .caret-btn {
   border: 0;
   background: transparent;
-  padding: 0 6px;
+  padding: 0 1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -291,7 +295,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
   border-radius: 10px;
   overflow: hidden; /* clip children corners */
 }
-.tool-split .caret { margin-left: 0; }
+.tool-split .caret {
+  margin-left: 0;
+}
 .tool-split:hover {
   background: rgba(0, 0, 0, 0.06);
   border-color: #e5e7eb;
@@ -303,7 +309,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 }
 .tool-split .caret-btn {
   border-left: 1px solid transparent;
-  padding: 0 4px; /* bring caret closer to icon */
+  padding: 0px; /* bring caret closer to icon */
 }
 .tool-split:hover .caret-btn {
   border-left-color: rgba(0, 0, 0, 0.08);

@@ -8,6 +8,7 @@ import { SelectionLayer } from './layers/selection'
 import { EditorLayer } from './layers/editor'
 import { ScrollbarLayer } from './layers/scrollbar'
 import { GuidesLayer } from './layers/guides'
+import { FreezeLayer } from './layers/freeze'
 import type { Layer, RenderContext } from './types/context'
 
 export interface HeaderStyle {
@@ -46,6 +47,8 @@ export interface RendererOptions {
   headerLabels?: HeaderLabels
   // Optional: override device pixel ratio (for OffscreenCanvas workers)
   dpr?: number
+  // Initial zoom ratio (1 = 100%). Content and headers scale with zoom; scrollbars remain constant.
+  zoom?: number
   // When enabled, dynamically extend sheet.rows/cols near the scroll edge
   // so the grid behaves like it has no fixed size.
   infiniteScroll?: boolean
@@ -108,6 +111,7 @@ export class CanvasRenderer {
   private lastRenderScrollY = 0
   private logicalW = 1
   private logicalH = 1
+  private zoom = 1
   // Keep fast-scrolling sticky for a short window to avoid per-frame toggling
   private fastUntilTs = 0
   // Weak cache for merge boundary blockers keyed by visible range + merges signature (capped size)
@@ -121,6 +125,7 @@ export class CanvasRenderer {
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, opts: RendererOptions = {}) {
     this.canvas = canvas
     this.dpr = opts.dpr ?? getDPR()
+    this.zoom = Math.max(0.05, opts.zoom ?? 1)
     const { width: initW, height: initH } = getCanvasLogicalSize(canvas)
     this.ctx = resizeCanvasForDPR(canvas, initW, initH, this.dpr)
     this.logicalW = Math.max(1, Math.floor(initW))
@@ -132,6 +137,8 @@ export class CanvasRenderer {
       new ScrollbarLayer(),
       // Draw content backgrounds first, then internal grid (inside ContentLayer), then text and borders
       new ContentLayer(),
+      // Persistent freeze split lines between panes
+      new FreezeLayer(),
       // Keep editor visuals (text, caret, edit background) above content,
       // but ALWAYS draw the selection outline on top so it is never obscured while editing.
       // This fixes cases where the active editor background covered the selection border
@@ -162,6 +169,18 @@ export class CanvasRenderer {
     this.headerLabels = opts.headerLabels
   }
 
+  getZoom() {
+    return this.zoom
+  }
+
+  setZoom(z: number) {
+    const next = Math.max(0.05, Number.isFinite(z) ? z : 1)
+    if (Math.abs(next - this.zoom) < 1e-6) return
+    this.zoom = next
+    // Invalidate metrics; next render will recompute
+    this.viewportMetrics = null
+  }
+
   getViewportMetrics(): ViewportMetrics | null {
     return this.viewportMetrics
   }
@@ -173,25 +192,26 @@ export class CanvasRenderer {
   }
 
   render(sheet: Sheet, scrollX: number, scrollY: number, mode: 'full' | 'ui' = 'full') {
+    const z = this.zoom
     const viewport = { width: this.logicalW, height: this.logicalH }
-    const originX = this.opts.headerColWidth!
-    const originY = this.opts.headerRowHeight!
+    const originX = this.opts.headerColWidth! * z
+    const originY = this.opts.headerRowHeight! * z
     const viewportContentWidth = Math.max(0, viewport.width - originX)
     const viewportContentHeight = Math.max(0, viewport.height - originY)
 
     // Compute raw content size from current sheet bounds
+    const baseDefaultCol = this.opts.defaultColWidth!
+    const baseDefaultRow = this.opts.defaultRowHeight!
+    const scaledColWidths = new Map<number, number>()
+    for (const [i, w] of sheet.colWidths) scaledColWidths.set(i, w * z)
+    const scaledRowHeights = new Map<number, number>()
+    for (const [i, h] of sheet.rowHeights) scaledRowHeights.set(i, h * z)
     let contentWidth =
-      sheet.cols * this.opts.defaultColWidth! +
-      Array.from(sheet.colWidths.values()).reduce(
-        (acc, w) => acc + (w - this.opts.defaultColWidth!),
-        0,
-      )
+      sheet.cols * baseDefaultCol * z +
+      Array.from(sheet.colWidths.values()).reduce((acc, w) => acc + (w - baseDefaultCol) * z, 0)
     let contentHeight =
-      sheet.rows * this.opts.defaultRowHeight! +
-      Array.from(sheet.rowHeights.values()).reduce(
-        (acc, h) => acc + (h - this.opts.defaultRowHeight!),
-        0,
-      )
+      sheet.rows * baseDefaultRow * z +
+      Array.from(sheet.rowHeights.values()).reduce((acc, h) => acc + (h - baseDefaultRow) * z, 0)
 
     // Decide whether scrollbars are needed and compute available content viewport (iterate to resolve interdependency)
     const thickness = this.opts.scrollbarThickness!
@@ -308,21 +328,33 @@ export class CanvasRenderer {
       if (this._baseContentHeight == null) this._baseContentHeight = contentHeight
     }
 
+    // Compute frozen panes pixel sizes at current zoom
+    const frozenCols = Math.max(0, Math.min(sheet.cols, sheet.frozenCols || 0))
+    const frozenRows = Math.max(0, Math.min(sheet.rows, sheet.frozenRows || 0))
+    let leftFrozenPx = 0
+    for (let c = 0; c < frozenCols; c++)
+      leftFrozenPx += (sheet.colWidths.get(c) ?? baseDefaultCol) * z
+    let topFrozenPx = 0
+    for (let r = 0; r < frozenRows; r++)
+      topFrozenPx += (sheet.rowHeights.get(r) ?? baseDefaultRow) * z
+    // Effective scrollable viewport (subtract frozen panes)
+    const widthAvailMain = Math.max(0, widthAvail - leftFrozenPx)
+    const heightAvailMain = Math.max(0, heightAvail - topFrozenPx)
     // Clamp scroll to available content viewport (prevents boundary drift)
-    const effContentWidth = this._expContentWidth ?? contentWidth
-    const effContentHeight = this._expContentHeight ?? contentHeight
+    const effContentWidth = Math.max(0, (this._expContentWidth ?? contentWidth) - leftFrozenPx)
+    const effContentHeight = Math.max(0, (this._expContentHeight ?? contentHeight) - topFrozenPx)
     // Trim most of the artificial margin so the thumb hugs the track end while still
     // allowing a sliver of headroom to keep infinite scrolling responsive.
     const slackX = this.opts.infiniteScroll ? dynamicMarginX + Math.floor(baseMarginX * 0.9) : 0
     const slackY = this.opts.infiniteScroll ? dynamicMarginY + Math.floor(baseMarginY * 0.9) : 0
-    const maxScrollX = Math.max(0, effContentWidth - widthAvail - slackX)
-    const maxScrollY = Math.max(0, effContentHeight - heightAvail - slackY)
+    const maxScrollX = Math.max(0, effContentWidth - widthAvailMain - slackX)
+    const maxScrollY = Math.max(0, effContentHeight - heightAvailMain - slackY)
     const sX = Math.max(0, Math.min(scrollX, maxScrollX))
     const sY = Math.max(0, Math.min(scrollY, maxScrollY))
 
     this.viewportMetrics = {
-      widthAvail,
-      heightAvail,
+      widthAvail: widthAvailMain,
+      heightAvail: heightAvailMain,
       contentWidth: effContentWidth,
       contentHeight: effContentHeight,
       maxScrollX,
@@ -333,31 +365,34 @@ export class CanvasRenderer {
     const visible = computeVisibleRange({
       scrollX: sX,
       scrollY: sY,
-      viewportWidth: widthAvail,
-      viewportHeight: heightAvail,
+      viewportWidth: widthAvailMain,
+      viewportHeight: heightAvailMain,
       colCount: sheet.cols,
       rowCount: sheet.rows,
-      defaultColWidth: this.opts.defaultColWidth!,
-      defaultRowHeight: this.opts.defaultRowHeight!,
-      colWidths: sheet.colWidths,
-      rowHeights: sheet.rowHeights,
+      defaultColWidth: baseDefaultCol * z,
+      defaultRowHeight: baseDefaultRow * z,
+      colWidths: scaledColWidths,
+      rowHeights: scaledRowHeights,
       overscan: this.opts.overscan,
     })
 
     // Scrollbar geometry
     const minThumb = this.opts.scrollbarThumbMinSize!
+    // After freeze, visibility must be evaluated against the main scrollable pane
+    const vScrollableGeom = effContentHeight > heightAvailMain + 0.5
+    const hScrollableGeom = effContentWidth > widthAvailMain + 0.5
 
     // Vertical scrollbar visible only if content exceeds viewport
     let vTrack: { x: number; y: number; w: number; h: number } | null = null
     let vThumb: { x: number; y: number; w: number; h: number } | null = null
     let vArrowUp: { x: number; y: number; w: number; h: number } | null = null
     let vArrowDown: { x: number; y: number; w: number; h: number } | null = null
-    if (vScrollable) {
+    if (vScrollableGeom) {
       const x = viewport.width - thickness
       const y = originY
       const w = thickness
       // If horizontal bar also visible we keep room for corner
-      const hTotal = viewport.height - originY - (hScrollable ? thickness : 0)
+      const hTotal = viewport.height - originY - (hScrollableGeom ? thickness : 0)
       // Arrow buttons: square at both ends (cap around 1/3 of total span to avoid overlap)
       // Slightly larger arrow length to increase hit area
       const arrow = Math.min(Math.floor(thickness * 1.5), Math.max(0, Math.floor(hTotal / 3)))
@@ -371,7 +406,7 @@ export class CanvasRenderer {
       const trackSpan = h
       const thumbLen = Math.max(
         minThumb,
-        Math.max(0, Math.floor(trackSpan * (heightAvail / effContentHeight))),
+        Math.max(0, Math.floor(trackSpan * (heightAvailMain / Math.max(1, effContentHeight)))),
       )
       const maxThumbTop = trackSpan - thumbLen
       const scrollRangeY = maxScrollY
@@ -388,11 +423,11 @@ export class CanvasRenderer {
     let hThumb: { x: number; y: number; w: number; h: number } | null = null
     let hArrowLeft: { x: number; y: number; w: number; h: number } | null = null
     let hArrowRight: { x: number; y: number; w: number; h: number } | null = null
-    if (hScrollable) {
+    if (hScrollableGeom) {
       const x = originX
       const y = viewport.height - thickness
       // If vertical bar also visible we keep room for corner
-      const wTotal = viewport.width - originX - (vScrollable ? thickness : 0)
+      const wTotal = viewport.width - originX - (vScrollableGeom ? thickness : 0)
       const h = thickness
       // Arrow buttons on both sides
       const arrow = Math.min(Math.floor(thickness * 1.5), Math.max(0, Math.floor(wTotal / 3)))
@@ -405,7 +440,7 @@ export class CanvasRenderer {
       const trackSpan = w
       const thumbLen = Math.max(
         minThumb,
-        Math.max(0, Math.floor(trackSpan * (widthAvail / effContentWidth))),
+        Math.max(0, Math.floor(trackSpan * (widthAvailMain / Math.max(1, effContentWidth)))),
       )
       const maxThumbLeft = trackSpan - thumbLen
       const scrollRangeX = maxScrollX
@@ -496,8 +531,9 @@ export class CanvasRenderer {
       scroll: { x: sX, y: sY },
       sheet,
       visible,
-      defaultRowHeight: this.opts.defaultRowHeight!,
-      defaultColWidth: this.opts.defaultColWidth!,
+      defaultRowHeight: baseDefaultRow, // base sizes (layers multiply by zoom when needed)
+      defaultColWidth: baseDefaultCol,
+      zoom: z,
       selection: this.selection,
       selectionAnchor: this.selectionAnchor,
       contentWidth,
@@ -532,8 +568,114 @@ export class CanvasRenderer {
       }
       return
     }
-    // Full render: all layers in order
-    for (const l of this.layers) l.render(rc)
+    // Full render: all layers in order. Content/Selection/Editor are rendered in panes if frozen.
+    for (const l of this.layers) {
+      const paneAware = l.name === 'content' || l.name === 'selection' || l.name === 'editor'
+      if (!paneAware) {
+        l.render(rc)
+        continue
+      }
+      // Helper: compute merge blockers for a given visible range (cached)
+      const getBlockers = (vis: typeof visible) => {
+        const key = (() => {
+          let sum = 0
+          for (let i = 0; i < sheet.merges.length; i++) {
+            const m = sheet.merges[i]
+            sum = (sum + m.r * 7 + m.c * 13 + m.rows * 17 + m.cols * 19) | 0
+          }
+          return `${vis.rowStart},${vis.rowEnd},${vis.colStart},${vis.colEnd}:${sheet.merges.length}:${sum}`
+        })()
+        let gb = this.gridBlockersCache.get(key)
+        if (!gb) {
+          const v = new Map<number, Set<number>>()
+          const h = new Map<number, Set<number>>()
+          for (const m of sheet.merges) {
+            if (m.rows === 1 && m.cols === 1) continue
+            const vStart = Math.max(vis.rowStart, m.r)
+            const vEnd = Math.min(vis.rowEnd, m.r + m.rows - 1)
+            const bStart = Math.max(vis.colStart, m.c + 1)
+            const bEnd = Math.min(vis.colEnd + 1, m.c + m.cols - 1)
+            if (vStart <= vEnd && bStart <= bEnd) {
+              for (let r2 = vStart; r2 <= vEnd; r2++) {
+                let set = v.get(r2)
+                if (!set) v.set(r2, (set = new Set<number>()))
+                for (let b = bStart; b <= bEnd; b++) set.add(b)
+              }
+            }
+            const hStart = Math.max(vis.colStart, m.c)
+            const hEnd = Math.min(vis.colEnd, m.c + m.cols - 1)
+            const rbStart = Math.max(vis.rowStart, m.r + 1)
+            const rbEnd = Math.min(vis.rowEnd + 1, m.r + m.rows - 1)
+            if (hStart <= hEnd && rbStart <= rbEnd) {
+              for (let c2 = hStart; c2 <= hEnd; c2++) {
+                let set = h.get(c2)
+                if (!set) h.set(c2, (set = new Set<number>()))
+                for (let b = rbStart; b <= rbEnd; b++) set.add(b)
+              }
+            }
+          }
+          gb = { v, h }
+          if (this.gridBlockersCache.size >= 16) {
+            const first = this.gridBlockersCache.keys().next().value
+            if (first) this.gridBlockersCache.delete(first)
+          }
+          this.gridBlockersCache.set(key, gb)
+        }
+        return gb
+      }
+
+      // Render in up to 4 panes (top-left, top, left, main)
+      const renderPane = (
+        clipX: number,
+        clipY: number,
+        clipW: number,
+        clipH: number,
+        sXP: number,
+        sYP: number,
+      ) => {
+        if (clipW <= 0 || clipH <= 0) return
+        const v = computeVisibleRange({
+          scrollX: Math.max(0, sXP),
+          scrollY: Math.max(0, sYP),
+          viewportWidth: clipW,
+          viewportHeight: clipH,
+          colCount: sheet.cols,
+          rowCount: sheet.rows,
+          defaultColWidth: baseDefaultCol * z,
+          defaultRowHeight: baseDefaultRow * z,
+          colWidths: scaledColWidths,
+          rowHeights: scaledRowHeights,
+          overscan: this.opts.overscan,
+        })
+        const rcPane: RenderContext = {
+          ...rc,
+          visible: v,
+          scroll: { x: sXP, y: sYP },
+          gridBlockers: l.name === 'content' ? getBlockers(v) : rc.gridBlockers,
+        }
+        this.ctx.save()
+        this.ctx.beginPath()
+        this.ctx.rect(clipX, clipY, clipW, clipH)
+        this.ctx.clip()
+        l.render(rcPane)
+        this.ctx.restore()
+      }
+      // Compute pane rects
+      const leftPx = leftFrozenPx
+      const topPx = topFrozenPx
+      const mainW = widthAvailMain
+      const mainH = heightAvailMain
+      // top-left (no scroll)
+      if (leftPx > 0 && topPx > 0) renderPane(originX, originY, leftPx, topPx, 0, 0)
+      // top (horizontal scroll only)
+      if (topPx > 0)
+        renderPane(originX + leftPx, originY, mainW, topPx, sX, 0)
+      // left (vertical scroll only)
+      if (leftPx > 0)
+        renderPane(originX, originY + topPx, leftPx, mainH, 0, sY)
+      // main (both scroll)
+      renderPane(originX + leftPx, originY + topPx, mainW, mainH, sX, sY)
+    }
   }
 
   setSelection(

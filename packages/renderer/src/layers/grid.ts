@@ -3,8 +3,17 @@ import type { Layer, RenderContext } from '../types/context'
 export class GridLayer implements Layer {
   name = 'grid'
   render(rc: RenderContext) {
-    const { ctx, viewport, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } =
-      rc
+    const {
+      ctx,
+      viewport,
+      visible,
+      sheet,
+      defaultColWidth,
+      defaultRowHeight,
+      originX,
+      originY,
+      zoom,
+    } = rc
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
     const hGap = rc.scrollbar.hTrack ? rc.scrollbar.thickness : 0
     ctx.save()
@@ -49,13 +58,14 @@ export class GridLayer implements Layer {
     }
 
     // Vertical grid lines (skip interior segments within merges)
+    const z = zoom ?? 1
     let x = originX - visible.offsetX
     for (let b = visible.colStart; b <= visible.colEnd + 1; b++) {
-      const w = sheet.colWidths.get(b) ?? defaultColWidth
+      const w = (sheet.colWidths.get(b) ?? defaultColWidth) * z
       ctx.beginPath()
       let y = originY - visible.offsetY
       for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
-        const h = sheet.rowHeights.get(r) ?? defaultRowHeight
+        const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
         if (!isVBoundaryBlockedAtRow(b, r)) {
           const xx = Math.floor(x) + 0.5
           const y0 = Math.floor(y)
@@ -72,11 +82,11 @@ export class GridLayer implements Layer {
     // Horizontal grid lines (skip interior segments within merges)
     let y = originY - visible.offsetY
     for (let b = visible.rowStart; b <= visible.rowEnd + 1; b++) {
-      const h = sheet.rowHeights.get(b) ?? defaultRowHeight
+      const h = (sheet.rowHeights.get(b) ?? defaultRowHeight) * z
       ctx.beginPath()
       let x2 = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+        const w2 = (sheet.colWidths.get(c) ?? defaultColWidth) * z
         if (!isHBoundaryBlockedAtCol(b, c)) {
           const yy = Math.floor(y) + 0.5
           const xL = Math.floor(x2)

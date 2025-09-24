@@ -23,6 +23,7 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       headerColWidth: args.renderer.opts.headerColWidth!,
       headerRowHeight: args.renderer.opts.headerRowHeight!,
       scrollbarThickness: args.renderer.opts.scrollbarThickness!,
+      zoom: 1,
     },
   }
 
@@ -71,8 +72,9 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const m = ctx.renderer.getViewportMetrics?.()
     if (!m) return
     const thickness = ctx.metrics.scrollbarThickness
-    const headerX = ctx.metrics.headerColWidth
-    const headerY = ctx.metrics.headerRowHeight
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+    const headerX = ctx.metrics.headerColWidth * z
+    const headerY = ctx.metrics.headerRowHeight * z
     const vScrollable = m.contentHeight > m.heightAvail
     const hScrollable = m.contentWidth > m.widthAvail
     const w = headerX + m.contentWidth + (vScrollable ? thickness : 0)
@@ -115,11 +117,20 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     }
   }
 
+  function applyZoom(nextZoom: number) {
+    const z = Math.max(0.05, nextZoom)
+    ctx.renderer.setZoom?.(z)
+    // No change in internal scroll units; renderer takes care of zoom scaling.
+    syncScrollHostSizeFromRenderer()
+    schedule()
+  }
+
   function normalizeScroll(prevX: number, prevY: number) {
     // In infinite mode, give the renderer a chance to grow the sheet before clamping
     // so clamping reflects the expanded bounds.
     try {
-      if (ctx.infiniteScroll) ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+      if (ctx.infiniteScroll)
+        ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
     } catch (e) {
       void e
     }
@@ -240,28 +251,44 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     return { w, h }
   }
   function ensureCellVisible(r: number, c: number, mode: 'center' | 'nearest' = 'nearest') {
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
     const { widthAvail, heightAvail, contentWidth, contentHeight } = computeAvailViewport(ctx)
     const { w, h } = cellSpanSize(r, c)
-    const left = colLeft(c)
-    const top = rowTop(r)
-    const right = left + w
-    const bottom = top + h
+    const left = colLeft(c) * z
+    const top = rowTop(r) * z
+    const right = left + w * z
+    const bottom = top + h * z
     let sX = state.scroll.x
     let sY = state.scroll.y
+    const frozenCols = Math.max(0, Math.min(ctx.sheet.cols, ctx.sheet.frozenCols || 0))
+    const frozenRows = Math.max(0, Math.min(ctx.sheet.rows, ctx.sheet.frozenRows || 0))
+    // Pixel sizes of frozen areas
+    let leftFrozenPx = 0
+    for (let i = 0; i < frozenCols; i++) leftFrozenPx += (ctx.sheet.colWidths.get(i) ?? ctx.metrics.defaultColWidth) * z
+    let topFrozenPx = 0
+    for (let i = 0; i < frozenRows; i++) topFrozenPx += (ctx.sheet.rowHeights.get(i) ?? ctx.metrics.defaultRowHeight) * z
+    const isFrozenCol = c < frozenCols
+    const isFrozenRow = r < frozenRows
     if (mode === 'center') {
-      sX = Math.max(
-        0,
-        Math.min(contentWidth - widthAvail, Math.floor(left + w / 2 - widthAvail / 2)),
-      )
-      sY = Math.max(
-        0,
-        Math.min(contentHeight - heightAvail, Math.floor(top + h / 2 - heightAvail / 2)),
-      )
+      if (!isFrozenCol)
+        sX = Math.max(
+          0,
+          Math.min(contentWidth - widthAvail, Math.floor(left + w / 2 - widthAvail / 2)),
+        )
+      if (!isFrozenRow)
+        sY = Math.max(
+          0,
+          Math.min(contentHeight - heightAvail, Math.floor(top + h / 2 - heightAvail / 2)),
+        )
     } else {
-      if (left < sX) sX = left
-      else if (right > sX + widthAvail) sX = Math.max(0, right - widthAvail)
-      if (top < sY) sY = top
-      else if (bottom > sY + heightAvail) sY = Math.max(0, bottom - heightAvail)
+      if (!isFrozenCol) {
+        if (left < sX) sX = left
+        else if (right > sX + widthAvail) sX = Math.max(0, right - widthAvail)
+      }
+      if (!isFrozenRow) {
+        if (top < sY) sY = top
+        else if (bottom > sY + heightAvail) sY = Math.max(0, bottom - heightAvail)
+      }
     }
     if (sX !== state.scroll.x || sY !== state.scroll.y) {
       state.scroll.x = sX
@@ -273,16 +300,17 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     }
   }
   function isCellVisible(r: number, c: number): boolean {
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
     const { widthAvail, heightAvail } = computeAvailViewport(ctx)
     const { w, h } = cellSpanSize(r, c)
     const viewLeft = state.scroll.x
     const viewTop = state.scroll.y
     const viewRight = viewLeft + widthAvail
     const viewBottom = viewTop + heightAvail
-    const left = colLeft(c)
-    const top = rowTop(r)
-    const right = left + w
-    const bottom = top + h
+    const left = colLeft(c) * z
+    const top = rowTop(r) * z
+    const right = left + w * z
+    const bottom = top + h * z
     const hOverlap = !(right <= viewLeft || left >= viewRight)
     const vOverlap = !(bottom <= viewTop || top >= viewBottom)
     return hOverlap && vOverlap
@@ -296,15 +324,16 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const ac = m ? m.c : cell.c
     const style = ctx.sheet.getStyleAt(ar, ac)
     // compute cell rect in canvas coords
-    const originX = ctx.metrics.headerColWidth
-    const originY = ctx.metrics.headerRowHeight
-    const x0 = originX + colLeft(ac) - state.scroll.x
-    const y0 = originY + rowTop(ar) - state.scroll.y
-    let w = ctx.sheet.colWidths.get(ac) ?? ctx.metrics.defaultColWidth
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+    const originX = ctx.metrics.headerColWidth * z
+    const originY = ctx.metrics.headerRowHeight * z
+    const x0 = originX + colLeft(ac) * z - state.scroll.x
+    const y0 = originY + rowTop(ar) * z - state.scroll.y
+    let w = (ctx.sheet.colWidths.get(ac) ?? ctx.metrics.defaultColWidth) * z
     if (m) {
       w = 0
       for (let cc = m.c; cc < m.c + m.cols; cc++)
-        w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+        w += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
     }
     // map click x to caret index
     const rect = ctx.canvas.getBoundingClientRect()
@@ -331,36 +360,38 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       const wr = ctx.renderer as unknown as { caretIndexFromPoint?: CaretFromPoint }
       if (wrap) {
         const maxW = Math.max(0, w - 8)
-        const sizePx = style?.font?.size ?? 14
-        const lineH = Math.max(12, Math.round(sizePx * 1.25))
+        const sizePx = (style?.font?.size ?? 14) * z
+        const lineH = Math.max(12 * z, Math.round(sizePx * 1.25))
+        const scaledFont = style?.font ? { ...style.font, size: (style.font.size ?? 14) * z } : undefined
         caret =
           (wr.caretIndexFromPoint
             ? await wr.caretIndexFromPoint(text, relX, relY, {
                 maxWidth: maxW,
-                font: style?.font,
-                defaultSize: 14,
+                font: scaledFont,
+                defaultSize: 14 * z,
                 lineHeight: lineH,
               })
             : caretIndexFromPoint(text, relX, relY, {
                 maxWidth: maxW,
-                font: style?.font,
-                defaultSize: 14,
+                font: scaledFont,
+                defaultSize: 14 * z,
                 lineHeight: lineH,
               })) ?? 0
       } else {
+        const scaledFont = style?.font ? { ...style.font, size: (style.font.size ?? 14) * z } : undefined
         caret =
           (wr.caretIndexFromPoint
             ? await wr.caretIndexFromPoint(text, relX, 0, {
                 maxWidth: 1e9,
-                font: style?.font,
-                defaultSize: 14,
-                lineHeight: (style?.font?.size ?? 14) * 1.25,
+                font: scaledFont,
+                defaultSize: 14 * z,
+                lineHeight: (style?.font?.size ?? 14) * z * 1.25,
               })
             : caretIndexFromPoint(text, relX, 0, {
                 maxWidth: 1e9,
-                font: style?.font,
-                defaultSize: 14,
-                lineHeight: (style?.font?.size ?? 14) * 1.25,
+                font: scaledFont,
+                defaultSize: 14 * z,
+                lineHeight: (style?.font?.size ?? 14) * z * 1.25,
               })) ?? 0
       }
     }
@@ -383,6 +414,12 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       kb.destroy()
       cancelAnimationFrame(state.raf)
       destroyRender?.()
+    },
+    getZoom() {
+      return ctx.metrics.zoom ?? 1
+    },
+    setZoom(z: number) {
+      applyZoom(z)
     },
     ...cmds,
     onEditorChange(
@@ -411,8 +448,9 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
       const rect = ctx.canvas.getBoundingClientRect()
       const x = clientX - rect.left
       const y = clientY - rect.top
-      const originX = ctx.metrics.headerColWidth
-      const originY = ctx.metrics.headerRowHeight
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const originX = ctx.metrics.headerColWidth * z
+      const originY = ctx.metrics.headerRowHeight * z
       // 先排除滚动条
       const sb = ctx.renderer.getScrollbars?.()
       if (sb) {

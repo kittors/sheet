@@ -1,6 +1,8 @@
 export { default as SheetCanvas } from './components/business/SheetCanvas.vue'
 export { default as SheetToolbar } from './components/business/SheetToolbar.vue'
 export { default as FontControls } from './components/business/FontControls.vue'
+export { default as SheetFooter } from './components/business/SheetFooter.vue'
+export { default as ZoomControl } from './components/business/ZoomControl.vue'
 export { default as ToolItem } from './components/common/ToolItem.vue'
 export { default as ToolGroup } from './components/common/ToolGroup.vue'
 export { default as Dropdown } from './components/common/Dropdown.vue'

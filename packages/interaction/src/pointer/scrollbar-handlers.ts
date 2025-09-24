@@ -15,7 +15,8 @@ export function createScrollbarHandlers(
   function clampAndSchedule() {
     // Allow renderer to grow bounds before clamping in infinite mode
     try {
-      if (ctx.infiniteScroll) ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
+      if (ctx.infiniteScroll)
+        ctx.renderer.render(ctx.sheet, state.scroll.x, state.scroll.y, 'ui')
     } catch (e) {
       void e
     }

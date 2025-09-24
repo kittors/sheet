@@ -35,6 +35,10 @@ export class Sheet {
   // Track max used cell indices (0-based). Only grows; not decremented on clear.
   private maxDataRow = -1
   private maxDataCol = -1
+  // Freeze panes (counts from top/left). 0 = none.
+  frozenRows = 0
+  frozenCols = 0
+
 
   constructor(name: string, rows: number, cols: number) {
     this.name = name
@@ -111,6 +115,28 @@ export class Sheet {
   }
   setColWidth(c: number, w: number) {
     this.colWidths.set(c, w)
+  }
+
+
+  /** Freeze the top `rows` and left `cols`. Values are clamped to [0, rows/cols]. */
+  setFrozen(rows: number, cols: number) {
+    const r = Math.max(0, Math.min(this.rows, Math.floor(rows)))
+    const c = Math.max(0, Math.min(this.cols, Math.floor(cols)))
+    this.frozenRows = r
+    this.frozenCols = c
+  }
+
+  setFrozenRows(rows: number) {
+    this.setFrozen(rows, this.frozenCols)
+  }
+
+  setFrozenCols(cols: number) {
+    this.setFrozen(this.frozenRows, cols)
+  }
+
+  clearFrozen() {
+    this.frozenRows = 0
+    this.frozenCols = 0
   }
 
   /**
@@ -254,6 +280,7 @@ export type SerializedSheet = {
   // sparse cells with style references by id
   cells: Array<{ r: number; c: number; value?: Cell['value']; styleId?: number }>
   styles: Style[]
+  frozen?: { rows: number; cols: number }
 }
 
 export type SheetOp =
@@ -264,6 +291,8 @@ export type SheetOp =
   | { type: 'addMerge'; r: number; c: number; rows: number; cols: number }
   | { type: 'removeMergeAt'; r: number; c: number }
   | { type: 'defineStyle'; style: Style }
+  | { type: 'setFrozen'; rows: number; cols: number }
+  | { type: 'clearFrozen' }
 
 export function exportSheet(sheet: Sheet): SerializedSheet {
   const cells: Array<{ r: number; c: number; value?: Cell['value']; styleId?: number }> = []
@@ -288,6 +317,7 @@ export function exportSheet(sheet: Sheet): SerializedSheet {
     merges: sheet.merges.slice(),
     cells,
     styles,
+    frozen: { rows: sheet.frozenRows, cols: sheet.frozenCols },
   }
 }
 
@@ -301,6 +331,7 @@ export function importSheet(snap: SerializedSheet): Sheet {
     if (cell.value !== undefined) s.setValue(cell.r, cell.c, cell.value)
     if (cell.styleId != null) s.setCellStyle(cell.r, cell.c, cell.styleId)
   }
+  if (snap.frozen) s.setFrozen(snap.frozen.rows ?? 0, snap.frozen.cols ?? 0)
   return s
 }
 
@@ -326,6 +357,12 @@ export function applySheetOp(sheet: Sheet, op: SheetOp) {
       break
     case 'defineStyle':
       sheet.defineStyleWithId(op.style)
+      break
+    case 'setFrozen':
+      sheet.setFrozen(op.rows, op.cols)
+      break
+    case 'clearFrozen':
+      sheet.clearFrozen()
       break
   }
 }

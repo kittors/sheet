@@ -13,6 +13,8 @@ export interface SheetApi {
   getRowHeight(r: number): number | undefined
   getColWidth(c: number): number | undefined
   getScroll(): { x: number; y: number } | null
+  setZoom(zoom: number): void
+  getZoom(): number
   // Commands (pass-through to interaction when present)
   applyTextColor(color: string): void
   applyFillColor(backgroundColor: string): void
@@ -115,6 +117,12 @@ export function createSheetApi(args: { sheet: Sheet; interaction?: InteractionHa
     },
     getScroll() {
       return interaction?.getScroll() ?? null
+    },
+    setZoom(zoom: number) {
+      interaction?.setZoom?.(zoom)
+    },
+    getZoom() {
+      return interaction?.getZoom?.() ?? 1
     },
     // Commands
     applyTextColor(color) {

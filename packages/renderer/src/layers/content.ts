@@ -56,7 +56,8 @@ export class ContentLayer implements Layer {
     return n2
   }
   render(rc: RenderContext) {
-    const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    const { ctx, visible, sheet, defaultColWidth, defaultRowHeight, originX, originY, zoom } = rc
+    const z = zoom ?? 1
     // Lightweight drawing during fast scrolls is handled elsewhere; we always render full detail here
     // so cached measurements stay warm and visuals remain consistent.
     const vGap = rc.scrollbar.vTrack ? rc.scrollbar.thickness : 0
@@ -73,18 +74,17 @@ export class ContentLayer implements Layer {
     ctx.clip()
     ctx.fillStyle = '#111827'
     ctx.textBaseline = 'middle'
-    ctx.font =
-      'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+    ctx.font = `normal ${14 * z}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
 
     let y = originY - visible.offsetY
     for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
-      const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
+      const baseH = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
       let x = originX - visible.offsetX
 
       // PASS 1: backgrounds only (to avoid covering overflow text from previous cells)
       x = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+        const baseW = (sheet.colWidths.get(c) ?? defaultColWidth) * z
         const m = sheet.getMergeAt(r, c)
         if (m && !(m.r === r && m.c === c)) {
           x += baseW
@@ -95,10 +95,10 @@ export class ContentLayer implements Layer {
         if (m) {
           drawW = 0
           for (let cc = m.c; cc < m.c + m.cols; cc++)
-            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+            drawW += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
           drawH = 0
           for (let rr = m.r; rr < m.r + m.rows; rr++)
-            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+            drawH += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
         }
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)
@@ -134,7 +134,7 @@ export class ContentLayer implements Layer {
           ctx.moveTo(xx, y0)
           ctx.lineTo(xx, y1)
         }
-        const w = sheet.colWidths.get(b) ?? defaultColWidth
+        const w = (sheet.colWidths.get(b) ?? defaultColWidth) * z
         xV += w
       }
       ctx.stroke()
@@ -142,7 +142,7 @@ export class ContentLayer implements Layer {
       let xH = originX - visible.offsetX
       ctx.beginPath()
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+        const w2 = (sheet.colWidths.get(c) ?? defaultColWidth) * z
         if (!isHBoundaryBlockedAtCol(r, c)) {
           const yy = Math.floor(y) + 0.5
           const xL = Math.floor(xH) + 0.5
@@ -158,7 +158,7 @@ export class ContentLayer implements Layer {
         xH = originX - visible.offsetX
         ctx.beginPath()
         for (let c = visible.colStart; c <= visible.colEnd; c++) {
-          const w2 = sheet.colWidths.get(c) ?? defaultColWidth
+          const w2 = (sheet.colWidths.get(c) ?? defaultColWidth) * z
           if (!isHBoundaryBlockedAtCol(r + 1, c)) {
             const yy = Math.floor(y + baseH) + 0.5
             const xL = Math.floor(xH) + 0.5
@@ -183,9 +183,10 @@ export class ContentLayer implements Layer {
       if (visible.colStart > 0) {
           // Helper to compute cumulative width up to column index i
           const cumWidth = (i: number): number => {
-            let base = i * defaultColWidth
+            let base = i * defaultColWidth * z
             if (sheet.colWidths.size)
-              for (const [ci, w] of sheet.colWidths) if (ci < i) base += w - defaultColWidth
+              for (const [ci, w] of sheet.colWidths)
+                if (ci < i) base += (w - defaultColWidth) * z
             return base
           }
           // Find the rightmost non-empty anchor cell to the left that could overflow
@@ -257,7 +258,7 @@ export class ContentLayer implements Layer {
 
               // Setup text style to measure/draw accurately
               if (style?.font) {
-                const size = style.font.size ?? 14
+                const size = (style.font.size ?? 14) * z
                 const family =
                   style.font.family ??
                   'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
@@ -265,8 +266,7 @@ export class ContentLayer implements Layer {
                 const italic = style.font.italic ? 'italic ' : ''
                 ctx.font = `${italic}${weight} ${size}px ${family}`
               } else {
-                ctx.font =
-                  'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                ctx.font = `normal ${14 * z}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
               }
               ctx.fillStyle = style?.font?.color ?? '#111827'
               ctx.textAlign = 'left'
@@ -343,7 +343,7 @@ export class ContentLayer implements Layer {
       // PASS 2: text（始终完整绘制，保证视觉稳定，避免 fast/非 fast 间切换导致闪烁）
         x = originX - visible.offsetX
         for (let c = visible.colStart; c <= visible.colEnd; c++) {
-          const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+          const baseW = (sheet.colWidths.get(c) ?? defaultColWidth) * z
           const m = sheet.getMergeAt(r, c)
           if (m && !(m.r === r && m.c === c)) {
             x += baseW
@@ -354,10 +354,10 @@ export class ContentLayer implements Layer {
           if (m) {
             drawW = 0
             for (let cc = m.c; cc < m.c + m.cols; cc++)
-              drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+              drawW += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
             drawH = 0
             for (let rr = m.r; rr < m.r + m.rows; rr++)
-              drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+              drawH += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
           }
           const cell = sheet.getCell(r, c)
           const style = sheet.getStyle(cell?.styleId)
@@ -369,7 +369,10 @@ export class ContentLayer implements Layer {
           // Do not draw text for the editing anchor here; editor layer is responsible for it
           if (txt && !isEditingAnchor) {
           // Always set font and color per cell to avoid bleeding styles into neighbors
-          ctx.font = fontStringFromStyle(style?.font, 14)
+          const scaledFont = style?.font
+            ? { ...style.font, size: (style.font.size ?? 14) * z }
+            : undefined
+          ctx.font = fontStringFromStyle(scaledFont, 14 * z)
           ctx.fillStyle = style?.font?.color ?? '#111827'
           // alignment & flow
           const halign = style?.alignment?.horizontal ?? 'left'
@@ -438,15 +441,21 @@ export class ContentLayer implements Layer {
           const maxW = Math.max(0, drawW - 8)
           if (wrap) {
             // multi-line wrap within cell box; honor explicit newlines
-            const sizePx = style?.font?.size ?? 14
-            const lineH = Math.max(12, Math.round(sizePx * 1.25))
+            const sizePx = (style?.font?.size ?? 14) * z
+            const lineH = Math.max(12 * z, Math.round(sizePx * 1.25))
             ctx.save()
             ctx.beginPath()
             ctx.rect(x + 1, y + 1, Math.max(0, drawW - 2), Math.max(0, drawH - 2))
             ctx.clip()
             ctx.textBaseline = 'top'
             let cursorY = y + 3
-            const lines = this.wrapTextCached(ctx, txt, maxW, style?.font)
+            const lines = this.wrapTextCached(
+              ctx,
+              txt,
+              maxW,
+              scaledFont,
+              14 * z,
+            )
             for (let li = 0; li < lines.length; li++) {
               if (cursorY > y + drawH - 3) break
               const seg = lines[li]
@@ -534,7 +543,7 @@ export class ContentLayer implements Layer {
             if (style?.font?.underline || style?.font?.strikethrough) {
               // approximate text width of what we drew
               const drawnW = this.measureTextCached(ctx, out)
-              const sizePx2 = style?.font?.size ?? 14
+              const sizePx2 = (style?.font?.size ?? 14) * z
               // Derive a top-edge Y from current baseline so we can use
               // consistent top-relative offsets (matches the multiline path)
               let topY: number
@@ -662,11 +671,11 @@ export class ContentLayer implements Layer {
     // GLOBAL PASS: draw custom cell borders on top of everything (always on to avoid flicker)
     {
       let yB = originY - visible.offsetY
-      for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
-      const baseH = sheet.rowHeights.get(r) ?? defaultRowHeight
+    for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+      const baseH = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
       let xB = originX - visible.offsetX
       for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const baseW = sheet.colWidths.get(c) ?? defaultColWidth
+        const baseW = (sheet.colWidths.get(c) ?? defaultColWidth) * z
         const m = sheet.getMergeAt(r, c)
         if (m && !(m.r === r && m.c === c)) {
           xB += baseW
@@ -677,10 +686,10 @@ export class ContentLayer implements Layer {
         if (m) {
           drawW = 0
           for (let cc = m.c; cc < m.c + m.cols; cc++)
-            drawW += sheet.colWidths.get(cc) ?? defaultColWidth
+            drawW += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
           drawH = 0
           for (let rr = m.r; rr < m.r + m.rows; rr++)
-            drawH += sheet.rowHeights.get(rr) ?? defaultRowHeight
+            drawH += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
         }
         const cell = sheet.getCell(r, c)
         const style = sheet.getStyle(cell?.styleId)

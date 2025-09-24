@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, computed, watch } from 'vue'
 import { CanvasRenderer } from '@sheet/renderer'
 import type { HeaderStyle, HeaderLabels, WorkerRenderer } from '@sheet/renderer'
 import type { Sheet } from '@sheet/core'
@@ -34,13 +34,12 @@ function renderOnce() {
   const canvas = canvasRef.value
   const renderer = rendererRef.value
   if (!canvas || !renderer) return
-  // Measure the scroll host that anchors the canvas overlay
   const host = scrollHostRef.value
   const rect = host?.getBoundingClientRect()
   if (!rect) return
   const w = Math.max(1, Math.floor(rect.width))
   const h = Math.max(1, Math.floor(rect.height))
-  if (canvas.clientWidth !== w || canvas.clientHeight !== h) {
+  if (Math.floor(canvas.clientWidth) !== w || Math.floor(canvas.clientHeight) !== h) {
     canvas.style.width = `${w}px`
     canvas.style.height = `${h}px`
     renderer.resize(w, h)
@@ -72,8 +71,9 @@ function syncScrollSpacer() {
   if (!host || !spacer || !r) return
   // Prefer renderer's cached metrics for perfect match
   const m = r.getViewportMetrics?.()
-  const headerX = r.opts.headerColWidth ?? props.headerColWidth ?? 48
-  const headerY = r.opts.headerRowHeight ?? props.headerRowHeight ?? 28
+  const z = (r as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+  const headerX = (r.opts.headerColWidth ?? props.headerColWidth ?? 48) * z
+  const headerY = (r.opts.headerRowHeight ?? props.headerRowHeight ?? 28) * z
   const thickness = r.opts.scrollbarThickness ?? props.scrollbarThickness ?? 12
   if (m) {
     const vScrollable = m.contentHeight > m.heightAvail
@@ -107,6 +107,9 @@ function syncScrollSpacer() {
   // Resolve interdependency between v/h scrollbars (mirror of interaction/viewport.ts)
   let widthAvail = Math.max(0, baseW - headerX)
   let heightAvail = Math.max(0, baseH - headerY)
+  // Apply zoom for content dimensions
+  contentWidth *= z
+  contentHeight *= z
   let vScrollable = contentHeight > heightAvail
   let hScrollable = contentWidth > widthAvail
   for (let i = 0; i < 3; i++) {

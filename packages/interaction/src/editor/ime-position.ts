@@ -9,36 +9,38 @@ export async function computeImeGeometry(
   state: State,
   src: { r: number; c: number; text: string; caret: number },
 ) {
-  const originX = ctx.metrics.headerColWidth
-  const originY = ctx.metrics.headerRowHeight
+  const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+  const originX = ctx.metrics.headerColWidth * z
+  const originY = ctx.metrics.headerRowHeight * z
   const x0 =
-    originX + colLeftFor(src.c, ctx.metrics.defaultColWidth, ctx.sheet.colWidths) - state.scroll.x
+    originX + colLeftFor(src.c, ctx.metrics.defaultColWidth, ctx.sheet.colWidths) * z - state.scroll.x
   const y0 =
-    originY + rowTopFor(src.r, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights) - state.scroll.y
-  let w = ctx.sheet.colWidths.get(src.c) ?? ctx.metrics.defaultColWidth
-  let h = ctx.sheet.rowHeights.get(src.r) ?? ctx.metrics.defaultRowHeight
+    originY + rowTopFor(src.r, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights) * z - state.scroll.y
+  let w = (ctx.sheet.colWidths.get(src.c) ?? ctx.metrics.defaultColWidth) * z
+  let h = (ctx.sheet.rowHeights.get(src.r) ?? ctx.metrics.defaultRowHeight) * z
   const m = ctx.sheet.getMergeAt(src.r, src.c)
   if (m && m.r === src.r && m.c === src.c) {
     w = 0
     for (let cc = m.c; cc < m.c + m.cols; cc++)
-      w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+      w += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
     h = 0
     for (let rr = m.r; rr < m.r + m.rows; rr++)
-      h += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
+      h += (ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight) * z
   }
   const paddingX = 4
   const style = ctx.sheet.getStyleAt(src.r, src.c)
   const wrap = !!style?.alignment?.wrapText
-  const sizePx = style?.font?.size ?? 14
-  const lineH = Math.max(12, Math.round(sizePx * 1.25))
+  const sizePx = (style?.font?.size ?? 14) * z
+  const lineH = Math.max(12 * z, Math.round(sizePx * 1.25))
   let caretX = x0 + paddingX
   let caretY = y0 + (wrap ? 3 : Math.floor(h / 2))
   const worker = getWorkerRenderer(ctx.renderer)
   if (wrap) {
     const maxW = Math.max(0, w - 8)
+    const scaledFont = style?.font ? { ...style.font, size: (style.font.size ?? 14) * z } : undefined
     const lines = worker.wrapTextIndices
-      ? await worker.wrapTextIndices(src.text, maxW, style?.font, 14)
-      : wrapTextIndices(src.text, maxW, style?.font, 14)
+      ? await worker.wrapTextIndices(src.text, maxW, scaledFont, 14 * z)
+      : wrapTextIndices(src.text, maxW, scaledFont, 14 * z)
     let lineIndex = 0
     for (let li = 0; li < lines.length; li++) {
       if (src.caret <= lines[li].end) {
@@ -50,16 +52,24 @@ export async function computeImeGeometry(
     const seg = lines[Math.min(lineIndex, Math.max(0, lines.length - 1))]
     const head = src.text.slice(seg.start, Math.min(seg.end, src.caret))
     const advance = worker.measureText
-      ? await worker.measureText(head, style?.font, 14)
-      : measureText(head, style?.font, 14)
+      ? await worker.measureText(head, scaledFont, 14 * z)
+      : measureText(head, scaledFont, 14 * z)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + 3 + lineIndex * lineH)
-    return { caretX, caretY, lineH, hostWidth: Math.max(16, Math.floor(maxW)), sizePx, style }
+    return {
+      caretX,
+      caretY,
+      lineH,
+      hostWidth: Math.max(16, Math.floor(maxW)),
+      sizePx,
+      style,
+    }
   } else {
     const head = src.text.substring(0, src.caret)
+    const scaledFont2 = style?.font ? { ...style.font, size: (style.font.size ?? 14) * z } : undefined
     const advance = worker.measureText
-      ? await worker.measureText(head, style?.font, 14)
-      : measureText(head, style?.font, 14)
+      ? await worker.measureText(head, scaledFont2, 14 * z)
+      : measureText(head, scaledFont2, 14 * z)
     caretX = Math.floor(x0 + paddingX + advance)
     caretY = Math.floor(y0 + (h - lineH) / 2)
     return { caretX, caretY, lineH, hostWidth: 480, sizePx, style }

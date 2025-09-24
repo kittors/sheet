@@ -88,45 +88,127 @@ export function createPointerHandlers(
       deps.finishEdit?.('commit')
     }
     const rect = ctx.canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const xCss = e.clientX - rect.left
+    const yCss = e.clientY - rect.top
     state.lastClientX = e.clientX
     state.lastClientY = e.clientY
     // Scrollbar tracks and thumbs
-    if (sbHandlers.tryPointerDown(x, y)) return
+    if (sbHandlers.tryPointerDown(xCss, yCss)) return
     // Resize handles take priority over selection
-    const colResizeIdx = hitColResize(x, y)
+    const colResizeIdx = hitColResize(xCss, yCss)
     if (colResizeIdx != null) {
       const w = ctx.sheet.colWidths.get(colResizeIdx) ?? ctx.metrics.defaultColWidth
       state.resize = { kind: 'col', index: colResizeIdx, startClient: e.clientX, startSize: w }
       state.dragMode = 'colresize'
       const { sX } = getScrollClamped()
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
       const left = colLeftFor(colResizeIdx, ctx.metrics.defaultColWidth, ctx.sheet.colWidths)
       const right = left + w
-      const xCanvas = ctx.metrics.headerColWidth + right - sX
+      const xCanvas = ctx.metrics.headerColWidth * z + right * z - sX
       ctx.renderer.setGuides?.({ v: xCanvas })
       ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'col-resize'
       deps.schedule()
       deps.focusIme?.()
       return
     }
-    const rowResizeIdx = hitRowResize(x, y)
+    const rowResizeIdx = hitRowResize(xCss, yCss)
     if (rowResizeIdx != null) {
       const h = ctx.sheet.rowHeights.get(rowResizeIdx) ?? ctx.metrics.defaultRowHeight
       state.resize = { kind: 'row', index: rowResizeIdx, startClient: e.clientY, startSize: h }
       state.dragMode = 'rowresize'
       const { sY } = getScrollClamped()
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
       const top = rowTopFor(rowResizeIdx, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights)
       const bottom = top + h
-      const yCanvas = ctx.metrics.headerRowHeight + bottom - sY
+      const yCanvas = ctx.metrics.headerRowHeight * z + bottom * z - sY
       ctx.renderer.setGuides?.({ h: yCanvas })
       ;(ctx.canvas.parentElement as HTMLElement).style.cursor = 'row-resize'
       deps.schedule()
       return
     }
 
+    // Freeze handles from the corner (right/bottom edges)
+    {
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const originX = ctx.metrics.headerColWidth * z
+      const originY = ctx.metrics.headerRowHeight * z
+      const grip = 6
+      const nearRightEdge = xCss >= originX - grip && xCss <= originX + grip && yCss >= 0 && yCss <= originY
+      const nearBottomEdge = yCss >= originY - grip && yCss <= originY + grip && xCss >= 0 && xCss <= originX
+      if (nearRightEdge || nearBottomEdge) {
+        if (nearRightEdge) {
+          state.dragMode = 'freezecol'
+          // Show guide at current pointer x snapped to nearest column boundary
+          const rect2 = ctx.canvas.getBoundingClientRect()
+          const xCanvas = e.clientX - rect2.left
+          // Compute boundary x in canvas coords
+          const { sX } = getScrollClamped()
+          let acc = 0
+          const totalCols = ctx.sheet.cols
+          let boundary = 0
+          for (let c = 0; c < totalCols; c++) {
+            const w = ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth
+            const left = acc * z
+            const right = (acc + w) * z
+            const pos = xCanvas - originX + sX
+            if (pos < left) {
+              boundary = c
+              break
+            }
+            if (pos >= left && pos < right) {
+              const mid = (left + right) / 2
+              boundary = pos < mid ? c : c + 1
+              break
+            }
+            acc += w
+            if (c === totalCols - 1) boundary = totalCols
+          }
+          const boundaryX = originX + Math.max(0, Math.min(acc * z, acc * z)) // fallback
+          // Precise boundaryX recompute from boundary
+          let acc2 = 0
+          for (let i = 0; i < boundary; i++) acc2 += ctx.sheet.colWidths.get(i) ?? ctx.metrics.defaultColWidth
+          const xLine = ctx.metrics.headerColWidth * z + acc2 * z - sX
+          ctx.renderer.setGuides?.({ v: xLine })
+          deps.schedule()
+          return
+        }
+        if (nearBottomEdge) {
+          state.dragMode = 'freezerow'
+          const rect2 = ctx.canvas.getBoundingClientRect()
+          const yCanvas = e.clientY - rect2.top
+          const { sY } = getScrollClamped()
+          let acc = 0
+          const totalRows = ctx.sheet.rows
+          let boundary = 0
+          for (let r = 0; r < totalRows; r++) {
+            const h = ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight
+            const top = acc * z
+            const bot = (acc + h) * z
+            const pos = yCanvas - originY + sY
+            if (pos < top) {
+              boundary = r
+              break
+            }
+            if (pos >= top && pos < bot) {
+              const mid = (top + bot) / 2
+              boundary = pos < mid ? r : r + 1
+              break
+            }
+            acc += h
+            if (r === totalRows - 1) boundary = totalRows
+          }
+          let acc2 = 0
+          for (let i = 0; i < boundary; i++) acc2 += ctx.sheet.rowHeights.get(i) ?? ctx.metrics.defaultRowHeight
+          const yLine = ctx.metrics.headerRowHeight * z + acc2 * z - sY
+          ctx.renderer.setGuides?.({ h: yLine })
+          deps.schedule()
+          return
+        }
+      }
+    }
+
     // Selection/corner/header/default
-    if (selHandlers.handlePointerDown(x, y, e.clientX, e.clientY)) return
+    if (selHandlers.handlePointerDown(xCss, yCss, e.clientX, e.clientY)) return
   }
 
   const cursor = createCursorHandlers(
@@ -148,22 +230,87 @@ export function createPointerHandlers(
     // Text selection while editing
     if (await textSel.handleMove(e)) return
     const rect = ctx.canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const xCss = e.clientX - rect.left
+    const yCss = e.clientY - rect.top
     state.lastClientX = e.clientX
     state.lastClientY = e.clientY
-    cursor.update(x, y)
+    cursor.update(xCss, yCss)
     // Scrollbar dragging
     if (sbHandlers.handleMove(e, rect)) return
+    // Freeze drag updates
+    if (state.dragMode === 'freezecol') {
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const originX = ctx.metrics.headerColWidth * z
+      const xCanvas = e.clientX - rect.left
+      const { sX } = getScrollClamped()
+      // Snap to nearest column boundary
+      let acc = 0
+      const pos = xCanvas - originX + sX
+      let boundary = 0
+      for (let c = 0; c < ctx.sheet.cols; c++) {
+        const w = ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth
+        const left = acc * z
+        const right = (acc + w) * z
+        if (pos < left) {
+          boundary = c
+          break
+        }
+        if (pos >= left && pos < right) {
+          const mid = (left + right) / 2
+          boundary = pos < mid ? c : c + 1
+          break
+        }
+        acc += w
+        if (c === ctx.sheet.cols - 1) boundary = ctx.sheet.cols
+      }
+      let acc2 = 0
+      for (let i = 0; i < boundary; i++) acc2 += ctx.sheet.colWidths.get(i) ?? ctx.metrics.defaultColWidth
+      const xLine = ctx.metrics.headerColWidth * z + acc2 * z - sX
+      ctx.renderer.setGuides?.({ v: xLine })
+      deps.schedule()
+      return
+    }
+    if (state.dragMode === 'freezerow') {
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const originY = ctx.metrics.headerRowHeight * z
+      const yCanvas = e.clientY - rect.top
+      const { sY } = getScrollClamped()
+      let acc = 0
+      const pos = yCanvas - originY + sY
+      let boundary = 0
+      for (let r = 0; r < ctx.sheet.rows; r++) {
+        const h = ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight
+        const top = acc * z
+        const bot = (acc + h) * z
+        if (pos < top) {
+          boundary = r
+          break
+        }
+        if (pos >= top && pos < bot) {
+          const mid = (top + bot) / 2
+          boundary = pos < mid ? r : r + 1
+          break
+        }
+        acc += h
+        if (r === ctx.sheet.rows - 1) boundary = ctx.sheet.rows
+      }
+      let acc2 = 0
+      for (let i = 0; i < boundary; i++) acc2 += ctx.sheet.rowHeights.get(i) ?? ctx.metrics.defaultRowHeight
+      const yLine = ctx.metrics.headerRowHeight * z + acc2 * z - sY
+      ctx.renderer.setGuides?.({ h: yLine })
+      deps.schedule()
+      return
+    }
     if (state.dragMode === 'colresize' && state.resize) {
       const dx = e.clientX - state.resize.startClient
       const base = state.resize.startSize
       const next = Math.max(config.resize.minCol, Math.floor(base + dx))
       ctx.sheet.setColWidth(state.resize.index, next)
       const { sX } = getScrollClamped()
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
       const left = colLeftFor(state.resize.index, ctx.metrics.defaultColWidth, ctx.sheet.colWidths)
       const right = left + next
-      const xCanvas = ctx.metrics.headerColWidth + right - sX
+      const xCanvas = ctx.metrics.headerColWidth * z + right * z - sX
       ctx.renderer.setGuides?.({ v: xCanvas })
       deps.schedule()
       return
@@ -174,14 +321,15 @@ export function createPointerHandlers(
       const next = Math.max(config.resize.minRow, Math.floor(base + dy))
       ctx.sheet.setRowHeight(state.resize.index, next)
       const { sY } = getScrollClamped()
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
       const top = rowTopFor(state.resize.index, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights)
       const bottom = top + next
-      const yCanvas = ctx.metrics.headerRowHeight + bottom - sY
+      const yCanvas = ctx.metrics.headerRowHeight * z + bottom * z - sY
       ctx.renderer.setGuides?.({ h: yCanvas })
       deps.schedule()
       return
     }
-    if (selHandlers.handlePointerMove(x, y, e)) return
+    if (selHandlers.handlePointerMove(xCss, yCss, e)) return
   }
 
   function onPointerUp(e?: PointerEvent) {
@@ -190,6 +338,45 @@ export function createPointerHandlers(
         ctx.canvas.releasePointerCapture(e.pointerId)
       } catch {
         /* ignore */
+      }
+    }
+    if (state.dragMode === 'freezecol' || state.dragMode === 'freezerow') {
+      // Commit freeze by snapping to nearest boundary
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const rect = ctx.canvas.getBoundingClientRect()
+      const { sX, sY } = getScrollClamped()
+      if (state.dragMode === 'freezecol') {
+        const originX = ctx.metrics.headerColWidth * z
+        const xCanvas = (state.lastClientX ?? rect.left) - rect.left
+        const pos = xCanvas - originX + sX
+        let acc = 0
+        let boundary = 0
+        for (let c = 0; c < ctx.sheet.cols; c++) {
+          const w = ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth
+          const left = acc * z
+          const right = (acc + w) * z
+          if (pos < left) { boundary = c; break }
+          if (pos >= left && pos < right) { boundary = pos < (left + right) / 2 ? c : c + 1; break }
+          acc += w
+          if (c === ctx.sheet.cols - 1) boundary = ctx.sheet.cols
+        }
+        ctx.sheet.setFrozenCols(Math.max(0, Math.min(ctx.sheet.cols, boundary)))
+      } else if (state.dragMode === 'freezerow') {
+        const originY = ctx.metrics.headerRowHeight * z
+        const yCanvas = (state.lastClientY ?? rect.top) - rect.top
+        const pos = yCanvas - originY + sY
+        let acc = 0
+        let boundary = 0
+        for (let r = 0; r < ctx.sheet.rows; r++) {
+          const h = ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight
+          const top = acc * z
+          const bot = (acc + h) * z
+          if (pos < top) { boundary = r; break }
+          if (pos >= top && pos < bot) { boundary = pos < (top + bot) / 2 ? r : r + 1; break }
+          acc += h
+          if (r === ctx.sheet.rows - 1) boundary = ctx.sheet.rows
+        }
+        ctx.sheet.setFrozenRows(Math.max(0, Math.min(ctx.sheet.rows, boundary)))
       }
     }
     state.dragMode = 'none'

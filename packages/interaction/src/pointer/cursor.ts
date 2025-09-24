@@ -108,6 +108,17 @@ export function createCursorHandlers(
       const rIdx = deps.hitRowResize(x, y)
       if (cIdx != null) cursor = names.colResize
       else if (rIdx != null) cursor = names.rowResize
+      else {
+        // Corner freeze handles hover (right/bottom edges of the top-left corner)
+        const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+        const originX = ctx.metrics.headerColWidth * z
+        const originY = ctx.metrics.headerRowHeight * z
+        const grip = 6 // px hit range
+        const nearRightEdge = x >= originX - grip && x <= originX + grip && y >= 0 && y <= originY
+        const nearBottomEdge = y >= originY - grip && y <= originY + grip && x >= 0 && x <= originX
+        if (nearRightEdge) cursor = names.colResize
+        else if (nearBottomEdge) cursor = names.rowResize
+      }
     }
 
     ;(ctx.canvas.parentElement as HTMLElement).style.cursor = cursor

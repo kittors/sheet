@@ -53,8 +53,10 @@ export function createWheelHandler(
     const mode = e.deltaMode
     // Prefer cached viewport metrics from renderer to avoid layout thrash while scrolling
     const vp = ctx.renderer.getViewportMetrics?.()
-    const pageW = (vp?.viewportWidth ?? ctx.canvas.clientWidth) || ctx.metrics.defaultColWidth * 20
-    const pageH = (vp?.viewportHeight ?? ctx.canvas.clientHeight) || ctx.metrics.defaultRowHeight * 20
+    const pageW =
+      (vp?.viewportWidth ?? ctx.canvas.clientWidth) || ctx.metrics.defaultColWidth * 20
+    const pageH =
+      (vp?.viewportHeight ?? ctx.canvas.clientHeight) || ctx.metrics.defaultRowHeight * 20
     const pixelX = toPixels(mode, deltaX, ctx.metrics.defaultColWidth, pageW)
     const pixelY = toPixels(mode, deltaY, ctx.metrics.defaultRowHeight, pageH)
 

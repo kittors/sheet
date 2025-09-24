@@ -8,10 +8,11 @@ export function posToCell(
   clientY: number,
 ): { r: number; c: number } | null {
   const rect = ctx.canvas.getBoundingClientRect()
+  const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
   const x = clientX - rect.left
   const y = clientY - rect.top
-  const originX = ctx.metrics.headerColWidth
-  const originY = ctx.metrics.headerRowHeight
+  const originX = ctx.metrics.headerColWidth * z
+  const originY = ctx.metrics.headerRowHeight * z
   if (x < originX || y < originY) return null
   const sb = ctx.renderer.getScrollbars?.()
   if (sb) {
@@ -43,22 +44,41 @@ export function posToCell(
   const maxY = Math.max(0, contentHeight - viewportContentHeight)
   const sX = Math.max(0, Math.min(state.scroll.x, maxX))
   const sY = Math.max(0, Math.min(state.scroll.y, maxY))
-  const cx = x - originX + sX
-  const cy = y - originY + sY
+  // Adjust for frozen panes: map pointer to content coords within the appropriate pane
+  let leftFrozenPx = 0
+  for (let c = 0; c < (ctx.sheet.frozenCols || 0); c++)
+    leftFrozenPx += (ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth) * z
+  let topFrozenPx = 0
+  for (let r = 0; r < (ctx.sheet.frozenRows || 0); r++)
+    topFrozenPx += (ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight) * z
+  let cx = 0
+  let cy = 0
+  const xRel = x - originX
+  const yRel = y - originY
+  if (xRel < leftFrozenPx) {
+    cx = xRel // left frozen pane (no horizontal scroll)
+  } else {
+    cx = xRel - leftFrozenPx + sX
+  }
+  if (yRel < topFrozenPx) {
+    cy = yRel // top frozen pane (no vertical scroll)
+  } else {
+    cy = yRel - topFrozenPx + sY
+  }
 
   const cumWidth = (i: number): number => {
-    let base = i * ctx.metrics.defaultColWidth
+    let base = i * ctx.metrics.defaultColWidth * z
     if (ctx.sheet.colWidths.size)
       for (const [c, w] of ctx.sheet.colWidths) {
-        if (c < i) base += w - ctx.metrics.defaultColWidth
+        if (c < i) base += (w - ctx.metrics.defaultColWidth) * z
       }
     return base
   }
   const cumHeight = (i: number): number => {
-    let base = i * ctx.metrics.defaultRowHeight
+    let base = i * ctx.metrics.defaultRowHeight * z
     if (ctx.sheet.rowHeights.size)
       for (const [r, h] of ctx.sheet.rowHeights) {
-        if (r < i) base += h - ctx.metrics.defaultRowHeight
+        if (r < i) base += (h - ctx.metrics.defaultRowHeight) * z
       }
     return base
   }
@@ -85,15 +105,16 @@ export function posToCell(
 }
 
 export function colAtX(ctx: Context, state: State, xCanvas: number): number {
+  const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
   const { widthAvail: viewportContentWidth, contentWidth } = computeAvailViewport(ctx)
   const maxX = Math.max(0, contentWidth - viewportContentWidth)
   const sX = Math.max(0, Math.min(state.scroll.x, maxX))
-  const cx = xCanvas - ctx.metrics.headerColWidth + sX
+  const cx = xCanvas - ctx.metrics.headerColWidth * z + sX
   const cumWidth = (i: number): number => {
-    let base = i * ctx.metrics.defaultColWidth
+    let base = i * ctx.metrics.defaultColWidth * z
     if (ctx.sheet.colWidths.size)
       for (const [c, w] of ctx.sheet.colWidths) {
-        if (c < i) base += w - ctx.metrics.defaultColWidth
+        if (c < i) base += (w - ctx.metrics.defaultColWidth) * z
       }
     return base
   }
@@ -116,15 +137,16 @@ export function colAtX(ctx: Context, state: State, xCanvas: number): number {
 }
 
 export function rowAtY(ctx: Context, state: State, yCanvas: number): number {
+  const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
   const { heightAvail: viewportContentHeight, contentHeight } = computeAvailViewport(ctx)
   const maxY = Math.max(0, contentHeight - viewportContentHeight)
   const sY = Math.max(0, Math.min(state.scroll.y, maxY))
-  const cy = yCanvas - ctx.metrics.headerRowHeight + sY
+  const cy = yCanvas - ctx.metrics.headerRowHeight * z + sY
   const cumHeight = (i: number): number => {
-    let base = i * ctx.metrics.defaultRowHeight
+    let base = i * ctx.metrics.defaultRowHeight * z
     if (ctx.sheet.rowHeights.size)
       for (const [r, h] of ctx.sheet.rowHeights) {
-        if (r < i) base += h - ctx.metrics.defaultRowHeight
+        if (r < i) base += (h - ctx.metrics.defaultRowHeight) * z
       }
     return base
   }

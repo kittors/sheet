@@ -14,6 +14,9 @@ export type DragMode =
   | 'rowheader'
   | 'colresize'
   | 'rowresize'
+  // drag freeze split lines from the corner handle
+  | 'freezecol'
+  | 'freezerow'
 
 export interface AttachArgs {
   canvas: HTMLCanvasElement
@@ -38,6 +41,7 @@ export interface Context {
     headerColWidth: number
     headerRowHeight: number
     scrollbarThickness: number
+    zoom: number
   }
 }
 
@@ -104,6 +108,8 @@ export interface InteractionHandle {
   // queries
   getSelection(): Selection | undefined
   getScroll(): { x: number; y: number }
+  getZoom?(): number
+  setZoom?(zoom: number): void
   // 命中测试：返回区域类别以及命中的单元格（如有）
   hitTest(
     clientX: number,

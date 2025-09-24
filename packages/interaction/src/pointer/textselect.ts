@@ -11,28 +11,29 @@ export function createTextSelectHandlers(
     if (!state.editor) return false
     const ed = state.editor
     const rect = ctx.canvas.getBoundingClientRect()
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
     const clickX = e.clientX - rect.left
     const clickY = e.clientY - rect.top
-    const originX = ctx.metrics.headerColWidth
-    const originY = ctx.metrics.headerRowHeight
+    const originX = ctx.metrics.headerColWidth * z
+    const originY = ctx.metrics.headerRowHeight * z
     let x0 = originX
     for (let cc = 0; cc < ed.c; cc++)
-      x0 += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+      x0 += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
     x0 -= state.scroll.x
     let y0 = originY
     for (let rr = 0; rr < ed.r; rr++)
-      y0 += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
+      y0 += (ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight) * z
     y0 -= state.scroll.y
-    let w = ctx.sheet.colWidths.get(ed.c) ?? ctx.metrics.defaultColWidth
-    let h = ctx.sheet.rowHeights.get(ed.r) ?? ctx.metrics.defaultRowHeight
+    let w = (ctx.sheet.colWidths.get(ed.c) ?? ctx.metrics.defaultColWidth) * z
+    let h = (ctx.sheet.rowHeights.get(ed.r) ?? ctx.metrics.defaultRowHeight) * z
     const m = ctx.sheet.getMergeAt(ed.r, ed.c)
     if (m && m.r === ed.r && m.c === ed.c) {
       w = 0
       for (let cc = m.c; cc < m.c + m.cols; cc++)
-        w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+        w += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
       h = 0
       for (let rr = m.r; rr < m.r + m.rows; rr++)
-        h += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
+        h += (ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight) * z
     }
     const inside = clickX >= x0 && clickX <= x0 + w && clickY >= y0 && clickY <= y0 + h
     const style = ctx.sheet.getStyleAt(ed.r, ed.c)
@@ -53,36 +54,38 @@ export function createTextSelectHandlers(
     const worker = getWorkerRenderer(ctx.renderer)
     if (wrap) {
       const maxW = Math.max(0, w - 8)
-      const sizePx = style?.font?.size ?? 14
-      const lineH = Math.max(12, Math.round(sizePx * 1.25))
+      const sizePx = (style?.font?.size ?? 14) * z
+      const lineH = Math.max(12 * z, Math.round(sizePx * 1.25))
+      const scaledFont = style?.font ? { ...style.font, size: (style?.font?.size ?? 14) * z } : undefined
       caret =
         (worker.caretIndexFromPoint
           ? await worker.caretIndexFromPoint(text, relX, relY, {
-              maxWidth: maxW,
-              font: style?.font,
-              defaultSize: 14,
-              lineHeight: lineH,
-            })
+            maxWidth: maxW,
+            font: scaledFont,
+            defaultSize: 14 * z,
+            lineHeight: lineH,
+          })
           : caretIndexFromPoint(text, relX, relY, {
-              maxWidth: maxW,
-              font: style?.font,
-              defaultSize: 14,
-              lineHeight: lineH,
-            })) ?? 0
+            maxWidth: maxW,
+            font: scaledFont,
+            defaultSize: 14 * z,
+            lineHeight: lineH,
+          })) ?? 0
     } else {
+      const scaledFont = style?.font ? { ...style.font, size: (style?.font?.size ?? 14) * z } : undefined
       caret =
         (worker.caretIndexFromPoint
           ? await worker.caretIndexFromPoint(text, relX, 0, {
               maxWidth: 1e9,
-              font: style?.font,
-              defaultSize: 14,
-              lineHeight: (style?.font?.size ?? 14) * 1.25,
+              font: scaledFont,
+              defaultSize: 14 * z,
+              lineHeight: (style?.font?.size ?? 14) * z * 1.25,
             })
           : caretIndexFromPoint(text, relX, 0, {
               maxWidth: 1e9,
-              font: style?.font,
-              defaultSize: 14,
-              lineHeight: (style?.font?.size ?? 14) * 1.25,
+              font: scaledFont,
+              defaultSize: 14 * z,
+              lineHeight: (style?.font?.size ?? 14) * z * 1.25,
             })) ?? 0
     }
     state.textSelectAnchor = caret
@@ -96,24 +99,25 @@ export function createTextSelectHandlers(
     if (!(state.dragMode === 'textselect' && state.editor)) return false
     const ed = state.editor
     const rect = ctx.canvas.getBoundingClientRect()
+    const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
     const clickX = e.clientX - rect.left
     const clickY = e.clientY - rect.top
-    const originX = ctx.metrics.headerColWidth
-    const originY = ctx.metrics.headerRowHeight
+    const originX = ctx.metrics.headerColWidth * z
+    const originY = ctx.metrics.headerRowHeight * z
     let x0 = originX
     for (let cc = 0; cc < ed.c; cc++)
-      x0 += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+      x0 += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
     x0 -= state.scroll.x
     let y0 = originY
     for (let rr = 0; rr < ed.r; rr++)
-      y0 += ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight
+      y0 += (ctx.sheet.rowHeights.get(rr) ?? ctx.metrics.defaultRowHeight) * z
     y0 -= state.scroll.y
-    let w = ctx.sheet.colWidths.get(ed.c) ?? ctx.metrics.defaultColWidth
+    let w = (ctx.sheet.colWidths.get(ed.c) ?? ctx.metrics.defaultColWidth) * z
     const m = ctx.sheet.getMergeAt(ed.r, ed.c)
     if (m && m.r === ed.r && m.c === ed.c) {
       w = 0
       for (let cc = m.c; cc < m.c + m.cols; cc++)
-        w += ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth
+        w += (ctx.sheet.colWidths.get(cc) ?? ctx.metrics.defaultColWidth) * z
     }
     const style = ctx.sheet.getStyleAt(ed.r, ed.c)
     const wrap = !!style?.alignment?.wrapText
@@ -126,34 +130,36 @@ export function createTextSelectHandlers(
     const worker = getWorkerRenderer(ctx.renderer)
     if (wrap) {
       const maxW = Math.max(0, w - 8)
-      const sizePx = style?.font?.size ?? 14
-      const lineH = Math.max(12, Math.round(sizePx * 1.25))
+      const sizePx = (style?.font?.size ?? 14) * z
+      const lineH = Math.max(12 * z, Math.round(sizePx * 1.25))
+      const scaledFont = style?.font ? { ...style.font, size: (style?.font?.size ?? 14) * z } : undefined
       caret = worker.caretIndexFromPoint
         ? await worker.caretIndexFromPoint(text, relX, relY, {
             maxWidth: maxW,
-            font: style?.font,
-            defaultSize: 14,
+            font: scaledFont,
+            defaultSize: 14 * z,
             lineHeight: lineH,
           })
         : caretIndexFromPoint(text, relX, relY, {
             maxWidth: maxW,
-            font: style?.font,
-            defaultSize: 14,
+            font: scaledFont,
+            defaultSize: 14 * z,
             lineHeight: lineH,
           })
     } else {
+      const scaledFont = style?.font ? { ...style.font, size: (style?.font?.size ?? 14) * z } : undefined
       caret = worker.caretIndexFromPoint
         ? await worker.caretIndexFromPoint(text, relX, 0, {
             maxWidth: 1e9,
-            font: style?.font,
-            defaultSize: 14,
-            lineHeight: (style?.font?.size ?? 14) * 1.25,
+            font: scaledFont,
+            defaultSize: 14 * z,
+            lineHeight: (style?.font?.size ?? 14) * z * 1.25,
           })
         : caretIndexFromPoint(text, relX, 0, {
             maxWidth: 1e9,
-            font: style?.font,
-            defaultSize: 14,
-            lineHeight: (style?.font?.size ?? 14) * 1.25,
+            font: scaledFont,
+            defaultSize: 14 * z,
+            lineHeight: (style?.font?.size ?? 14) * z * 1.25,
           })
     }
     const anchor = state.textSelectAnchor != null ? state.textSelectAnchor : ed.caret

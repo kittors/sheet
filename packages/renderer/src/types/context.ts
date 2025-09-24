@@ -24,6 +24,8 @@ export interface RenderContext {
   visible: VisibleRange
   defaultRowHeight: number
   defaultColWidth: number
+  // zoom ratio for content (headers and cells). Scrollbars remain constant.
+  zoom: number
   selection?: { r0: number; c0: number; r1: number; c1: number }
   // the active/anchor cell for selection (starting point of a multi-cell selection)
   selectionAnchor?: { r: number; c: number }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, computed, watch } from 'vue'
 import '@sheet/ui/styles/theme.css'
-import { SheetCanvas, SheetControlLayout, ContextMenu } from '@sheet/ui'
+import { SheetCanvas, SheetControlLayout, ContextMenu, SheetFooter } from '@sheet/ui'
 import { attachSheetInteractions, type InteractionHandle } from '@sheet/interaction'
 import {
   createWorkbookWithSheet,
@@ -28,6 +28,8 @@ const tbBold = ref(false)
 const tbItalic = ref(false)
 const tbUnderline = ref(false)
 const tbStrike = ref(false)
+const zoomPercent = ref(100)
+const zoomRatio = computed(() => Math.max(0.05, zoomPercent.value / 100))
 
 // Configure grid size and initial cell contents (externalized JSON under src/data)
 type AttachArgs = Parameters<typeof attachSheetInteractions>[0]
@@ -164,6 +166,7 @@ function onReady(payload: {
     infiniteScroll: payload.infiniteScroll,
   }
   handle.value = attachSheetInteractions(attachArgs)
+  handle.value.setZoom?.(zoomRatio.value)
   // build API and subscribe formula to selection changes
   api = createSheetApi({ sheet: payload.sheet, interaction: handle.value! })
   // live sync formula bar while editing
@@ -200,6 +203,15 @@ function onReady(payload: {
     tbUnderline.value = !!st?.font?.underline
     tbStrike.value = !!st?.font?.strikethrough
   })
+}
+
+watch(zoomRatio, (ratio) => {
+  handle.value?.setZoom?.(ratio)
+})
+
+function setZoomPercent(value: number) {
+  const clamped = Math.min(400, Math.max(20, Math.round(value)))
+  zoomPercent.value = clamped
 }
 
 onBeforeUnmount(() => {
@@ -315,6 +327,7 @@ function onOpenContextMenu(e: MouseEvent) {
         @ready="onReady"
       />
     </div>
+    <SheetFooter :zoom="zoomPercent" @update:zoom="setZoomPercent" />
     <ContextMenu ref="cmRef" :menu-items="cmItems" />
   </div>
 </template>

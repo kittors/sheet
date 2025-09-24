@@ -24,7 +24,8 @@ export class EditorLayer implements Layer {
     )
     ctx.clip()
 
-    const { sheet, defaultColWidth, defaultRowHeight, originX, originY } = rc
+    const { sheet, defaultColWidth, defaultRowHeight, originX, originY, zoom } = rc
+    const z = zoom ?? 1
     const { r, c } = ed
     // compute cell position
     if (r < 0 || c < 0 || r >= sheet.rows || c >= sheet.cols) return
@@ -33,24 +34,24 @@ export class EditorLayer implements Layer {
     // compute x,y using cumulative sizes minus scroll offsets so editor follows scroll
     const cumCol = (i: number) => {
       let sum = 0
-      for (let cc = 0; cc < i; cc++) sum += sheet.colWidths.get(cc) ?? defaultColWidth
+      for (let cc = 0; cc < i; cc++) sum += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
       return sum
     }
     const cumRow = (i: number) => {
       let sum = 0
-      for (let rr = 0; rr < i; rr++) sum += sheet.rowHeights.get(rr) ?? defaultRowHeight
+      for (let rr = 0; rr < i; rr++) sum += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
       return sum
     }
     const x = originX + cumCol(c) - rc.scroll.x
     const y = originY + cumRow(r) - rc.scroll.y
-    let w = sheet.colWidths.get(c) ?? defaultColWidth
-    let h = sheet.rowHeights.get(r) ?? defaultRowHeight
+    let w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
+    let h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
     const m = sheet.getMergeAt(r, c)
     if (m && m.r === r && m.c === c) {
       w = 0
-      for (let cc = m.c; cc < m.c + m.cols; cc++) w += sheet.colWidths.get(cc) ?? defaultColWidth
+      for (let cc = m.c; cc < m.c + m.cols; cc++) w += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
       h = 0
-      for (let rr = m.r; rr < m.r + m.rows; rr++) h += sheet.rowHeights.get(rr) ?? defaultRowHeight
+      for (let rr = m.r; rr < m.r + m.rows; rr++) h += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
     }
 
     // Draw background same as cell fill when actively editing only.
@@ -75,7 +76,7 @@ export class EditorLayer implements Layer {
     // draw caret (and position), and overlay text; ensure我们优先显示编辑内容，并在需要时遮挡右侧固定内容
     // font from style if provided
     if (style?.font) {
-      const size = style.font.size ?? 14
+      const size = (style.font.size ?? 14) * z
       const family =
         style.font.family ??
         'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
@@ -83,14 +84,13 @@ export class EditorLayer implements Layer {
       const italic = style.font.italic ? 'italic ' : ''
       ctx.font = `${italic}${weight} ${size}px ${family}`
     } else {
-      ctx.font =
-        'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+      ctx.font = `normal ${14 * z}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
     }
     const paddingX = 4
     const tx = x + paddingX
     const wrap = !!style?.alignment?.wrapText
-    const fontSize = style?.font?.size ?? 14
-    const lineH = Math.max(12, Math.round(fontSize * 1.25))
+    const fontSize = (style?.font?.size ?? 14) * z
+    const lineH = Math.max(12 * z, Math.round(fontSize * 1.25))
     ctx.textAlign = 'left'
     ctx.textBaseline = wrap ? 'top' : 'middle'
 
@@ -279,9 +279,9 @@ export class EditorLayer implements Layer {
     let caretY = wrap ? y + 3 : y + h / 2
     if (wrap) {
       const maxW = Math.max(0, w - 8)
-      const lines = wrapTextIndices(textToDraw, maxW, style?.font, 14)
-      const size2 = style?.font?.size ?? 14
-      const lineH2 = Math.max(12, Math.round(size2 * 1.25))
+      const lines = wrapTextIndices(textToDraw, maxW, style?.font, 14 * z)
+      const size2 = (style?.font?.size ?? 14) * z
+      const lineH2 = Math.max(12 * z, Math.round(size2 * 1.25))
       // find the first line whose end is >= caret index
       let lineIndex = 0
       for (let li = 0; li < lines.length; li++) {

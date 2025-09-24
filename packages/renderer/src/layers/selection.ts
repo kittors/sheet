@@ -24,19 +24,20 @@ export class SelectionLayer implements Layer {
     const c1 = Math.min(sheet.cols - 1, Math.max(selection.c0, selection.c1))
 
     // Compute cumulative sizes helpers (defaults + overrides delta)
+    const z = rc.zoom ?? 1
     const cumWidth = (i: number): number => {
-      let base = i * defaultColWidth
+      let base = i * defaultColWidth * z
       if (sheet.colWidths.size)
         for (const [c, w] of sheet.colWidths) {
-          if (c < i) base += w - defaultColWidth
+          if (c < i) base += (w - defaultColWidth) * z
         }
       return base
     }
     const cumHeight = (i: number): number => {
-      let base = i * defaultRowHeight
+      let base = i * defaultRowHeight * z
       if (sheet.rowHeights.size)
         for (const [r, h] of sheet.rowHeights) {
-          if (r < i) base += h - defaultRowHeight
+          if (r < i) base += (h - defaultRowHeight) * z
         }
       return base
     }
@@ -120,7 +121,7 @@ export class SelectionLayer implements Layer {
           if (txt) {
             ctx.save()
             if (style?.font) {
-              const size = style.font.size ?? 14
+              const size = (style.font.size ?? 14) * z
               const family =
                 style.font.family ??
                 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
@@ -128,8 +129,7 @@ export class SelectionLayer implements Layer {
               const italic = style.font.italic ? 'italic ' : ''
               ctx.font = `${italic}${weight} ${size}px ${family}`
             } else {
-              ctx.font =
-                'normal 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+              ctx.font = `normal ${14 * z}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`
             }
             const textW = ctx.measureText(txt).width
             ctx.restore()
