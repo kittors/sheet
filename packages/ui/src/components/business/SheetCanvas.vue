@@ -76,10 +76,17 @@ function syncScrollSpacer() {
   const headerY = (r.opts.headerRowHeight ?? props.headerRowHeight ?? 28) * z
   const thickness = r.opts.scrollbarThickness ?? props.scrollbarThickness ?? 12
   if (m) {
+    // Include frozen panes so host scroll range = header + frozen + main-content
+    let leftFrozenPx = 0
+    for (let c = 0; c < (sheet.frozenCols || 0); c++)
+      leftFrozenPx += (sheet.colWidths.get(c) ?? (r.opts.defaultColWidth ?? 100)) * z
+    let topFrozenPx = 0
+    for (let rr = 0; rr < (sheet.frozenRows || 0); rr++)
+      topFrozenPx += (sheet.rowHeights.get(rr) ?? (r.opts.defaultRowHeight ?? 24)) * z
     const vScrollable = m.contentHeight > m.heightAvail
     const hScrollable = m.contentWidth > m.widthAvail
-    const w = headerX + m.contentWidth + (vScrollable ? thickness : 0)
-    const h = headerY + m.contentHeight + (hScrollable ? thickness : 0)
+    const w = headerX + leftFrozenPx + m.contentWidth + (vScrollable ? thickness : 0)
+    const h = headerY + topFrozenPx + m.contentHeight + (hScrollable ? thickness : 0)
     // Only touch DOM when changed to avoid layout churn
     const curW = (spacer.style.width || '').endsWith('px')
       ? parseInt(spacer.style.width)
@@ -104,19 +111,36 @@ function syncScrollSpacer() {
   let contentHeight = sheet.rows * defaultRowHeight
   if (sheet.rowHeights.size)
     for (const h of sheet.rowHeights.values()) contentHeight += h - defaultRowHeight
+  // Frozen panes: compute pixel sizes
+  let leftFrozenPx = 0
+  for (let c = 0; c < (sheet.frozenCols || 0); c++)
+    leftFrozenPx += sheet.colWidths.get(c) ?? defaultColWidth
+  let topFrozenPx = 0
+  for (let rr = 0; rr < (sheet.frozenRows || 0); rr++)
+    topFrozenPx += sheet.rowHeights.get(rr) ?? defaultRowHeight
   // Resolve interdependency between v/h scrollbars (mirror of interaction/viewport.ts)
   let widthAvail = Math.max(0, baseW - headerX)
   let heightAvail = Math.max(0, baseH - headerY)
-  // Apply zoom for content dimensions
+  // Apply zoom for content dimensions and frozen sizes
   contentWidth *= z
   contentHeight *= z
-  let vScrollable = contentHeight > heightAvail
-  let hScrollable = contentWidth > widthAvail
+  leftFrozenPx *= z
+  topFrozenPx *= z
+  // Main pane avail excludes frozen px
+  let widthAvailMain = Math.max(0, widthAvail - leftFrozenPx)
+  let heightAvailMain = Math.max(0, heightAvail - topFrozenPx)
+  // Main content excludes frozen px
+  const contentWidthEff = Math.max(0, contentWidth - leftFrozenPx)
+  const contentHeightEff = Math.max(0, contentHeight - topFrozenPx)
+  let vScrollable = contentHeightEff > heightAvailMain
+  let hScrollable = contentWidthEff > widthAvailMain
   for (let i = 0; i < 3; i++) {
     const nextW = Math.max(0, baseW - headerX - (vScrollable ? thickness : 0))
     const nextH = Math.max(0, baseH - headerY - (hScrollable ? thickness : 0))
-    const nextV = contentHeight > nextH
-    const nextHFlag = contentWidth > nextW
+    const nextWMain = Math.max(0, nextW - leftFrozenPx)
+    const nextHMain = Math.max(0, nextH - topFrozenPx)
+    const nextV = contentHeightEff > nextHMain
+    const nextHFlag = contentWidthEff > nextWMain
     if (
       nextW === widthAvail &&
       nextH === heightAvail &&
@@ -126,11 +150,13 @@ function syncScrollSpacer() {
       break
     widthAvail = nextW
     heightAvail = nextH
+    widthAvailMain = nextWMain
+    heightAvailMain = nextHMain
     vScrollable = nextV
     hScrollable = nextHFlag
   }
-  const w = headerX + contentWidth + (vScrollable ? thickness : 0)
-  const h = headerY + contentHeight + (hScrollable ? thickness : 0)
+  const w = headerX + leftFrozenPx + contentWidthEff + (vScrollable ? thickness : 0)
+  const h = headerY + topFrozenPx + contentHeightEff + (hScrollable ? thickness : 0)
   spacer.style.width = `${w}px`
   spacer.style.height = `${h}px`
 }

@@ -116,6 +116,49 @@ export class ContentLayer implements Layer {
       }
 
       // PASS 1.5: grid lines (drawn above backgrounds, below text)
+      // PASS 1b: merged backgrounds that start outside this pane but intersect it (bridge across panes)
+      if (r === visible.rowStart) {
+        // Iterate merges once per row band; cheap guard using intersection with visible range
+        for (const m of sheet.merges) {
+          if (m.rows === 1 && m.cols === 1) continue
+          const c0 = Math.max(visible.colStart, m.c)
+          const c1 = Math.min(visible.colEnd, m.c + m.cols - 1)
+          const r0 = Math.max(visible.rowStart, m.r)
+          const r1 = Math.min(visible.rowEnd, m.r + m.rows - 1)
+          if (c0 > c1 || r0 > r1) continue
+          // If the anchor is visible in this pane, the normal PASS 1 already painted full background
+          const anchorVisible =
+            m.r >= visible.rowStart &&
+            m.r <= visible.rowEnd &&
+            m.c >= visible.colStart &&
+            m.c <= visible.colEnd
+          if (anchorVisible) continue
+          const anchorCell = sheet.getCell(m.r, m.c)
+          const style = sheet.getStyle(anchorCell?.styleId)
+          const bg = style?.fill?.backgroundColor
+          if (!bg) continue
+          // Compute segment rect (intersection) in canvas coords
+          let xSeg = originX - visible.offsetX
+          for (let cc = visible.colStart; cc < c0; cc++)
+            xSeg += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
+          let ySeg = originY - visible.offsetY
+          for (let rr = visible.rowStart; rr < r0; rr++)
+            ySeg += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
+          let segW = 0
+          for (let cc = c0; cc <= c1; cc++) segW += (sheet.colWidths.get(cc) ?? defaultColWidth) * z
+          let segH = 0
+          for (let rr = r0; rr <= r1; rr++) segH += (sheet.rowHeights.get(rr) ?? defaultRowHeight) * z
+          ctx.fillStyle = bg
+          ctx.fillRect(
+            Math.floor(xSeg),
+            Math.floor(ySeg),
+            Math.max(0, Math.floor(segW)),
+            Math.max(0, Math.floor(segH)),
+          )
+        }
+      }
+
+      // PASS 1.5: grid lines (drawn above backgrounds, below text)
       const vBlockers = rc.gridBlockers?.v
       const hBlockers = rc.gridBlockers?.h
       const isVBoundaryBlockedAtRow = (b: number, row: number) => vBlockers?.get(row)?.has(b) ?? false

@@ -1,4 +1,5 @@
 import type { Layer, RenderContext } from '../types/context'
+import { computeVisibleRange } from '@sheet/shared-utils'
 
 function colToName(n: number): string {
   // 0-based index to Excel-like name
@@ -66,41 +67,149 @@ export class HeadersLayer implements Layer {
       ctx.stroke()
     }
 
-    // Highlight selected columns/rows in header bands
+    // Compute frozen pixel sizes at current zoom
+    const frozenCols = Math.max(0, Math.min(sheet.cols, sheet.frozenCols || 0))
+    const frozenRows = Math.max(0, Math.min(sheet.rows, sheet.frozenRows || 0))
+    let leftFrozenPx = 0
+    for (let c = 0; c < frozenCols; c++) leftFrozenPx += (sheet.colWidths.get(c) ?? defaultColWidth) * z
+    let topFrozenPx = 0
+    for (let r = 0; r < frozenRows; r++) topFrozenPx += (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
+
+    // Prepare scaled width/height maps for local visible-range calculations (headers only)
+    const scaledColWidths = new Map<number, number>()
+    for (const [i, w] of sheet.colWidths) scaledColWidths.set(i, w * z)
+    const scaledRowHeights = new Map<number, number>()
+    for (const [i, h] of sheet.rowHeights) scaledRowHeights.set(i, h * z)
+
+    // Precompute main header visible ranges (exclude frozen pixels)
+    const colMainW = Math.max(0, viewport.width - originX - vGap - leftFrozenPx)
+    const rowMainH = Math.max(0, viewport.height - originY - hGap - topFrozenPx)
+    const visCMain = computeVisibleRange({
+      scrollX: Math.max(0, (rc.scroll?.x ?? 0) + leftFrozenPx),
+      scrollY: 0,
+      viewportWidth: colMainW,
+      viewportHeight: originY,
+      colCount: sheet.cols,
+      rowCount: sheet.rows,
+      defaultColWidth: defaultColWidth * z,
+      defaultRowHeight: defaultRowHeight * z,
+      colWidths: scaledColWidths,
+      rowHeights: scaledRowHeights,
+      overscan: 0,
+    })
+    const visRMain = computeVisibleRange({
+      scrollX: 0,
+      scrollY: Math.max(0, (rc.scroll?.y ?? 0) + topFrozenPx),
+      viewportWidth: originX,
+      viewportHeight: rowMainH,
+      colCount: sheet.cols,
+      rowCount: sheet.rows,
+      defaultColWidth: defaultColWidth * z,
+      defaultRowHeight: defaultRowHeight * z,
+      colWidths: scaledColWidths,
+      rowHeights: scaledRowHeights,
+      overscan: 0,
+    })
+
+    // Highlight selected columns/rows in header bands (main segments + frozen segments)
     if (rc.selection) {
       const sel = rc.selection
-      // Column header highlights
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
-      ctx.clip()
-      let hx = originX - visible.offsetX
-      for (let c = visible.colStart; c <= visible.colEnd; c++) {
-        const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
-        if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
-          // Selected header cell background (deeper gray for clarity)
-          ctx.fillStyle = rc.headerStyle.selectedBackground
-          ctx.fillRect(hx, 0, w, originY)
+      // Column header highlights (main segment)
+      if (colMainW > 0) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(originX + leftFrozenPx, 0, colMainW, originY)
+        ctx.clip()
+        let hx = originX + leftFrozenPx - visCMain.offsetX
+        for (let c = visCMain.colStart; c <= visCMain.colEnd; c++) {
+          const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
+          if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
+            ctx.fillStyle = rc.headerStyle.selectedBackground
+            ctx.fillRect(hx, 0, w, originY)
+          }
+          hx += w
         }
-        hx += w
+        ctx.restore()
       }
-      ctx.restore()
 
-      // Row header highlights
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
-      ctx.clip()
-      let hy = originY - visible.offsetY
-      for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
-        const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
-        if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
-          ctx.fillStyle = rc.headerStyle.selectedBackground
-          ctx.fillRect(0, hy, originX, h)
+      // Row header highlights (main segment)
+      if (rowMainH > 0) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, originY + topFrozenPx, originX, rowMainH)
+        ctx.clip()
+        let hy = originY + topFrozenPx - visRMain.offsetY
+        for (let r = visRMain.rowStart; r <= visRMain.rowEnd; r++) {
+          const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
+          if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
+            ctx.fillStyle = rc.headerStyle.selectedBackground
+            ctx.fillRect(0, hy, originX, h)
+          }
+          hy += h
         }
-        hy += h
+        ctx.restore()
       }
-      ctx.restore()
+
+      // Frozen columns header highlights (left band segment)
+      if (leftFrozenPx > 0) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(originX, 0, Math.max(0, Math.min(leftFrozenPx, viewport.width - originX - vGap)), originY)
+        ctx.clip()
+        const visCF = computeVisibleRange({
+          scrollX: 0,
+          scrollY: 0,
+          viewportWidth: Math.max(0, Math.min(leftFrozenPx, viewport.width - originX - vGap)),
+          viewportHeight: originY,
+          colCount: sheet.cols,
+          rowCount: sheet.rows,
+          defaultColWidth: defaultColWidth * z,
+          defaultRowHeight: defaultRowHeight * z,
+          colWidths: scaledColWidths,
+          rowHeights: scaledRowHeights,
+          overscan: 0,
+        })
+        let hxF = originX - visCF.offsetX
+        for (let c = visCF.colStart; c <= visCF.colEnd; c++) {
+          const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
+          if (c >= Math.min(sel.c0, sel.c1) && c <= Math.max(sel.c0, sel.c1)) {
+            ctx.fillStyle = rc.headerStyle.selectedBackground
+            ctx.fillRect(hxF, 0, w, originY)
+          }
+          hxF += w
+        }
+        ctx.restore()
+      }
+      // Frozen rows header highlights (top band segment)
+      if (topFrozenPx > 0) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, originY, originX, Math.max(0, Math.min(topFrozenPx, viewport.height - originY - hGap)))
+        ctx.clip()
+        const visRF = computeVisibleRange({
+          scrollX: 0,
+          scrollY: 0,
+          viewportWidth: originX,
+          viewportHeight: Math.max(0, Math.min(topFrozenPx, viewport.height - originY - hGap)),
+          colCount: sheet.cols,
+          rowCount: sheet.rows,
+          defaultColWidth: defaultColWidth * z,
+          defaultRowHeight: defaultRowHeight * z,
+          colWidths: scaledColWidths,
+          rowHeights: scaledRowHeights,
+          overscan: 0,
+        })
+        let hyF = originY - visRF.offsetY
+        for (let r = visRF.rowStart; r <= visRF.rowEnd; r++) {
+          const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
+          if (r >= Math.min(sel.r0, sel.r1) && r <= Math.max(sel.r0, sel.r1)) {
+            ctx.fillStyle = rc.headerStyle.selectedBackground
+            ctx.fillRect(0, hyF, originX, h)
+          }
+          hyF += h
+        }
+        ctx.restore()
+      }
     }
 
     ctx.fillStyle = rc.headerStyle.textColor
@@ -112,8 +221,8 @@ export class HeadersLayer implements Layer {
     ctx.beginPath()
     ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
     ctx.clip()
-    let x = originX - visible.offsetX
-    for (let c = visible.colStart; c <= visible.colEnd; c++) {
+    let x = originX + leftFrozenPx - visCMain.offsetX
+    for (let c = visCMain.colStart; c <= visCMain.colEnd; c++) {
       const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
       const label = rc.headerLabels?.col ? rc.headerLabels.col(c) : colToName(c)
       const baseFs = 12 * z
@@ -137,6 +246,96 @@ export class HeadersLayer implements Layer {
       x += w
     }
     ctx.restore()
+    // Frozen rows header text (top segment)
+    if (topFrozenPx > 0) {
+      ctx.save()
+      ctx.beginPath()
+      const hF = Math.max(0, Math.min(topFrozenPx, viewport.height - originY - hGap))
+      ctx.rect(0, originY, originX, hF)
+      ctx.clip()
+      const visRF = computeVisibleRange({
+        scrollX: 0,
+        scrollY: 0,
+        viewportWidth: originX,
+        viewportHeight: hF,
+        colCount: sheet.cols,
+        rowCount: sheet.rows,
+        defaultColWidth: defaultColWidth * z,
+        defaultRowHeight: defaultRowHeight * z,
+        colWidths: scaledColWidths,
+        rowHeights: scaledRowHeights,
+        overscan: 0,
+      })
+      let yF = originY - visRF.offsetY
+      for (let r = visRF.rowStart; r <= visRF.rowEnd; r++) {
+        const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
+        const label = rc.headerLabels?.row ? rc.headerLabels.row(r) : String(r + 1)
+        const baseFs = 12 * z
+        const availH = Math.max(1, h - 4)
+        const availW = Math.max(1, originX - 8)
+        let fs = Math.min(baseFs, availH * 0.9)
+        setHeaderFontPx(fs)
+        let tw = ctx.measureText(label).width
+        if (tw > availW) {
+          const scale = Math.max(0.1, availW / Math.max(1, tw))
+          fs = Math.max(1, Math.floor(fs * scale))
+          setHeaderFontPx(fs)
+        }
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, yF, originX, h)
+        ctx.clip()
+        ctx.fillText(label, originX / 2, yF + h / 2)
+        ctx.restore()
+        yF += h
+      }
+      ctx.restore()
+    }
+    // Frozen columns header text (left segment)
+    if (leftFrozenPx > 0) {
+      ctx.save()
+      ctx.beginPath()
+      const wF = Math.max(0, Math.min(leftFrozenPx, viewport.width - originX - vGap))
+      ctx.rect(originX, 0, wF, originY)
+      ctx.clip()
+      const visCF = computeVisibleRange({
+        scrollX: 0,
+        scrollY: 0,
+        viewportWidth: wF,
+        viewportHeight: originY,
+        colCount: sheet.cols,
+        rowCount: sheet.rows,
+        defaultColWidth: defaultColWidth * z,
+        defaultRowHeight: defaultRowHeight * z,
+        colWidths: scaledColWidths,
+        rowHeights: scaledRowHeights,
+        overscan: 0,
+      })
+      let xF = originX - visCF.offsetX
+      for (let c = visCF.colStart; c <= visCF.colEnd; c++) {
+        const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
+        const label = rc.headerLabels?.col ? rc.headerLabels.col(c) : colToName(c)
+        const baseFs = 12 * z
+        const availH = Math.max(1, originY - 4)
+        const availW = Math.max(1, w - 8)
+        let fs = Math.min(baseFs, availH * 0.9)
+        setHeaderFontPx(fs)
+        let tw = ctx.measureText(label).width
+        if (tw > availW) {
+          const scale = Math.max(0.1, availW / Math.max(1, tw))
+          fs = Math.max(1, Math.floor(fs * scale))
+          setHeaderFontPx(fs)
+        }
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(xF, 0, w, originY)
+        ctx.clip()
+        ctx.fillText(label, xF + w / 2, originY / 2)
+        ctx.restore()
+        xF += w
+      }
+      ctx.restore()
+    }
 
     // Row headers (scroll with Y) - clip to header band to avoid corner overlap
     // Center row labels horizontally within the row header cell
@@ -145,8 +344,8 @@ export class HeadersLayer implements Layer {
     ctx.beginPath()
     ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
     ctx.clip()
-    let y = originY - visible.offsetY
-    for (let r = visible.rowStart; r <= visible.rowEnd; r++) {
+    let y = originY + topFrozenPx - visRMain.offsetY
+    for (let r = visRMain.rowStart; r <= visRMain.rowEnd; r++) {
       const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
       const label = rc.headerLabels?.row ? rc.headerLabels.row(r) : String(r + 1)
       const baseFs = 12 * z
@@ -179,8 +378,8 @@ export class HeadersLayer implements Layer {
     ctx.beginPath()
     ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap), originY)
     ctx.clip()
-    x = originX - visible.offsetX
-    for (let c = visible.colStart; c <= visible.colEnd + 1; c++) {
+    x = originX + leftFrozenPx - visCMain.offsetX
+    for (let c = visCMain.colStart; c <= visCMain.colEnd + 1; c++) {
       const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
       ctx.beginPath()
       ctx.moveTo(Math.floor(x) + 0.5, 0)
@@ -194,8 +393,8 @@ export class HeadersLayer implements Layer {
     ctx.beginPath()
     ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap))
     ctx.clip()
-    y = originY - visible.offsetY
-    for (let r = visible.rowStart; r <= visible.rowEnd + 1; r++) {
+    y = originY + topFrozenPx - visRMain.offsetY
+    for (let r = visRMain.rowStart; r <= visRMain.rowEnd + 1; r++) {
       const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
       ctx.beginPath()
       ctx.moveTo(0, Math.floor(y) + 0.5)
@@ -204,6 +403,68 @@ export class HeadersLayer implements Layer {
       y += h
     }
     ctx.restore()
+    // Frozen columns header grid (left segment)
+    if (leftFrozenPx > 0) {
+      ctx.save()
+      ctx.beginPath()
+      const wF = Math.max(0, Math.min(leftFrozenPx, viewport.width - originX - vGap))
+      ctx.rect(originX, 0, wF, originY)
+      ctx.clip()
+      const visCF = computeVisibleRange({
+        scrollX: 0,
+        scrollY: 0,
+        viewportWidth: wF,
+        viewportHeight: originY,
+        colCount: sheet.cols,
+        rowCount: sheet.rows,
+        defaultColWidth: defaultColWidth * z,
+        defaultRowHeight: defaultRowHeight * z,
+        colWidths: scaledColWidths,
+        rowHeights: scaledRowHeights,
+        overscan: 0,
+      })
+      let xF = originX - visCF.offsetX
+      for (let c = visCF.colStart; c <= visCF.colEnd + 1; c++) {
+        const w = (sheet.colWidths.get(c) ?? defaultColWidth) * z
+        ctx.beginPath()
+        ctx.moveTo(Math.floor(xF) + 0.5, 0)
+        ctx.lineTo(Math.floor(xF) + 0.5, originY)
+        ctx.stroke()
+        xF += w
+      }
+      ctx.restore()
+    }
+    // Frozen rows header grid (top segment)
+    if (topFrozenPx > 0) {
+      ctx.save()
+      ctx.beginPath()
+      const hF = Math.max(0, Math.min(topFrozenPx, viewport.height - originY - hGap))
+      ctx.rect(0, originY, originX, hF)
+      ctx.clip()
+      const visRF = computeVisibleRange({
+        scrollX: 0,
+        scrollY: 0,
+        viewportWidth: originX,
+        viewportHeight: hF,
+        colCount: sheet.cols,
+        rowCount: sheet.rows,
+        defaultColWidth: defaultColWidth * z,
+        defaultRowHeight: defaultRowHeight * z,
+        colWidths: scaledColWidths,
+        rowHeights: scaledRowHeights,
+        overscan: 0,
+      })
+      let yF = originY - visRF.offsetY
+      for (let r = visRF.rowStart; r <= visRF.rowEnd + 1; r++) {
+        const h = (sheet.rowHeights.get(r) ?? defaultRowHeight) * z
+        ctx.beginPath()
+        ctx.moveTo(0, Math.floor(yF) + 0.5)
+        ctx.lineTo(originX, Math.floor(yF) + 0.5)
+        ctx.stroke()
+        yF += h
+      }
+      ctx.restore()
+    }
 
     // Optional: redraw internal separators in selected header region with a distinct color
     if (rc.selection && rc.headerStyle.selectedGridColor) {
@@ -236,11 +497,11 @@ export class HeadersLayer implements Layer {
       ctx.beginPath()
       ctx.rect(originX, 0, Math.max(0, viewport.width - originX - vGap2), originY)
       ctx.clip()
-      const baseCW = cumWidth(visible.colStart)
+      const baseCW = cumWidth(visCMain.colStart)
       ctx.strokeStyle = rc.headerStyle.selectedGridColor
       ctx.lineWidth = 1
       for (let c = c0; c < c1; c++) {
-        const xMid = originX - visible.offsetX + (cumWidth(c + 1) - baseCW)
+        const xMid = originX + leftFrozenPx - visCMain.offsetX + (cumWidth(c + 1) - baseCW)
         ctx.beginPath()
         ctx.moveTo(Math.floor(xMid) + 0.5, 0)
         ctx.lineTo(Math.floor(xMid) + 0.5, originY)
@@ -254,11 +515,11 @@ export class HeadersLayer implements Layer {
       ctx.beginPath()
       ctx.rect(0, originY, originX, Math.max(0, viewport.height - originY - hGap2))
       ctx.clip()
-      const baseCH = cumHeight(visible.rowStart)
+      const baseCH = cumHeight(visRMain.rowStart)
       ctx.strokeStyle = rc.headerStyle.selectedGridColor
       ctx.lineWidth = 1
       for (let r = r0; r < r1; r++) {
-        const yMid = originY - visible.offsetY + (cumHeight(r + 1) - baseCH)
+        const yMid = originY + topFrozenPx - visRMain.offsetY + (cumHeight(r + 1) - baseCH)
         ctx.beginPath()
         ctx.moveTo(0, Math.floor(yMid) + 0.5)
         ctx.lineTo(originX, Math.floor(yMid) + 0.5)

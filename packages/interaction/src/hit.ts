@@ -58,13 +58,13 @@ export function posToCell(
   if (xRel < leftFrozenPx) {
     cx = xRel // left frozen pane (no horizontal scroll)
   } else {
-    // main/top panes: use FULL content coords
+    // main/top panes: full content coords = xRel + scroll
     cx = xRel + sX
   }
   if (yRel < topFrozenPx) {
     cy = yRel // top frozen pane (no vertical scroll)
   } else {
-    cy = yRel - topFrozenPx + sY
+    cy = yRel + sY
   }
 
   const cumWidth = (i: number): number => {
