@@ -632,9 +632,12 @@ export class CanvasRenderer {
         clipH: number,
         sXP: number,
         sYP: number,
+        oShiftX: number,
+        oShiftY: number,
       ) => {
         if (clipW <= 0 || clipH <= 0) return
         const v = computeVisibleRange({
+          // Important: visible-range scrolls are in FULL content coordinates
           scrollX: Math.max(0, sXP),
           scrollY: Math.max(0, sYP),
           viewportWidth: clipW,
@@ -651,6 +654,8 @@ export class CanvasRenderer {
           ...rc,
           visible: v,
           scroll: { x: sXP, y: sYP },
+          originX: rc.originX + oShiftX,
+          originY: rc.originY + oShiftY,
           gridBlockers: l.name === 'content' ? getBlockers(v) : rc.gridBlockers,
         }
         this.ctx.save()
@@ -666,15 +671,25 @@ export class CanvasRenderer {
       const mainW = widthAvailMain
       const mainH = heightAvailMain
       // top-left (no scroll)
-      if (leftPx > 0 && topPx > 0) renderPane(originX, originY, leftPx, topPx, 0, 0)
-      // top (horizontal scroll only)
+      if (leftPx > 0 && topPx > 0)
+        renderPane(originX, originY, leftPx, topPx, 0, 0, 0, 0)
+      // top (horizontal scroll only): add left-frozen offset to FULL scroll-x
       if (topPx > 0)
-        renderPane(originX + leftPx, originY, mainW, topPx, sX, 0)
-      // left (vertical scroll only)
+        renderPane(originX + leftPx, originY, mainW, topPx, sX + leftPx, 0, leftPx, 0)
+      // left (vertical scroll only): add top-frozen offset to FULL scroll-y
       if (leftPx > 0)
-        renderPane(originX, originY + topPx, leftPx, mainH, 0, sY)
-      // main (both scroll)
-      renderPane(originX + leftPx, originY + topPx, mainW, mainH, sX, sY)
+        renderPane(originX, originY + topPx, leftPx, mainH, 0, sY + topPx, 0, topPx)
+      // main (both scroll): add both offsets
+      renderPane(
+        originX + leftPx,
+        originY + topPx,
+        mainW,
+        mainH,
+        sX + leftPx,
+        sY + topPx,
+        leftPx,
+        topPx,
+      )
     }
   }
 

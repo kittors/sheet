@@ -58,7 +58,8 @@ export function posToCell(
   if (xRel < leftFrozenPx) {
     cx = xRel // left frozen pane (no horizontal scroll)
   } else {
-    cx = xRel - leftFrozenPx + sX
+    // main/top panes: use FULL content coords
+    cx = xRel + sX
   }
   if (yRel < topFrozenPx) {
     cy = yRel // top frozen pane (no vertical scroll)
@@ -109,7 +110,11 @@ export function colAtX(ctx: Context, state: State, xCanvas: number): number {
   const { widthAvail: viewportContentWidth, contentWidth } = computeAvailViewport(ctx)
   const maxX = Math.max(0, contentWidth - viewportContentWidth)
   const sX = Math.max(0, Math.min(state.scroll.x, maxX))
-  const cx = xCanvas - ctx.metrics.headerColWidth * z + sX
+  const xRel = xCanvas - ctx.metrics.headerColWidth * z
+  let leftFrozenPx = 0
+  for (let c = 0; c < (ctx.sheet.frozenCols || 0); c++)
+    leftFrozenPx += (ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth) * z
+  const cx = xRel < leftFrozenPx ? xRel : xRel + sX
   const cumWidth = (i: number): number => {
     let base = i * ctx.metrics.defaultColWidth * z
     if (ctx.sheet.colWidths.size)
@@ -141,7 +146,11 @@ export function rowAtY(ctx: Context, state: State, yCanvas: number): number {
   const { heightAvail: viewportContentHeight, contentHeight } = computeAvailViewport(ctx)
   const maxY = Math.max(0, contentHeight - viewportContentHeight)
   const sY = Math.max(0, Math.min(state.scroll.y, maxY))
-  const cy = yCanvas - ctx.metrics.headerRowHeight * z + sY
+  const yRel = yCanvas - ctx.metrics.headerRowHeight * z
+  let topFrozenPx = 0
+  for (let r = 0; r < (ctx.sheet.frozenRows || 0); r++)
+    topFrozenPx += (ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight) * z
+  const cy = yRel < topFrozenPx ? yRel : yRel + sY
   const cumHeight = (i: number): number => {
     let base = i * ctx.metrics.defaultRowHeight * z
     if (ctx.sheet.rowHeights.size)
