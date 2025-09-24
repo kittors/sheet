@@ -25,10 +25,14 @@ import ColorPickerModal from '../business/color/ColorPickerModal.vue'
 // Emit actions upward so app can wire to Sheet API
 const emit = defineEmits<{
   (e: 'apply-fill', color: string): void
-  (e: 'apply-border', payload: {
-    mode: 'none' | 'all' | 'outside' | 'thick'
-    color?: string
-  }): void
+  (
+    e: 'apply-border',
+    payload: {
+      mode: 'none' | 'all' | 'outside' | 'thick'
+      color?: string
+    },
+  ): void
+  (e: 'apply-font-color', color: string): void
   (e: 'apply-font-family', family: string): void
   (e: 'apply-font-size', size: number): void
   (e: 'toggle-bold', enabled: boolean): void
@@ -61,6 +65,7 @@ const props = defineProps<{
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  fontColor?: string
 }>()
 
 const normSize = (v: unknown): number => {
@@ -76,17 +81,32 @@ const bold = ref(!!props.bold)
 const italic = ref(!!props.italic)
 const underline = ref(!!props.underline)
 const strike = ref(!!props.strikethrough)
+const fontColor = ref<string>(props.fontColor ?? '#111827')
+const tempFont = ref<string>(fontColor.value)
 
 // keep in sync when parent updates
 watch(
-  () => [props.fontFamily, props.fontSize, props.bold, props.italic, props.underline, props.strikethrough],
-  ([ff, fs, b, i, u, s]) => {
+  () =>
+    [
+      props.fontFamily,
+      props.fontSize,
+      props.bold,
+      props.italic,
+      props.underline,
+      props.strikethrough,
+      props.fontColor,
+    ] as const,
+  ([ff, fs, b, i, u, s, fc]) => {
     if (ff !== undefined) font.value = ff
     if (fs !== undefined) size.value = normSize(fs)
     if (b !== undefined) bold.value = !!b
     if (i !== undefined) italic.value = !!i
     if (u !== undefined) underline.value = !!u
     if (s !== undefined) strike.value = !!s
+    if (fc !== undefined) {
+      fontColor.value = fc
+      tempFont.value = fc
+    }
   },
 )
 function emitFont() {
@@ -160,6 +180,38 @@ function onDialogCancel() {
   showFillDialog.value = false
 }
 
+// Font color menu mirrors fill control
+const showFontDialog = ref(false)
+const fontPicker = ref<HTMLInputElement | null>(null)
+const fontMenu = fillPresets.map((c) => ({ label: c, value: c, icon: Type }))
+function setFontColor(c: string) {
+  fontColor.value = c
+  tempFont.value = c
+  emit('apply-font-color', fontColor.value)
+}
+function onFontPicked(e: Event) {
+  const value = (e.target as HTMLInputElement).value
+  fontColor.value = value
+  tempFont.value = value
+  emit('apply-font-color', fontColor.value)
+}
+function onFontSelectColor(c: string, close: () => void) {
+  setFontColor(c)
+  close()
+}
+function onFontMoreColors(close: () => void) {
+  tempFont.value = fontColor.value
+  showFontDialog.value = true
+  close()
+}
+function onFontDialogConfirm(c: string) {
+  setFontColor(c)
+  showFontDialog.value = false
+}
+function onFontDialogCancel() {
+  showFontDialog.value = false
+}
+
 // Cell border menu state
 const borderStyle = ref<string>('all')
 const borderMenu = [
@@ -199,29 +251,86 @@ function onBorderMainClick() {
           placeholder="14"
           :width="72"
           join="right"
-          @update:model-value="(v:any) => { size = normSize(v); emitFont() }"
+          @update:model-value="
+            (v: any) => {
+              size = normSize(v)
+              emitFont()
+            }
+          "
         />
       </ToolGroup>
       <ToolGroup :gap="6">
-        <ToolItem label-position="none" aria-label="字号加" @click="() => { size = normSize((Number(size) || 14) + 1); emitFont() }"
+        <ToolItem
+          label-position="none"
+          aria-label="字号加"
+          @click="
+            () => {
+              size = normSize((Number(size) || 14) + 1)
+              emitFont()
+            }
+          "
           ><AArrowUp :size="18"
         /></ToolItem>
-        <ToolItem label-position="none" aria-label="字号减" @click="() => { size = normSize((Number(size) || 14) - 1); emitFont() }"
+        <ToolItem
+          label-position="none"
+          aria-label="字号减"
+          @click="
+            () => {
+              size = normSize((Number(size) || 14) - 1)
+              emitFont()
+            }
+          "
           ><AArrowDown :size="18"
         /></ToolItem>
       </ToolGroup>
     </ToolGroup>
-    <ToolGroup :gap="6">
-      <ToolItem :active="bold" label-position="none" aria-label="加粗" @click="() => { bold = !bold; emit('toggle-bold', bold) }"
+    <ToolGroup :gap="2">
+      <ToolItem
+        :active="bold"
+        label-position="none"
+        aria-label="加粗"
+        @click="
+          () => {
+            bold = !bold
+            emit('toggle-bold', bold)
+          }
+        "
         ><Bold :size="18"
       /></ToolItem>
-      <ToolItem :active="italic" label-position="none" aria-label="斜体" @click="() => { italic = !italic; emit('toggle-italic', italic) }"
+      <ToolItem
+        :active="italic"
+        label-position="none"
+        aria-label="斜体"
+        @click="
+          () => {
+            italic = !italic
+            emit('toggle-italic', italic)
+          }
+        "
         ><Italic :size="18"
       /></ToolItem>
-      <ToolItem :active="underline" label-position="none" aria-label="下划线" @click="() => { underline = !underline; emit('toggle-underline', underline) }"
+      <ToolItem
+        :active="underline"
+        label-position="none"
+        aria-label="下划线"
+        @click="
+          () => {
+            underline = !underline
+            emit('toggle-underline', underline)
+          }
+        "
         ><Underline :size="18"
       /></ToolItem>
-      <ToolItem :active="strike" label-position="none" aria-label="删除线" @click="() => { strike = !strike; emit('toggle-strikethrough', strike) }"
+      <ToolItem
+        :active="strike"
+        label-position="none"
+        aria-label="删除线"
+        @click="
+          () => {
+            strike = !strike
+            emit('toggle-strikethrough', strike)
+          }
+        "
         ><Strikethrough :size="18"
       /></ToolItem>
       <ToolItem
@@ -256,7 +365,29 @@ function onBorderMainClick() {
           <input ref="fillPicker" type="color" class="color-input-hidden" @input="onFillPicked" />
         </template>
       </ToolItem>
-      <ToolItem label-position="none" aria-label="填充字体颜色"><Type :size="18" /></ToolItem>
+      <ToolItem
+        v-model="fontColor"
+        :menu-items="fontMenu"
+        label-position="none"
+        aria-label="字体颜色"
+        :auto-icon="false"
+        split
+        @click="emit('apply-font-color', fontColor)"
+      >
+        <IconWithSwatch :color="fontColor" :offsetX="0" :offsetY="3">
+          <Type :size="18" />
+        </IconWithSwatch>
+        <template #menu="{ close }">
+          <ColorGridMenu
+            :colors="fillPresets"
+            :value="fontColor"
+            :columns="5"
+            @select="(c) => onFontSelectColor(c, close)"
+            @more="() => onFontMoreColors(close)"
+          />
+          <input ref="fontPicker" type="color" class="color-input-hidden" @input="onFontPicked" />
+        </template>
+      </ToolItem>
       <ToolItem label-position="none" aria-label="清除"><Eraser :size="18" /></ToolItem>
     </ToolGroup>
   </ToolGroup>
@@ -268,6 +399,15 @@ function onBorderMainClick() {
     title="选择填充颜色"
     @confirm="onDialogConfirm"
     @cancel="onDialogCancel"
+  />
+  <ColorPickerModal
+    v-model:visible="showFontDialog"
+    v-model:color="tempFont"
+    :movable="true"
+    mask-color="rgba(0,0,0,0.25)"
+    title="选择字体颜色"
+    @confirm="onFontDialogConfirm"
+    @cancel="onFontDialogCancel"
   />
 </template>
 

@@ -11,6 +11,7 @@ const props = defineProps<{
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  fontColor?: string
 }>()
 
 // Emits: merge/unmerge and styling commands upward to layout/app
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   (e: 'unmerge-cells'): void
   (e: 'apply-fill', color: string): void
   (e: 'apply-border', payload: { mode: 'none' | 'all' | 'outside' | 'thick'; color?: string }): void
+  (e: 'apply-font-color', color: string): void
   (e: 'apply-font-family', family: string): void
   (e: 'apply-font-size', size: number): void
   (e: 'toggle-bold', enabled: boolean): void
@@ -57,8 +59,10 @@ const emit = defineEmits<{
       :italic="props.italic"
       :underline="props.underline"
       :strikethrough="props.strikethrough"
+      :font-color="props.fontColor"
       @apply-fill="(c) => emit('apply-fill', c)"
       @apply-border="(p) => emit('apply-border', p)"
+      @apply-font-color="(c) => emit('apply-font-color', c)"
       @apply-font-family="(f) => emit('apply-font-family', f)"
       @apply-font-size="(s) => emit('apply-font-size', s)"
       @toggle-bold="(v) => emit('toggle-bold', v)"

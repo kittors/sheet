@@ -79,8 +79,8 @@ function computePlacement(index: number) {
     <li
       v-for="(item, index) in props.items"
       :key="String(item.id)"
-      class="ctx-row"
       :ref="(el) => setRowRef(index, el as any)"
+      class="ctx-row"
     >
       <!-- Pure separator row: when item is marked as seperator and carries no own content -->
       <template
@@ -113,9 +113,9 @@ function computePlacement(index: number) {
         <Transition name="ui-fade-scale-sub">
           <div
             v-if="api.isActive(props.level, index) && api.hasChildren(item)"
+            :ref="(el) => setSubmenuRef(index, el as any)"
             class="ctx-submenu"
             :style="{ top: (offsetTopMap[index] || 0) + 'px', left: (leftMap[index] || 0) + 'px' }"
-            :ref="(el) => setSubmenuRef(index, el as any)"
           >
             <ContextMenuList :level="props.level + 1" :items="item.children || []" />
           </div>
