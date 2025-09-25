@@ -14,7 +14,7 @@ export type DragMode =
   | 'rowheader'
   | 'colresize'
   | 'rowresize'
-  // drag freeze split lines from the corner handle
+  // drag freeze split lines (corner handle or divider)
   | 'freezecol'
   | 'freezerow'
 

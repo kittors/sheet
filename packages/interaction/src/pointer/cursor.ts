@@ -1,4 +1,5 @@
 import type { Context, State } from '../types'
+import { colLeftFor, rowTopFor } from '@sheet/shared-utils'
 
 export function createCursorHandlers(
   ctx: Context,
@@ -104,20 +105,43 @@ export function createCursorHandlers(
 
     // Resize handles hover
     if (state.dragMode === 'none') {
-      const cIdx = deps.hitColResize(x, y)
-      const rIdx = deps.hitRowResize(x, y)
-      if (cIdx != null) cursor = names.colResize
-      else if (rIdx != null) cursor = names.rowResize
-      else {
-        // Corner freeze handles hover (right/bottom edges of the top-left corner)
-        const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
-        const originX = ctx.metrics.headerColWidth * z
-        const originY = ctx.metrics.headerRowHeight * z
-        const grip = 6 // px hit range
-        const nearRightEdge = x >= originX - grip && x <= originX + grip && y >= 0 && y <= originY
-        const nearBottomEdge = y >= originY - grip && y <= originY + grip && x >= 0 && x <= originX
-        if (nearRightEdge) cursor = names.colResize
-        else if (nearBottomEdge) cursor = names.rowResize
+      const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
+      const originX = ctx.metrics.headerColWidth * z
+      const originY = ctx.metrics.headerRowHeight * z
+      const grip = Math.max(6, Math.floor(6 * z))
+      const frozenCols = Math.max(0, Math.min(ctx.sheet.cols, ctx.sheet.frozenCols || 0))
+      const frozenRows = Math.max(0, Math.min(ctx.sheet.rows, ctx.sheet.frozenRows || 0))
+      let handled = false
+      if (!handled && frozenCols > 0) {
+        const frozenWidth = colLeftFor(frozenCols, ctx.metrics.defaultColWidth, ctx.sheet.colWidths) * z
+        const splitX = originX + frozenWidth
+        if (Math.abs(x - splitX) <= grip) {
+          cursor = names.colResize
+          handled = true
+        }
+      }
+      if (!handled && frozenRows > 0) {
+        const frozenHeight =
+          rowTopFor(frozenRows, ctx.metrics.defaultRowHeight, ctx.sheet.rowHeights) * z
+        const splitY = originY + frozenHeight
+        if (Math.abs(y - splitY) <= grip) {
+          cursor = names.rowResize
+          handled = true
+        }
+      }
+      if (!handled) {
+        const cIdx = deps.hitColResize(x, y)
+        const rIdx = deps.hitRowResize(x, y)
+        if (cIdx != null) cursor = names.colResize
+        else if (rIdx != null) cursor = names.rowResize
+        else {
+          const nearRightEdge =
+            x >= Math.max(0, originX - grip) && x <= originX && y >= 0 && y <= originY
+          const nearBottomEdge =
+            y >= Math.max(0, originY - grip) && y <= originY && x >= 0 && x <= originX
+          if (nearRightEdge) cursor = names.colResize
+          else if (nearBottomEdge) cursor = names.rowResize
+        }
       }
     }
 

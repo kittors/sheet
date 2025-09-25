@@ -26,17 +26,16 @@ export class FreezeLayer implements Layer {
     ctx.setLineDash([])
     if (fc > 0) {
       ctx.beginPath()
-      ctx.moveTo(x, rc.originY)
+      ctx.moveTo(x, 0)
       ctx.lineTo(x, contentBottom)
       ctx.stroke()
     }
     if (fr > 0) {
       ctx.beginPath()
-      ctx.moveTo(rc.originX, y)
+      ctx.moveTo(0, y)
       ctx.lineTo(contentRight, y)
       ctx.stroke()
     }
     ctx.restore()
   }
 }
-

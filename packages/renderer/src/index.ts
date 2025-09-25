@@ -137,8 +137,6 @@ export class CanvasRenderer {
       new ScrollbarLayer(),
       // Draw content backgrounds first, then internal grid (inside ContentLayer), then text and borders
       new ContentLayer(),
-      // Persistent freeze split lines between panes
-      new FreezeLayer(),
       // Keep editor visuals (text, caret, edit background) above content,
       // but ALWAYS draw the selection outline on top so it is never obscured while editing.
       // This fixes cases where the active editor background covered the selection border
@@ -146,6 +144,8 @@ export class CanvasRenderer {
       new EditorLayer(),
       new SelectionLayer(),
       new HeadersLayer(),
+      // Persistent freeze split lines between panes (render after headers so the line is continuous)
+      new FreezeLayer(),
       new GuidesLayer(),
     ]
     this.opts = {
