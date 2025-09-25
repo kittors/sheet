@@ -334,21 +334,12 @@ export function attachSheetInteractions(args: AttachArgs): InteractionHandle {
     const z = (ctx.renderer as unknown as { getZoom?: () => number }).getZoom?.() ?? 1
     const originX = ctx.metrics.headerColWidth * z
     const originY = ctx.metrics.headerRowHeight * z
-    // Frozen pixel sizes
-    let leftFrozenPx = 0
-    for (let c = 0; c < (ctx.sheet.frozenCols || 0); c++)
-      leftFrozenPx += (ctx.sheet.colWidths.get(c) ?? ctx.metrics.defaultColWidth) * z
-    let topFrozenPx = 0
-    for (let r = 0; r < (ctx.sheet.frozenRows || 0); r++)
-      topFrozenPx += (ctx.sheet.rowHeights.get(r) ?? ctx.metrics.defaultRowHeight) * z
     const inFrozenCol = ac < (ctx.sheet.frozenCols || 0)
     const inFrozenRow = ar < (ctx.sheet.frozenRows || 0)
-    const x0 = inFrozenCol
-      ? originX + colLeft(ac) * z
-      : originX + leftFrozenPx + colLeft(ac) * z - state.scroll.x
-    const y0 = inFrozenRow
-      ? originY + rowTop(ar) * z
-      : originY + topFrozenPx + rowTop(ar) * z - state.scroll.y
+    const colLeftPx = colLeft(ac) * z
+    const rowTopPx = rowTop(ar) * z
+    const x0 = originX + colLeftPx - (inFrozenCol ? 0 : state.scroll.x)
+    const y0 = originY + rowTopPx - (inFrozenRow ? 0 : state.scroll.y)
     let w = (ctx.sheet.colWidths.get(ac) ?? ctx.metrics.defaultColWidth) * z
     if (m) {
       w = 0
