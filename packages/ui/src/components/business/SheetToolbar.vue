@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Paintbrush, ClipboardPaste, Copy, Combine, Split } from 'lucide-vue-next'
+import { computed } from 'vue'
 import ToolItem from '../common/ToolItem.vue'
 import ToolGroup from '../common/ToolGroup.vue'
 import FontControls from './FontControls.vue'
+import CellAlignIcon from '../common/icons/CellAlignIcon.vue'
 // Props drive toolbar echo from active cell style
 const props = defineProps<{
   fontFamily?: string | number
@@ -12,6 +14,8 @@ const props = defineProps<{
   underline?: boolean
   strikethrough?: boolean
   fontColor?: string
+  horizontalAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
 }>()
 
 // Emits: merge/unmerge and styling commands upward to layout/app
@@ -27,7 +31,20 @@ const emit = defineEmits<{
   (e: 'toggle-italic', enabled: boolean): void
   (e: 'toggle-underline', enabled: boolean): void
   (e: 'toggle-strikethrough', enabled: boolean): void
+  (e: 'apply-horizontal-align', align: 'left' | 'center' | 'right'): void
+  (e: 'apply-vertical-align', align: 'top' | 'middle' | 'bottom'): void
 }>()
+
+const horizontalAlign = computed(() => props.horizontalAlign ?? 'left')
+const verticalAlign = computed(() => props.verticalAlign ?? 'middle')
+
+function setAlignment(alignment: {
+  horizontal?: 'left' | 'center' | 'right'
+  vertical?: 'top' | 'middle' | 'bottom'
+}) {
+  if (alignment.horizontal) emit('apply-horizontal-align', alignment.horizontal)
+  if (alignment.vertical) emit('apply-vertical-align', alignment.vertical)
+}
 </script>
 
 <template>
@@ -71,8 +88,95 @@ const emit = defineEmits<{
       @toggle-strikethrough="(v) => emit('toggle-strikethrough', v)"
     />
 
-    <!-- 合并/取消合并 -->
     <div class="vsep"></div>
+    <ToolGroup direction="vertical" :gap="2">
+      <ToolGroup :gap="2">
+        <ToolItem
+          label-position="none"
+          aria-label="左上对齐"
+          :active="horizontalAlign === 'left' && verticalAlign === 'top'"
+          @click="setAlignment({ horizontal: 'left', vertical: 'top' })"
+        >
+          <CellAlignIcon variant="top-left" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="右上对齐"
+          :active="horizontalAlign === 'right' && verticalAlign === 'top'"
+          @click="setAlignment({ horizontal: 'right', vertical: 'top' })"
+        >
+          <CellAlignIcon variant="top-right" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="水平居左"
+          :active="horizontalAlign === 'left'"
+          @click="setAlignment({ horizontal: 'left' })"
+        >
+          <CellAlignIcon variant="horizontal-left" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="水平居中"
+          :active="horizontalAlign === 'center'"
+          @click="setAlignment({ horizontal: 'center' })"
+        >
+          <CellAlignIcon variant="horizontal-center" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="水平居右"
+          :active="horizontalAlign === 'right'"
+          @click="setAlignment({ horizontal: 'right' })"
+        >
+          <CellAlignIcon variant="horizontal-right" />
+        </ToolItem>
+      </ToolGroup>
+      <ToolGroup :gap="2">
+        <ToolItem
+          label-position="none"
+          aria-label="左下对齐"
+          :active="horizontalAlign === 'left' && verticalAlign === 'bottom'"
+          @click="setAlignment({ horizontal: 'left', vertical: 'bottom' })"
+        >
+          <CellAlignIcon variant="bottom-left" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="右下对齐"
+          :active="horizontalAlign === 'right' && verticalAlign === 'bottom'"
+          @click="setAlignment({ horizontal: 'right', vertical: 'bottom' })"
+        >
+          <CellAlignIcon variant="bottom-right" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="垂直居上"
+          :active="verticalAlign === 'top'"
+          @click="setAlignment({ vertical: 'top' })"
+        >
+          <CellAlignIcon variant="vertical-top" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="垂直居中"
+          :active="verticalAlign === 'middle'"
+          @click="setAlignment({ vertical: 'middle' })"
+        >
+          <CellAlignIcon variant="vertical-middle" />
+        </ToolItem>
+        <ToolItem
+          label-position="none"
+          aria-label="垂直居下"
+          :active="verticalAlign === 'bottom'"
+          @click="setAlignment({ vertical: 'bottom' })"
+        >
+          <CellAlignIcon variant="vertical-bottom" />
+        </ToolItem>
+      </ToolGroup>
+    </ToolGroup>
+    <div class="vsep"></div>
+    <!-- 合并/取消合并 -->
     <ToolGroup :gap="2">
       <ToolItem label-position="none" aria-label="合并单元格" @click="emit('merge-cells')">
         <Combine :size="18" />

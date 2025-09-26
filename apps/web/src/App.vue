@@ -28,6 +28,8 @@ const tbBold = ref(false)
 const tbItalic = ref(false)
 const tbUnderline = ref(false)
 const tbStrike = ref(false)
+const tbHorizontalAlign = ref<'left' | 'center' | 'right'>('left')
+const tbVerticalAlign = ref<'top' | 'middle' | 'bottom'>('middle')
 const zoomPercent = ref(100)
 const zoomRatio = computed(() => Math.max(0.05, zoomPercent.value / 100))
 
@@ -189,6 +191,8 @@ function onReady(payload: {
       tbItalic.value = false
       tbUnderline.value = false
       tbStrike.value = false
+      tbHorizontalAlign.value = 'left'
+      tbVerticalAlign.value = 'middle'
       return
     }
     const v = api!.getCellValue(active.r, active.c)
@@ -202,6 +206,8 @@ function onReady(payload: {
     tbItalic.value = !!st?.font?.italic
     tbUnderline.value = !!st?.font?.underline
     tbStrike.value = !!st?.font?.strikethrough
+    tbHorizontalAlign.value = st?.alignment?.horizontal ?? 'left'
+    tbVerticalAlign.value = st?.alignment?.vertical ?? 'middle'
   })
 }
 
@@ -258,6 +264,14 @@ const onToggleStrikethrough = (v: boolean) => {
   api?.applyFontStrikethrough(v)
   tbStrike.value = v
 }
+const onApplyHorizontalAlign = (align: 'left' | 'center' | 'right') => {
+  api?.applyHorizontalAlign(align)
+  tbHorizontalAlign.value = align
+}
+const onApplyVerticalAlign = (align: 'top' | 'middle' | 'bottom') => {
+  api?.applyVerticalAlign(align)
+  tbVerticalAlign.value = align
+}
 
 function colName(n: number) {
   let s = ''
@@ -306,6 +320,8 @@ function onOpenContextMenu(e: MouseEvent) {
       :italic="tbItalic"
       :underline="tbUnderline"
       :strikethrough="tbStrike"
+      :horizontal-align="tbHorizontalAlign"
+      :vertical-align="tbVerticalAlign"
       @submit="applyFormula"
       @merge-cells="onMergeCells"
       @unmerge-cells="onUnmergeCells"
@@ -317,6 +333,8 @@ function onOpenContextMenu(e: MouseEvent) {
       @toggle-italic="onToggleItalic"
       @toggle-underline="onToggleUnderline"
       @toggle-strikethrough="onToggleStrikethrough"
+      @apply-horizontal-align="onApplyHorizontalAlign"
+      @apply-vertical-align="onApplyVerticalAlign"
     />
     <div style="flex: 1; min-height: 0" @contextmenu="onOpenContextMenu">
       <SheetCanvas

@@ -22,6 +22,8 @@ const props = defineProps<{
   underline?: boolean
   strikethrough?: boolean
   fontColor?: string
+  horizontalAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
 }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void
@@ -37,6 +39,8 @@ const emit = defineEmits<{
   (e: 'toggle-italic', enabled: boolean): void
   (e: 'toggle-underline', enabled: boolean): void
   (e: 'toggle-strikethrough', enabled: boolean): void
+  (e: 'apply-horizontal-align', align: 'left' | 'center' | 'right'): void
+  (e: 'apply-vertical-align', align: 'top' | 'middle' | 'bottom'): void
 }>()
 
 function onInput(e: Event) {
@@ -55,21 +59,25 @@ function onEnter() {
         :font-size="props.fontSize"
         :bold="props.bold"
         :italic="props.italic"
-        :underline="props.underline"
-        :strikethrough="props.strikethrough"
-        :font-color="props.fontColor"
-        @merge-cells="() => emit('merge-cells')"
-        @unmerge-cells="() => emit('unmerge-cells')"
-        @apply-fill="(c) => emit('apply-fill', c)"
-        @apply-border="(p) => emit('apply-border', p)"
-        @apply-font-color="(c) => emit('apply-font-color', c)"
-        @apply-font-family="(f) => emit('apply-font-family', f)"
-        @apply-font-size="(s) => emit('apply-font-size', s)"
-        @toggle-bold="(v) => emit('toggle-bold', v)"
-        @toggle-italic="(v) => emit('toggle-italic', v)"
-        @toggle-underline="(v) => emit('toggle-underline', v)"
-        @toggle-strikethrough="(v) => emit('toggle-strikethrough', v)"
-      />
+      :underline="props.underline"
+      :strikethrough="props.strikethrough"
+      :font-color="props.fontColor"
+      :horizontal-align="props.horizontalAlign"
+      :vertical-align="props.verticalAlign"
+      @merge-cells="() => emit('merge-cells')"
+      @unmerge-cells="() => emit('unmerge-cells')"
+      @apply-fill="(c) => emit('apply-fill', c)"
+      @apply-border="(p) => emit('apply-border', p)"
+      @apply-font-color="(c) => emit('apply-font-color', c)"
+      @apply-font-family="(f) => emit('apply-font-family', f)"
+      @apply-font-size="(s) => emit('apply-font-size', s)"
+      @toggle-bold="(v) => emit('toggle-bold', v)"
+      @toggle-italic="(v) => emit('toggle-italic', v)"
+      @toggle-underline="(v) => emit('toggle-underline', v)"
+      @toggle-strikethrough="(v) => emit('toggle-strikethrough', v)"
+      @apply-horizontal-align="(a) => emit('apply-horizontal-align', a)"
+      @apply-vertical-align="(a) => emit('apply-vertical-align', a)"
+    />
     </div>
     <div class="controls-row">
       <div class="range-card" :title="selectionText || ''">
